@@ -14,18 +14,59 @@
     .filter { flex: 1; max-width: 320px; }
     .muted { color: #666; font-size: 0.9rem; }
     .group-parent { background: #eef6ff; font-weight: 600; cursor: pointer; }
+    .layer-parent { background: #fff4e6; font-weight: 600; cursor: pointer; }
     .group-toggle { display: inline-inline; margin-right: .25rem; vertical-align: middle; }
     .group-toggle svg { width: 12px; height: 12px; display: inline-block; transition: transform .2s ease; }
     /* Right chevron rotates down when open */
     .group-parent[data-open='false'] .group-toggle svg { transform: rotate(0deg); }
     .group-parent:not([data-open='false']) .group-toggle svg { transform: rotate(90deg); }
+    .layer-parent[data-open='false'] .group-toggle svg { transform: rotate(0deg); }
+    .layer-parent:not([data-open='false']) .group-toggle svg { transform: rotate(90deg); }
     /* New rows visual marking */
     tr.is-new td { background: #fff7cc; }
     .badge-new { display:inline-block; background:#ffec99; color:#5c4400; border:1px solid #e6c466; border-radius:10px; padding:0 6px; font-size:11px; margin-right:6px; }
     .hidden { display: none; }
+    .api-indicator { 
+      position: fixed; 
+      top: 16px; 
+      right: 16px; 
+      background: white; 
+      border: 2px solid #ddd; 
+      border-radius: 8px; 
+      padding: 12px 16px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      font-size: 0.85rem;
+      max-width: 280px;
+    }
+    .api-indicator.connected { border-color: #4caf50; }
+    .api-indicator.error { border-color: #f44336; }
+    .api-status { 
+      display: flex; 
+      align-items: center; 
+      gap: 8px; 
+      font-weight: 600; 
+      margin-bottom: 6px;
+    }
+    .api-status-dot { 
+      width: 10px; 
+      height: 10px; 
+      border-radius: 50%; 
+      background: #ddd;
+    }
+    .api-status-dot.connected { background: #4caf50; }
+    .api-status-dot.error { background: #f44336; }
+    .api-details { color: #666; font-size: 0.8rem; line-height: 1.4; }
   </style>
 </head>
 <body>
+  <!-- API Status Indicator -->
+  <div id="apiIndicator" class="api-indicator">
+    <div class="api-status">
+      <span class="api-status-dot"></span>
+      <span>Ansluter till Boverket...</span>
+    </div>
+  </div>
+
   <div class="container">
     <h1>Visa tabell</h1>
     <p class="muted">VÃ¤lj en <strong>.xlsx</strong> (server) eller <strong>.csv/.tsv</strong> (klient). Filtrera globalt eller per kolumn. Gruppering sker pÃ¥ kolumnen "Type" om den finns.</p>
@@ -61,6 +102,117 @@
     </div>
   </div>
 
+  <!-- Climate Resource Mapping modal -->
+  <div id="climateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:16px; border-radius:8px; width: min(600px, 92vw); max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
+      <h2 style="margin-top:0;">Mappa klimatresurs</h2>
+      
+      <div style="margin-bottom: 16px;">
+        <label style="display:block; margin-bottom:8px; font-weight:600;">
+          Klimatresurs från Boverket
+        </label>
+        <select id="climateResourceSelect" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+          <option value="">Laddar resurser...</option>
+        </select>
+      </div>
+
+      <p class="muted">En ny kolumn "Klimatresurs" läggs till med den valda resursen.</p>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button id="climateCancel" type="button">Avbryt</button>
+        <button id="climateApply" type="button">Mappa</button>
+      </div>
+    </div>
+  </div>
+
   <script src="public/app.js"></script>
+
+  <script>
+    const apiIndicator = document.getElementById('apiIndicator');
+    const climateResourceSelect = document.getElementById('climateResourceSelect');
+    
+    // Store climate resources globally so they can be accessed when numbering
+    window.climateResources = [];
+    
+    fetch('https://api.boverket.se/klimatdatabas/v2/get-all-resources/senaste/sv/json')
+      .then(res =>{
+        return res.json();
+      })
+      .then(data =>{
+        console.log('API Response:', data); // Debug log
+        
+        // Update API indicator with success status
+        if(data && data.Resources && Array.isArray(data.Resources)){
+          const version = data.Version || 'Okänd version';
+          const publishedDate = data.PublishedDate ? new Date(data.PublishedDate).toLocaleDateString('sv-SE') : 'Okänt datum';
+          
+          apiIndicator.className = 'api-indicator connected';
+          apiIndicator.innerHTML = `
+            <div class="api-status">
+              <span class="api-status-dot connected"></span>
+              <span>Boverket API</span>
+            </div>
+            <div class="api-details">
+              Version: ${version}<br>
+              Publicerad: ${publishedDate}
+            </div>
+          `;
+          
+          // Store resources and populate dropdown
+          window.climateResources = data.Resources;
+          climateResourceSelect.innerHTML = '<option value="">Välj en resurs...</option>';
+          data.Resources.forEach((resource, index) =>{
+            const name = resource.Name || 'Namnlös resurs';
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = name;
+            climateResourceSelect.appendChild(option);
+          });
+        } else if(Array.isArray(data)){
+          // Fallback: if data is directly an array
+          apiIndicator.className = 'api-indicator connected';
+          apiIndicator.innerHTML = `
+            <div class="api-status">
+              <span class="api-status-dot connected"></span>
+              <span>Boverket API</span>
+            </div>
+          `;
+          
+          window.climateResources = data;
+          climateResourceSelect.innerHTML = '<option value="">Välj en resurs...</option>';
+          data.forEach((resource, index) =>{
+            const name = resource.Name || 'Namnlös resurs';
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = name;
+            climateResourceSelect.appendChild(option);
+          });
+        } else {
+          apiIndicator.className = 'api-indicator error';
+          apiIndicator.innerHTML = `
+            <div class="api-status">
+              <span class="api-status-dot error"></span>
+              <span>API-fel</span>
+            </div>
+            <div class="api-details">Oväntat format</div>
+          `;
+          climateResourceSelect.innerHTML = '<option value="">Inga resurser tillgängliga</option>';
+        }
+      })
+      .catch(err =>{
+        console.error('API Error:', err);
+        
+        // Update API indicator with error status
+        apiIndicator.className = 'api-indicator error';
+        apiIndicator.innerHTML = `
+          <div class="api-status">
+            <span class="api-status-dot error"></span>
+            <span>Anslutning misslyckades</span>
+          </div>
+          <div class="api-details">${err.message || 'Okänt fel'}</div>
+        `;
+        climateResourceSelect.innerHTML = '<option value="">Kunde inte ladda resurser</option>';
+      });
+    
+  </script>
 </body>
 </html>
