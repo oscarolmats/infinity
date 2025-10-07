@@ -1,4 +1,4 @@
-# Tabellen - Excel/CSV Viewer med Skiktfunktionalitet
+# INFINITY - Excel/CSV Viewer med Skiktfunktionalitet
 
 En webbapplikation för att visa och manipulera Excel- och CSV-filer med avancerad funktionalitet för att dela objekt i skikt.
 
