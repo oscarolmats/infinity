@@ -1,0 +1,17 @@
+{
+  "name": "tabellen",
+  "version": "1.0.0",
+  "description": "Excel och CSV tabellvisare",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "server": "^1.0.42"
+  }
+}
+

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Tabellen</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .picker { margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f6f6f6; position: sticky; top: 0; }
+    .filter { flex: 1; max-width: 320px; }
+    .muted { color: #666; font-size: 0.9rem; }
+    .group-parent { background: #eef6ff; font-weight: 600; cursor: pointer; }
+    .group-toggle { display: inline-inline; margin-right: .25rem; vertical-align: middle; }
+    .group-toggle svg { width: 12px; height: 12px; display: inline-block; transition: transform .2s ease; }
+    /* Right chevron rotates down when open */
+    .group-parent[data-open='false'] .group-toggle svg { transform: rotate(0deg); }
+    .group-parent:not([data-open='false']) .group-toggle svg { transform: rotate(90deg); }
+    /* New rows visual marking */
+    tr.is-new td { background: #fff7cc; }
+    .badge-new { display:inline-block; background:#ffec99; color:#5c4400; border:1px solid #e6c466; border-radius:10px; padding:0 6px; font-size:11px; margin-right:6px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Visa tabell</h1>
+    <p class="muted">VÃ¤lj en <strong>.xlsx</strong> (server) eller <strong>.csv/.tsv</strong> (klient). Filtrera globalt eller per kolumn. Gruppering sker pÃ¥ kolumnen "Type" om den finns.</p>
+    <div class="picker">
+      <input id="fileInput" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"/>
+      <input id="filterInput" class="filter" type="search" placeholder="Filtrera rader..." />
+      <label for="groupBy" class="muted">Gruppera efter:</label>
+      <select id="groupBy"></select>
+      <button id="toggleAllBtn" type="button">Fäll ihop alla</button>
+    </div>
+    <div id="output"></div>
+  </div>
+
+  <!-- Layer modal -->
+  <div id="layerModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:16px; border-radius:8px; width: min(520px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2);">
+      <h2 style="margin-top:0;">Dela i skikt</h2>
+      <div style="display:flex; gap:12px;">
+        <label style="flex:1;">
+          Antal skikt
+          <input id="layerCount" type="number" min="1" value="2" style="width:100%;" />
+        </label>
+        <label style="flex:2;">
+          Tjocklekar (kommaseparerade)
+          <input id="layerThicknesses" type="text" placeholder="t.ex. 10,5" style="width:100%;" />
+        </label>
+      </div>
+      <p class="muted">Lämna tjocklekar tomma för att fördela jämnt.</p>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button id="layerCancel" type="button">Avbryt</button>
+        <button id="layerApply" type="button">Dela</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="public/app.js"></script>
+</body>
+</html>
