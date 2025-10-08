@@ -54,20 +54,26 @@
     return layerChildOf ? `${baseSignature}::layer::${layerChildOf}` : baseSignature;
   }
   
-  // Get row data from a TR element, excluding action column and climate column
+  // Get row data from a TR element, excluding action column and climate/factor columns
   function getRowDataFromTr(tr){
     const table = tr.closest('table');
     if(!table) return null;
     const headers = Array.from(table.querySelectorAll('thead tr:first-child th')).map(th => th.textContent);
     const climateColIndex = headers.findIndex(h => h === 'Klimatresurs');
+    const factorColIndex = headers.findIndex(h => h === 'Omräkningsfaktor');
+    const unitColIndex = headers.findIndex(h => h === 'Omräkningsfaktor enhet');
+    const wasteColIndex = headers.findIndex(h => h === 'Avfallsfaktor');
     
     const cells = Array.from(tr.children);
     const rowData = [];
     
-    // Skip first cell (action column) and climate column if it exists
+    // Skip first cell (action column) and climate/factor/unit/waste columns if they exist
     for(let i = 1; i < cells.length; i++){
-      if(climateColIndex !== -1 && i === climateColIndex){
-        continue; // Skip climate column
+      if((climateColIndex !== -1 && i === climateColIndex) || 
+         (factorColIndex !== -1 && i === factorColIndex) || 
+         (unitColIndex !== -1 && i === unitColIndex) ||
+         (wasteColIndex !== -1 && i === wasteColIndex)){
+        continue; // Skip climate, factor, unit and waste columns
       }
       
       // Clone the cell and remove badges and decorations
@@ -281,19 +287,39 @@
   function applySavedClimate(tr, rowData){
     const layerChildOf = tr.getAttribute('data-layer-child-of');
     const signature = getRowSignature(rowData, layerChildOf);
-    const resourceName = climateData.get(signature);
-    if(resourceName){
+    const climateInfo = climateData.get(signature);
+    if(climateInfo){
       const table = getTable(); if(!table) return;
       const thead = table.querySelector('thead'); if(!thead) return;
       
       const headerRow = thead.querySelector('tr');
       const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
+      const existingFactorHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor');
+      const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Avfallsfaktor');
       
       if(!existingClimateHeader){
         const climateTh = document.createElement('th');
         climateTh.textContent = 'Klimatresurs';
         headerRow.appendChild(climateTh);
       }
+      
+      if(!existingFactorHeader){
+        const factorTh = document.createElement('th');
+        factorTh.textContent = 'Omräkningsfaktor';
+        headerRow.appendChild(factorTh);
+      }
+      
+      if(!existingWasteHeader){
+        const wasteTh = document.createElement('th');
+        wasteTh.textContent = 'Avfallsfaktor';
+        headerRow.appendChild(wasteTh);
+      }
+      
+      // Handle both old format (string) and new format (object)
+      const resourceName = typeof climateInfo === 'string' ? climateInfo : climateInfo.name;
+      const conversionFactor = typeof climateInfo === 'object' ? climateInfo.factor : 'N/A';
+      const conversionUnit = typeof climateInfo === 'object' ? climateInfo.unit : 'N/A';
+      const wasteFactor = typeof climateInfo === 'object' ? climateInfo.waste : 'N/A';
       
       const existingClimateCell = tr.querySelector('td[data-climate-cell="true"]');
       if(existingClimateCell){
@@ -303,6 +329,36 @@
         climateTd.textContent = resourceName;
         climateTd.setAttribute('data-climate-cell', 'true');
         tr.appendChild(climateTd);
+      }
+      
+      const existingFactorCell = tr.querySelector('td[data-factor-cell="true"]');
+      if(existingFactorCell){
+        existingFactorCell.textContent = conversionFactor;
+      } else {
+        const factorTd = document.createElement('td');
+        factorTd.textContent = conversionFactor;
+        factorTd.setAttribute('data-factor-cell', 'true');
+        tr.appendChild(factorTd);
+      }
+      
+      const existingUnitCell = tr.querySelector('td[data-unit-cell="true"]');
+      if(existingUnitCell){
+        existingUnitCell.textContent = conversionUnit;
+      } else {
+        const unitTd = document.createElement('td');
+        unitTd.textContent = conversionUnit;
+        unitTd.setAttribute('data-unit-cell', 'true');
+        tr.appendChild(unitTd);
+      }
+      
+      const existingWasteCell = tr.querySelector('td[data-waste-cell="true"]');
+      if(existingWasteCell){
+        existingWasteCell.textContent = wasteFactor;
+      } else {
+        const wasteTd = document.createElement('td');
+        wasteTd.textContent = wasteFactor;
+        wasteTd.setAttribute('data-waste-cell', 'true');
+        tr.appendChild(wasteTd);
       }
     }
   }
@@ -496,7 +552,22 @@
     // Add an empty header for actions (layer split)
     const actionTh = document.createElement('th'); actionTh.textContent = '';
     headerTr.appendChild(actionTh);
-    headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; headerTr.appendChild(th); });
+    
+    // Get existing table headers to preserve dynamically added columns
+    const existingTable = getTable();
+    let allHeaders = [...headers];
+    if(existingTable){
+      const existingHeaders = Array.from(existingTable.querySelectorAll('thead tr:first-child th')).map(th => th.textContent);
+      // Add any new headers that aren't in the original headers
+      const newHeaders = existingHeaders.slice(1); // Skip action column
+      newHeaders.forEach(h => {
+        if(!headers.includes(h)){
+          allHeaders.push(h);
+        }
+      });
+    }
+    
+    allHeaders.forEach(h => { const th = document.createElement('th'); th.textContent = h; headerTr.appendChild(th); });
     thead.appendChild(headerTr); table.appendChild(thead);
     const tbody = document.createElement('tbody');
 
@@ -538,7 +609,7 @@
       actionTd.appendChild(groupClimateBtn);
       
       parentTr.appendChild(actionTd);
-      for(let i = 0; i < headers.length; i++){
+      for(let i = 0; i < allHeaders.length; i++){
         const td = document.createElement('td');
         if(i === idxType){
           const toggle = document.createElement('span'); toggle.className = 'group-toggle';
@@ -576,7 +647,14 @@
         actionTd.appendChild(rowClimateBtn);
         
         tr.appendChild(actionTd);
+        // Add cells for original data
         r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+        // Add empty cells for any new columns that were added dynamically
+        for(let i = r.length; i < allHeaders.length; i++){
+          const td = document.createElement('td');
+          td.textContent = '';
+          tr.appendChild(td);
+        }
         tbody.appendChild(tr);
       });
 
@@ -605,12 +683,23 @@
     groupBySelect.innerHTML = '';
     const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = '(ingen)';
     groupBySelect.appendChild(noneOpt);
+    
+    // Get all rows to check if columns contain only numbers
+    const table = getTable();
+    const allRows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
+    
     headers.forEach((h, idx) => {
+      // Skip if this is a numeric-only column
+      if(isNumericOnlyColumn(allRows, idx)){
+        return;
+      }
+      
       const opt = document.createElement('option');
       opt.value = String(idx);
       opt.textContent = h;
       groupBySelect.appendChild(opt);
     });
+    
     // Preserve previous selection if still valid; otherwise default to no grouping
     const hasPrev = Array.from(groupBySelect.options).some(o => o.value === previous);
     if(previous && hasPrev){
@@ -620,12 +709,63 @@
       groupBySelect.value = '';
     }
   }
+  
+  function isNumericOnlyColumn(rows, columnIndex){
+    if(rows.length === 0) return false;
+    
+    // Check more rows to get a better sample (up to 20 rows or all rows if fewer)
+    const sampleRows = rows.slice(0, Math.min(20, rows.length));
+    let numericCount = 0;
+    let totalCount = 0;
+    let uniqueValues = new Set();
+    
+    for(const row of sampleRows){
+      const cells = Array.from(row.children);
+      // Make sure we have enough cells and account for action column
+      if(cells.length <= columnIndex + 1) continue;
+      
+      const cell = cells[columnIndex + 1]; // +1 to account for action column
+      
+      if(cell){
+        const cellText = cell.textContent.trim();
+        // Remove layer indicators and badges for clean text
+        const cleanText = cellText
+          .replace(/^\[Skikt \d+\/\d+\]\s*/, '')
+          .replace(/\s*\[\d+\s+skikt\]\s*$/, '')
+          .replace(/\s*\(\d+\)\s*$/, '')
+          .trim();
+        
+        if(cleanText !== ''){
+          totalCount++;
+          uniqueValues.add(cleanText);
+          const num = parseNumberLike(cleanText);
+          if(Number.isFinite(num)){
+            numericCount++;
+          }
+        }
+      }
+    }
+    
+    // Additional check: if column has very few unique values and they're all numbers, it's likely numeric-only
+    const isLowDiversityNumeric = uniqueValues.size <= 3 && numericCount === totalCount && totalCount > 0;
+    
+    // Consider it numeric-only if at least 90% of non-empty values are numbers OR if it's low diversity numeric
+    const isHighPercentageNumeric = totalCount > 0 && (numericCount / totalCount) >= 0.9;
+    
+    const result = isHighPercentageNumeric || isLowDiversityNumeric;
+    
+    // Debug logging
+    if(result){
+      console.log(`Column ${columnIndex} filtered out - Numeric: ${numericCount}/${totalCount}, Unique values: ${Array.from(uniqueValues).join(', ')}`);
+    }
+    
+    return result;
+  }
 
   function renderTableWithOptionalGrouping(rows){
     if(!rows || rows.length === 0){ output.innerHTML = '<div>Ingen data att visa.</div>'; return; }
     const headers = rows[0];
     const bodyRows = rows.slice(1);
-    if(groupBySelect){ populateGroupBy(headers); }
     const selected = groupBySelect ? groupBySelect.value : '';
     const groupIdx = selected === '' ? -1 : parseInt(selected, 10);
 
@@ -635,7 +775,22 @@
       const headerTr = document.createElement('tr');
       const actionTh = document.createElement('th'); actionTh.textContent = '';
       headerTr.appendChild(actionTh);
-      headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; headerTr.appendChild(th); });
+      
+      // Get existing table headers to preserve dynamically added columns
+      const existingTable = getTable();
+      let allHeaders = [...headers];
+      if(existingTable){
+        const existingHeaders = Array.from(existingTable.querySelectorAll('thead tr:first-child th')).map(th => th.textContent);
+        // Add any new headers that aren't in the original headers
+        const newHeaders = existingHeaders.slice(1); // Skip action column
+        newHeaders.forEach(h => {
+          if(!headers.includes(h)){
+            allHeaders.push(h);
+          }
+        });
+      }
+      
+      allHeaders.forEach(h => { const th = document.createElement('th'); th.textContent = h; headerTr.appendChild(th); });
       thead.appendChild(headerTr); table.appendChild(thead);
       const tbody = document.createElement('tbody');
       bodyRows.forEach(r => {
@@ -653,7 +808,14 @@
         actionTd.appendChild(rowClimateBtn);
         
         tr.appendChild(actionTd);
+        // Add cells for original data
         r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+        // Add empty cells for any new columns that were added dynamically
+        for(let i = r.length; i < allHeaders.length; i++){
+          const td = document.createElement('td');
+          td.textContent = '';
+          tr.appendChild(td);
+        }
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
@@ -669,9 +831,15 @@
           applySavedClimate(tr, rowData);
         }
       });
+      
+      // Populate group by options after table is created
+      if(groupBySelect){ populateGroupBy(headers); }
     } else {
       const table = buildGroupedTable(headers, bodyRows, groupIdx);
       output.innerHTML = ''; output.appendChild(table);
+      
+      // Populate group by options after table is created
+      if(groupBySelect){ populateGroupBy(headers); }
     }
     ensureColumnFilters();
     applyFilters();
@@ -942,9 +1110,12 @@
     const thead = table.querySelector('thead'); if(!thead) return;
     const tbody = table.querySelector('tbody'); if(!tbody) return;
     
-    // Check if "Klimatresurs" column already exists
+    // Check if "Klimatresurs", "Omräkningsfaktor", "Omräkningsfaktor enhet" and "Avfallsfaktor" columns already exist
     const headerRow = thead.querySelector('tr');
     const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
+    const existingFactorHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor');
+    const FactorUnit = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor enhet');
+    const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Avfallsfaktor');
     
     if(!existingClimateHeader){
       // Add "Klimatresurs" header
@@ -953,11 +1124,44 @@
       headerRow.appendChild(climateTh);
     }
     
+    if(!existingFactorHeader){
+      // Add "Omräkningsfaktor" header
+      const factorTh = document.createElement('th');
+      factorTh.textContent = 'Omräkningsfaktor';
+      headerRow.appendChild(factorTh);
+    }
+    
+    if(!FactorUnit){
+      // Add "Omräkningsfaktor enhet" header  
+      const factorTh = document.createElement('th');
+      factorTh.textContent = 'Omräkningsfaktor enhet';
+      headerRow.appendChild(factorTh);
+    }
+    
+    if(!existingWasteHeader){
+      // Add "Avfallsfaktor" header
+      const wasteTh = document.createElement('th');
+      wasteTh.textContent = 'Avfallsfaktor';
+      headerRow.appendChild(wasteTh);
+    }
+
     const resourceName = resource.Name || 'Namnlös resurs';
+    const conversionFactor = (resource.Conversions && resource.Conversions[0] && resource.Conversions[0].Value) || 
+                            resource.ConservativeDataConversionFactor || 
+                            resource.ConversionFactor || 
+                            resource.Factor || 
+                            resource.Omräkningsfaktor || 
+                            'N/A';
+    const conversionUnit = (resource.Conversions && resource.Conversions[0] && resource.Conversions[0].Unit) || 'N/A';
+    const wasteFactor = resource.WasteFactor || 'N/A';
     
     function addClimateToRow(tr){
-      // Check if row already has a climate cell
+      // Check if row already has climate cells
       const existingClimateCell = tr.querySelector('td[data-climate-cell="true"]');
+      const existingFactorCell = tr.querySelector('td[data-factor-cell="true"]');
+      const existingUnitCell = tr.querySelector('td[data-unit-cell="true"]');
+      const existingWasteCell = tr.querySelector('td[data-waste-cell="true"]');
+      
       if(existingClimateCell){
         existingClimateCell.textContent = resourceName;
       } else {
@@ -968,13 +1172,43 @@
         tr.appendChild(climateTd);
       }
       
+      if(existingFactorCell){
+        existingFactorCell.textContent = conversionFactor;
+      } else {
+        // Add new factor cell
+        const factorTd = document.createElement('td');
+        factorTd.textContent = conversionFactor;
+        factorTd.setAttribute('data-factor-cell', 'true');
+        tr.appendChild(factorTd);
+      }
+      
+      if(existingUnitCell){
+        existingUnitCell.textContent = conversionUnit;
+      } else {
+        // Add new unit cell
+        const unitTd = document.createElement('td');
+        unitTd.textContent = conversionUnit;
+        unitTd.setAttribute('data-unit-cell', 'true');
+        tr.appendChild(unitTd);
+      }
+      
+      if(existingWasteCell){
+        existingWasteCell.textContent = wasteFactor;
+      } else {
+        // Add new waste factor cell
+        const wasteTd = document.createElement('td');
+        wasteTd.textContent = wasteFactor;
+        wasteTd.setAttribute('data-waste-cell', 'true');
+        tr.appendChild(wasteTd);
+      }
+      
       // Save climate data for this row
       // Use original row data if available, otherwise extract from DOM
       const rowData = tr._originalRowData || getRowDataFromTr(tr);
       if(rowData){
         const layerChildOf = tr.getAttribute('data-layer-child-of');
         const signature = getRowSignature(rowData, layerChildOf);
-        climateData.set(signature, resourceName);
+        climateData.set(signature, { name: resourceName, factor: conversionFactor, unit: conversionUnit, waste: wasteFactor });
       }
     }
     
