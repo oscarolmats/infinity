@@ -15,6 +15,7 @@
   const layerThicknessesInput = document.getElementById('layerThicknesses');
   const layerCancelBtn = document.getElementById('layerCancel');
   const layerApplyBtn = document.getElementById('layerApply');
+  const layerMapClimateBtn = document.getElementById('layerMapClimate');
   let layerTarget = null; // { type: 'row'|'group', key?: string, rowEl?: HTMLTableRowElement }
   
   // Climate resource modal refs
@@ -23,6 +24,14 @@
   const climateCancelBtn = document.getElementById('climateCancel');
   const climateApplyBtn = document.getElementById('climateApply');
   let climateTarget = null; // { type: 'row'|'group', key?: string, rowEl?: HTMLTableRowElement }
+  
+  // Multi-layer climate modal refs
+  const multiLayerClimateModal = document.getElementById('multiLayerClimateModal');
+  const multiLayerClimateContent = document.getElementById('multiLayerClimateContent');
+  const multiLayerClimateCancelBtn = document.getElementById('multiLayerClimateCancel');
+  const multiLayerClimateNextBtn = document.getElementById('multiLayerClimateNext');
+  let multiLayerClimateTarget = null; // { layerRows: [], groupKey: string }
+  
   const output = document.getElementById('output');
 
   function parseDelimited(text){
@@ -61,20 +70,31 @@
     const headers = Array.from(table.querySelectorAll('thead tr:first-child th')).map(th => th.textContent);
     const climateColIndex = headers.findIndex(h => h === 'Klimatresurs');
     const factorColIndex = headers.findIndex(h => h === 'Omräkningsfaktor');
-    const unitColIndex = headers.findIndex(h => h === 'Omräkningsfaktor enhet');
-    const wasteColIndex = headers.findIndex(h => h === 'Avfallsfaktor');
-    
-    const cells = Array.from(tr.children);
-    const rowData = [];
-    
-    // Skip first cell (action column) and climate/factor/unit/waste columns if they exist
-    for(let i = 1; i < cells.length; i++){
-      if((climateColIndex !== -1 && i === climateColIndex) || 
-         (factorColIndex !== -1 && i === factorColIndex) || 
-         (unitColIndex !== -1 && i === unitColIndex) ||
-         (wasteColIndex !== -1 && i === wasteColIndex)){
-        continue; // Skip climate, factor, unit and waste columns
-      }
+      const unitColIndex = headers.findIndex(h => h === 'Omräkningsfaktor enhet');
+      const wasteColIndex = headers.findIndex(h => h === 'Spillfaktor');
+      const A1_A3ColIndex = headers.findIndex(h => h === 'Emissionsfaktor A1-A3');
+      const A4ColIndex = headers.findIndex(h => h === 'Emissionsfaktor A4');
+      const A5ColIndex = headers.findIndex(h => h === 'Emissionsfaktor A5');
+      const inbyggdViktColIndex = headers.findIndex(h => h === 'Inbyggd vikt');
+      const inkoptViktColIndex = headers.findIndex(h => h === 'Inköpt vikt');
+      
+      const cells = Array.from(tr.children);
+      const rowData = [];
+      
+      // Skip first cell (action column) and climate/factor/unit/waste columns if they exist
+      for(let i = 1; i < cells.length; i++){
+        if((climateColIndex !== -1 && i === climateColIndex) || 
+           (factorColIndex !== -1 && i === factorColIndex) || 
+           (unitColIndex !== -1 && i === unitColIndex) ||
+           (wasteColIndex !== -1 && i === wasteColIndex) ||
+           (A1_A3ColIndex !== -1 && i === A1_A3ColIndex) ||
+           (A4ColIndex !== -1 && i === A4ColIndex) ||
+           (A5ColIndex !== -1 && i === A5ColIndex) ||
+           (inbyggdViktColIndex !== -1 && i === inbyggdViktColIndex) ||
+           (inkoptViktColIndex !== -1 && i === inkoptViktColIndex)
+           ){
+          continue; // Skip climate, factor, unit, waste, emission and weight columns
+        }
       
       // Clone the cell and remove badges and decorations
       const tempDiv = document.createElement('div');
@@ -295,7 +315,11 @@
       const headerRow = thead.querySelector('tr');
       const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
       const existingFactorHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor');
-      const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Avfallsfaktor');
+      const existingUnitHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor enhet');
+      const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Spillfaktor');
+      const existingA1_A3Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A1-A3');
+      const existingA4Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A4');
+      const existingA5Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A5');
       
       if(!existingClimateHeader){
         const climateTh = document.createElement('th');
@@ -309,10 +333,48 @@
         headerRow.appendChild(factorTh);
       }
       
+      if(!existingUnitHeader){
+        const unitTh = document.createElement('th');
+        unitTh.textContent = 'Omräkningsfaktor enhet';
+        headerRow.appendChild(unitTh);
+      }
+      
       if(!existingWasteHeader){
         const wasteTh = document.createElement('th');
-        wasteTh.textContent = 'Avfallsfaktor';
+        wasteTh.textContent = 'Spillfaktor';
         headerRow.appendChild(wasteTh);
+      }
+      
+      if(!existingA1_A3Header){
+        const a1a3Th = document.createElement('th');
+        a1a3Th.textContent = 'Emissionsfaktor A1-A3';
+        headerRow.appendChild(a1a3Th);
+      }
+      
+      if(!existingA4Header){
+        const a4Th = document.createElement('th');
+        a4Th.textContent = 'Emissionsfaktor A4';
+        headerRow.appendChild(a4Th);
+      }
+      
+      if(!existingA5Header){
+        const a5Th = document.createElement('th');
+        a5Th.textContent = 'Emissionsfaktor A5';
+        headerRow.appendChild(a5Th);
+      }
+      
+      const existingInbyggdViktHeader = Array.from(headerRow.children).find(th => th.textContent === 'Inbyggd vikt');
+      if(!existingInbyggdViktHeader){
+        const inbyggdTh = document.createElement('th');
+        inbyggdTh.textContent = 'Inbyggd vikt';
+        headerRow.appendChild(inbyggdTh);
+      }
+      
+      const existingInkoptViktHeader = Array.from(headerRow.children).find(th => th.textContent === 'Inköpt vikt');
+      if(!existingInkoptViktHeader){
+        const inkoptTh = document.createElement('th');
+        inkoptTh.textContent = 'Inköpt vikt';
+        headerRow.appendChild(inkoptTh);
       }
       
       // Handle both old format (string) and new format (object)
@@ -320,6 +382,72 @@
       const conversionFactor = typeof climateInfo === 'object' ? climateInfo.factor : 'N/A';
       const conversionUnit = typeof climateInfo === 'object' ? climateInfo.unit : 'N/A';
       const wasteFactor = typeof climateInfo === 'object' ? climateInfo.waste : 'N/A';
+      const a1a3Factor = typeof climateInfo === 'object' ? climateInfo.a1a3 : 'N/A';
+      const a4Factor = typeof climateInfo === 'object' ? climateInfo.a4 : 'N/A';
+      const a5Factor = typeof climateInfo === 'object' ? climateInfo.a5 : 'N/A';
+      
+      // Calculate Inbyggd vikt and Inköpt vikt
+      let inbyggdVikt = 'N/A';
+      let inkoptVikt = 'N/A';
+      
+      // Get headers to find Volume and Net Area columns
+      const allHeaders = Array.from(headerRow.children).map(th => th.textContent);
+      const volumeColIndex = allHeaders.findIndex(h => String(h).toLowerCase() === 'volume');
+      const netAreaColIndex = allHeaders.findIndex(h => String(h).toLowerCase() === 'net area');
+      
+      console.log('🔍 Beräknar vikt - Unit:', conversionUnit, 'Factor:', conversionFactor, 'Waste:', wasteFactor);
+      console.log('🔍 Column indices - Volume:', volumeColIndex, 'NetArea:', netAreaColIndex);
+      console.log('🔍 Headers:', allHeaders);
+      
+      if(conversionFactor !== 'N/A' && Number.isFinite(parseFloat(conversionFactor))){
+        const factor = parseFloat(conversionFactor);
+        const cells = Array.from(tr.children);
+        
+        console.log('🔍 Factor is valid:', factor);
+        
+        // Normalize unit to handle both kg/m3 and kg/m³ (with superscript)
+        const normalizedUnit = String(conversionUnit).replace(/[²³]/g, function(match){
+          return match === '²' ? '2' : '3';
+        });
+        console.log('🔍 Normalized unit:', normalizedUnit);
+        
+        if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
+          // Inbyggd vikt = Omräkningsfaktor × Volume
+          const volumeCell = cells[volumeColIndex];
+          console.log('🔍 Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
+          if(volumeCell){
+            const volume = parseNumberLike(volumeCell.textContent);
+            console.log('🔍 Parsed volume:', volume);
+            if(Number.isFinite(volume)){
+              inbyggdVikt = factor * volume;
+              console.log('✅ Inbyggd vikt calculated:', inbyggdVikt);
+            }
+          }
+        } else if(normalizedUnit === 'kg/m2' && netAreaColIndex !== -1){
+          // Inbyggd vikt = Omräkningsfaktor × Net Area
+          const netAreaCell = cells[netAreaColIndex];
+          console.log('🔍 NetArea cell:', netAreaCell?.textContent, 'at index:', netAreaColIndex);
+          if(netAreaCell){
+            const netArea = parseNumberLike(netAreaCell.textContent);
+            console.log('🔍 Parsed netArea:', netArea);
+            if(Number.isFinite(netArea)){
+              inbyggdVikt = factor * netArea;
+              console.log('✅ Inbyggd vikt calculated:', inbyggdVikt);
+            }
+          }
+        } else {
+          console.log('❌ Unit mismatch or column not found. Unit:', conversionUnit, 'Normalized:', normalizedUnit, 'VolumeIdx:', volumeColIndex, 'NetAreaIdx:', netAreaColIndex);
+        }
+        
+        // Calculate Inköpt vikt = Inbyggd vikt × Spillfaktor
+        if(inbyggdVikt !== 'N/A' && wasteFactor !== 'N/A' && Number.isFinite(parseFloat(wasteFactor))){
+          const waste = parseFloat(wasteFactor);
+          inkoptVikt = inbyggdVikt * waste;
+          console.log('✅ Inköpt vikt calculated:', inkoptVikt);
+        }
+      } else {
+        console.log('❌ Conversion factor not valid:', conversionFactor);
+      }
       
       const existingClimateCell = tr.querySelector('td[data-climate-cell="true"]');
       if(existingClimateCell){
@@ -359,6 +487,56 @@
         wasteTd.textContent = wasteFactor;
         wasteTd.setAttribute('data-waste-cell', 'true');
         tr.appendChild(wasteTd);
+      }
+      
+      const existingA1_A3Cell = tr.querySelector('td[data-A1_A3-cell="true"]');
+      if(existingA1_A3Cell){
+        existingA1_A3Cell.textContent = a1a3Factor;
+      } else {
+        const a1a3Td = document.createElement('td');
+        a1a3Td.textContent = a1a3Factor;
+        a1a3Td.setAttribute('data-A1_A3-cell', 'true');
+        tr.appendChild(a1a3Td);
+      }
+      
+      const existingA4Cell = tr.querySelector('td[data-A4-cell="true"]');
+      if(existingA4Cell){
+        existingA4Cell.textContent = a4Factor;
+      } else {
+        const a4Td = document.createElement('td');
+        a4Td.textContent = a4Factor;
+        a4Td.setAttribute('data-A4-cell', 'true');
+        tr.appendChild(a4Td);
+      }
+      
+      const existingA5Cell = tr.querySelector('td[data-A5-cell="true"]');
+      if(existingA5Cell){
+        existingA5Cell.textContent = a5Factor;
+      } else {
+        const a5Td = document.createElement('td');
+        a5Td.textContent = a5Factor;
+        a5Td.setAttribute('data-A5-cell', 'true');
+        tr.appendChild(a5Td);
+      }
+      
+      const existingInbyggdViktCell = tr.querySelector('td[data-inbyggd-vikt-cell="true"]');
+      if(existingInbyggdViktCell){
+        existingInbyggdViktCell.textContent = inbyggdVikt !== 'N/A' ? inbyggdVikt.toFixed(2) : 'N/A';
+      } else {
+        const inbyggdViktTd = document.createElement('td');
+        inbyggdViktTd.textContent = inbyggdVikt !== 'N/A' ? inbyggdVikt.toFixed(2) : 'N/A';
+        inbyggdViktTd.setAttribute('data-inbyggd-vikt-cell', 'true');
+        tr.appendChild(inbyggdViktTd);
+      }
+      
+      const existingInkoptViktCell = tr.querySelector('td[data-inkopt-vikt-cell="true"]');
+      if(existingInkoptViktCell){
+        existingInkoptViktCell.textContent = inkoptVikt !== 'N/A' ? inkoptVikt.toFixed(2) : 'N/A';
+      } else {
+        const inkoptViktTd = document.createElement('td');
+        inkoptViktTd.textContent = inkoptVikt !== 'N/A' ? inkoptVikt.toFixed(2) : 'N/A';
+        inkoptViktTd.setAttribute('data-inkopt-vikt-cell', 'true');
+        tr.appendChild(inkoptViktTd);
       }
     }
   }
@@ -575,6 +753,8 @@
     const idxNetArea = headers.findIndex(h => String(h).toLowerCase() === 'net area');
     const idxVolume = headers.findIndex(h => String(h).toLowerCase() === 'volume');
     const idxCount = headers.findIndex(h => String(h).toLowerCase() === 'count');
+    const idxInbyggdVikt = allHeaders.findIndex(h => h === 'Inbyggd vikt');
+    const idxInkoptVikt = allHeaders.findIndex(h => h === 'Inköpt vikt');
 
     const groups = new Map();
     bodyRows.forEach(r => {
@@ -624,6 +804,14 @@
           td.textContent = String(sumVolume);
         } else if(hasCount && i === idxCount){
           td.textContent = String(sumCount);
+        } else if(i === idxInbyggdVikt){
+          // Mark as placeholder - will be calculated after rows are added
+          td.setAttribute('data-sum-inbyggd-vikt', 'true');
+          td.textContent = '';
+        } else if(i === idxInkoptVikt){
+          // Mark as placeholder - will be calculated after rows are added
+          td.setAttribute('data-sum-inkopt-vikt', 'true');
+          td.textContent = '';
         } else {
           td.textContent = '';
         }
@@ -650,9 +838,31 @@
         // Add cells for original data
         r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
         // Add empty cells for any new columns that were added dynamically
+        // Including climate columns with proper data attributes
         for(let i = r.length; i < allHeaders.length; i++){
+          const headerName = allHeaders[i];
           const td = document.createElement('td');
           td.textContent = '';
+          // Mark cells with data attributes so they can be found and updated by applySavedClimate
+          if(headerName === 'Klimatresurs'){
+            td.setAttribute('data-climate-cell', 'true');
+          } else if(headerName === 'Omräkningsfaktor'){
+            td.setAttribute('data-factor-cell', 'true');
+          } else if(headerName === 'Omräkningsfaktor enhet'){
+            td.setAttribute('data-unit-cell', 'true');
+          } else if(headerName === 'Spillfaktor'){
+            td.setAttribute('data-waste-cell', 'true');
+          } else if(headerName === 'Emissionsfaktor A1-A3'){
+            td.setAttribute('data-A1_A3-cell', 'true');
+          } else if(headerName === 'Emissionsfaktor A4'){
+            td.setAttribute('data-A4-cell', 'true');
+          } else if(headerName === 'Emissionsfaktor A5'){
+            td.setAttribute('data-A5-cell', 'true');
+          } else if(headerName === 'Inbyggd vikt'){
+            td.setAttribute('data-inbyggd-vikt-cell', 'true');
+          } else if(headerName === 'Inköpt vikt'){
+            td.setAttribute('data-inkopt-vikt-cell', 'true');
+          }
           tr.appendChild(td);
         }
         tbody.appendChild(tr);
@@ -671,6 +881,50 @@
       if(rowData){
         applySavedLayers(tr, rowData);
         applySavedClimate(tr, rowData);
+      }
+    });
+    
+    // Calculate weight sums for group parents after climate data is applied
+    const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
+    groupParents.forEach(parentTr => {
+      const groupKey = parentTr.getAttribute('data-group-key');
+      const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+      
+      let sumInbyggdVikt = 0;
+      let sumInkoptVikt = 0;
+      let countInbyggd = 0;
+      let countInkopt = 0;
+      
+      childRows.forEach(childTr => {
+        const inbyggdCell = childTr.querySelector('td[data-inbyggd-vikt-cell="true"]');
+        const inkoptCell = childTr.querySelector('td[data-inkopt-vikt-cell="true"]');
+        
+        if(inbyggdCell){
+          const val = parseNumberLike(inbyggdCell.textContent);
+          if(Number.isFinite(val)){
+            sumInbyggdVikt += val;
+            countInbyggd++;
+          }
+        }
+        
+        if(inkoptCell){
+          const val = parseNumberLike(inkoptCell.textContent);
+          if(Number.isFinite(val)){
+            sumInkoptVikt += val;
+            countInkopt++;
+          }
+        }
+      });
+      
+      // Update parent's sum cells
+      const parentInbyggdCell = parentTr.querySelector('td[data-sum-inbyggd-vikt="true"]');
+      if(parentInbyggdCell){
+        parentInbyggdCell.textContent = countInbyggd > 0 ? sumInbyggdVikt.toFixed(2) : '';
+      }
+      
+      const parentInkoptCell = parentTr.querySelector('td[data-sum-inkopt-vikt="true"]');
+      if(parentInkoptCell){
+        parentInkoptCell.textContent = countInkopt > 0 ? sumInkoptVikt.toFixed(2) : '';
       }
     });
     
@@ -811,9 +1065,31 @@
         // Add cells for original data
         r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
         // Add empty cells for any new columns that were added dynamically
+        // Including climate columns with proper data attributes
         for(let i = r.length; i < allHeaders.length; i++){
+          const headerName = allHeaders[i];
           const td = document.createElement('td');
           td.textContent = '';
+          // Mark cells with data attributes so they can be found and updated by applySavedClimate
+          if(headerName === 'Klimatresurs'){
+            td.setAttribute('data-climate-cell', 'true');
+          } else if(headerName === 'Omräkningsfaktor'){
+            td.setAttribute('data-factor-cell', 'true');
+          } else if(headerName === 'Omräkningsfaktor enhet'){
+            td.setAttribute('data-unit-cell', 'true');
+          } else if(headerName === 'Spillfaktor'){
+            td.setAttribute('data-waste-cell', 'true');
+          } else if(headerName === 'Emissionsfaktor A1-A3'){
+            td.setAttribute('data-A1_A3-cell', 'true');
+          } else if(headerName === 'Emissionsfaktor A4'){
+            td.setAttribute('data-A4-cell', 'true');
+          } else if(headerName === 'Emissionsfaktor A5'){
+            td.setAttribute('data-A5-cell', 'true');
+          } else if(headerName === 'Inbyggd vikt'){
+            td.setAttribute('data-inbyggd-vikt-cell', 'true');
+          } else if(headerName === 'Inköpt vikt'){
+            td.setAttribute('data-inkopt-vikt-cell', 'true');
+          }
           tr.appendChild(td);
         }
         tbody.appendChild(tr);
@@ -895,6 +1171,31 @@
   // Layer modal behavior
   function openLayerModal(target){
     layerTarget = target;
+    
+    // Pre-fill with existing values if editing an already layered item
+    if(target.type === 'group' && target.key){
+      // Find existing layer data for this group
+      const table = getTable();
+      if(table){
+        const tbody = table.querySelector('tbody');
+        if(tbody){
+          // Find a child row to get the layer data
+          const firstChild = tbody.querySelector(`tr[data-layer-child-of="${CSS.escape(target.key)}"]`);
+          if(firstChild){
+            const rowData = firstChild._originalRowData || getRowDataFromTr(firstChild);
+            if(rowData){
+              const signature = getRowSignature(rowData, target.key);
+              const saved = layerData.get(signature);
+              if(saved){
+                if(layerCountInput) layerCountInput.value = saved.count;
+                if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
+              }
+            }
+          }
+        }
+      }
+    }
+    
     if(layerModal){ layerModal.style.display = 'flex'; }
   }
   function closeLayerModal(){
@@ -922,6 +1223,274 @@
       const thicknesses = raw ? raw.split(',').map(s => parseFloat(s.trim().replace(',', '.'))).filter(n => Number.isFinite(n) && n > 0) : [];
       applyLayerSplit(count, thicknesses);
       closeLayerModal();
+    });
+  }
+  if(layerMapClimateBtn){
+    layerMapClimateBtn.addEventListener('click', function(){
+      console.log('🔧 [LayerMapClimate] Button clicked');
+      console.log('🔧 [LayerMapClimate] layerTarget:', layerTarget);
+      
+      // Save layerTarget before closing modal (which nulls it)
+      const savedTarget = layerTarget;
+      
+      // First apply the layering
+      const count = Math.max(1, parseInt(layerCountInput && layerCountInput.value || '1', 10));
+      const raw = (layerThicknessesInput && layerThicknessesInput.value || '').trim();
+      const thicknesses = raw ? raw.split(',').map(s => parseFloat(s.trim().replace(',', '.'))).filter(n => Number.isFinite(n) && n > 0) : [];
+      
+      console.log('🔧 [LayerMapClimate] Applying layers - count:', count, 'thicknesses:', thicknesses);
+      applyLayerSplit(count, thicknesses);
+      closeLayerModal();
+      
+      // Then open climate modal for the layers using saved target
+      if(savedTarget && savedTarget.type === 'group' && savedTarget.key){
+        console.log('🔧 [LayerMapClimate] Opening multi-layer climate modal for group:', savedTarget.key);
+        setTimeout(() => {
+          console.log('🔧 [LayerMapClimate] Timeout executed, opening multi-layer climate modal');
+          openMultiLayerClimateModal(savedTarget.key);
+        }, 100);
+      } else {
+        console.log('❌ [LayerMapClimate] Cannot open climate modal - savedTarget:', savedTarget);
+      }
+    });
+  }
+  
+  // Multi-layer climate modal functions
+  function openMultiLayerClimateModal(groupKey){
+    const table = getTable();
+    if(!table) return;
+    const tbody = table.querySelector('tbody');
+    if(!tbody) return;
+    
+    // Get all layer rows for this group
+    // These are rows that have data-group-child-of matching the groupKey
+    // AND have a data-layer-key (which identifies their layer number)
+    const layerRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"][data-layer-key]`));
+    
+    console.log('🔍 [openMultiLayerClimate] GroupKey:', groupKey, 'Found rows:', layerRows.length);
+    
+    if(layerRows.length === 0){
+      console.log('❌ No layer rows found for group:', groupKey);
+      return;
+    }
+    
+    // Group layer rows by their layer key to find unique layers
+    const layerKeySet = new Set();
+    layerRows.forEach(row => {
+      const layerKey = row.dataset.layerKey || '';
+      if(layerKey){
+        layerKeySet.add(layerKey);
+      }
+    });
+    
+    // Extract layer numbers from keys (e.g., "Wall_Layer_1" -> 1)
+    const uniqueLayers = Array.from(layerKeySet)
+      .map(key => {
+        const match = key.match(/_Layer_(\d+)$/);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter(num => num !== null)
+      .sort((a, b) => a - b);
+    
+    console.log('🔍 [openMultiLayerClimate] Unique layers:', uniqueLayers);
+    
+    if(uniqueLayers.length === 0){
+      console.log('❌ No valid layer numbers found');
+      return;
+    }
+    
+    multiLayerClimateTarget = { 
+      layerRows, 
+      groupKey, 
+      uniqueLayers,
+      currentLayerIndex: 0,
+      selectedResources: new Map() // layerNumber -> resource
+    };
+    
+    showNextLayerSelection();
+  }
+  
+  function showNextLayerSelection(){
+    if(!multiLayerClimateTarget) return;
+    
+    const { uniqueLayers, currentLayerIndex, selectedResources } = multiLayerClimateTarget;
+    
+    if(currentLayerIndex >= uniqueLayers.length){
+      // All layers have been selected, now apply them all
+      applyAllLayerResources();
+      return;
+    }
+    
+    const layerNum = uniqueLayers[currentLayerIndex];
+    
+    // Update modal title
+    const modalTitle = multiLayerClimateModal.querySelector('h2');
+    if(modalTitle){
+      modalTitle.textContent = `Välj klimatresurs för Skikt ${layerNum} (${currentLayerIndex + 1}/${uniqueLayers.length})`;
+    }
+    
+    // Show which layers have been selected
+    multiLayerClimateContent.innerHTML = '';
+    
+    // Show summary of previously selected layers
+    if(currentLayerIndex > 0){
+      const summaryDiv = document.createElement('div');
+      summaryDiv.style.cssText = 'margin-bottom:16px; padding:12px; background:#e8f5e9; border-radius:4px; border:1px solid #4caf50;';
+      
+      const summaryTitle = document.createElement('div');
+      summaryTitle.style.cssText = 'font-weight:600; margin-bottom:8px; color:#2e7d32;';
+      summaryTitle.textContent = 'Tidigare valda:';
+      summaryDiv.appendChild(summaryTitle);
+      
+      uniqueLayers.slice(0, currentLayerIndex).forEach(prevLayerNum => {
+        const resource = selectedResources.get(prevLayerNum);
+        if(resource){
+          const item = document.createElement('div');
+          item.style.cssText = 'padding:4px 0; color:#1b5e20;';
+          item.textContent = `Skikt ${prevLayerNum}: ${resource.Name || 'Namnlös'}`;
+          summaryDiv.appendChild(item);
+        }
+      });
+      
+      multiLayerClimateContent.appendChild(summaryDiv);
+    }
+    
+    // Current layer selection
+    const currentDiv = document.createElement('div');
+    currentDiv.style.cssText = 'border:2px solid #2196f3; padding:16px; border-radius:4px; background:#e3f2fd;';
+    
+    const label = document.createElement('label');
+    label.style.cssText = 'display:block; margin-bottom:8px; font-weight:600; font-size:16px; color:#1565c0;';
+    label.textContent = `Skikt ${layerNum}`;
+    
+    const select = document.createElement('select');
+    select.id = 'currentLayerSelect';
+    select.style.cssText = 'width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;';
+    
+    // Populate with climate resources
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Välj klimatresurs...';
+    select.appendChild(defaultOption);
+    
+    if(window.climateResources && Array.isArray(window.climateResources)){
+      window.climateResources.forEach((resource, resIndex) => {
+        const option = document.createElement('option');
+        option.value = resIndex;
+        option.textContent = resource.Name || 'Namnlös resurs';
+        select.appendChild(option);
+      });
+    }
+    
+    currentDiv.appendChild(label);
+    currentDiv.appendChild(select);
+    multiLayerClimateContent.appendChild(currentDiv);
+    
+    multiLayerClimateModal.style.display = 'flex';
+  }
+  
+  function applyAllLayerResources(){
+    if(!multiLayerClimateTarget) return;
+    
+    const { layerRows, groupKey, selectedResources, uniqueLayers } = multiLayerClimateTarget;
+    
+    // Build a map from layer number to the layer key pattern
+    const layerKeyPatterns = new Map();
+    uniqueLayers.forEach(layerNum => {
+      layerKeyPatterns.set(layerNum, groupKey + '_Layer_' + layerNum);
+    });
+    
+    console.log('🔍 [applyAllLayerResources] Layer key patterns:', Array.from(layerKeyPatterns.entries()));
+    
+    // Apply the appropriate resource to each layer row based on its layer key
+    layerRows.forEach(row => {
+      const layerKey = row.dataset.layerKey || '';
+      if(layerKey){
+        // Find which layer number this key corresponds to
+        const match = layerKey.match(/_Layer_(\d+)$/);
+        if(match){
+          const layerNumber = parseInt(match[1], 10);
+          const resource = selectedResources.get(layerNumber);
+          if(resource){
+            console.log('🔍 [applyAllLayerResources] Applying resource to layerKey:', layerKey, 'layerNum:', layerNumber, 'resource:', resource.Name);
+            climateTarget = { type: 'row', rowEl: row };
+            applyClimateResource(resource);
+          }
+        }
+      }
+    });
+    
+    // Update group weight sums after all mappings
+    if(groupKey){
+      const table = getTable();
+      if(table){
+        const tbody = table.querySelector('tbody');
+        if(tbody){
+          updateGroupWeightSums(groupKey, tbody);
+        }
+      }
+    }
+    
+    closeMultiLayerClimateModal();
+  }
+  
+  function closeMultiLayerClimateModal(){
+    multiLayerClimateTarget = null;
+    if(multiLayerClimateModal){ 
+      multiLayerClimateModal.style.display = 'none'; 
+    }
+    // Reset button text
+    if(multiLayerClimateNextBtn){
+      multiLayerClimateNextBtn.textContent = 'Nästa';
+    }
+  }
+  
+  if(multiLayerClimateCancelBtn){
+    multiLayerClimateCancelBtn.addEventListener('click', closeMultiLayerClimateModal);
+  }
+  
+  if(multiLayerClimateModal){
+    multiLayerClimateModal.addEventListener('click', function(e){
+      if(e.target === multiLayerClimateModal) closeMultiLayerClimateModal();
+    });
+  }
+  
+  if(multiLayerClimateNextBtn){
+    multiLayerClimateNextBtn.addEventListener('click', function(){
+      if(!multiLayerClimateTarget) return;
+      
+      const select = document.getElementById('currentLayerSelect');
+      if(!select) return;
+      
+      const selectedIndex = select.value;
+      if(selectedIndex === ''){
+        alert('Välj en klimatresurs först');
+        return;
+      }
+      
+      const { uniqueLayers, currentLayerIndex, selectedResources } = multiLayerClimateTarget;
+      const currentLayerNum = uniqueLayers[currentLayerIndex];
+      const resource = window.climateResources[selectedIndex];
+      
+      if(resource){
+        // Save the selection
+        selectedResources.set(currentLayerNum, resource);
+        
+        // Move to next layer
+        multiLayerClimateTarget.currentLayerIndex++;
+        
+        // Show next layer or finish
+        if(multiLayerClimateTarget.currentLayerIndex < uniqueLayers.length){
+          // Update button text for last layer
+          if(multiLayerClimateTarget.currentLayerIndex === uniqueLayers.length - 1){
+            multiLayerClimateNextBtn.textContent = 'Klar';
+          }
+          showNextLayerSelection();
+        } else {
+          // All done, apply all resources
+          applyAllLayerResources();
+        }
+      }
     });
   }
   if(climateApplyBtn){
@@ -1093,11 +1662,163 @@
     if(layerTarget.type === 'row' && layerTarget.rowEl){
       splitRow(layerTarget.rowEl);
     } else if(layerTarget.type === 'group' && layerTarget.key != null){
-      const rows = Array.from(tbody.querySelectorAll('tr[data-group-child-of="' + CSS.escape(layerTarget.key) + '"]'));
+      // Check if this group is already layered (has layer children)
+      const existingChildren = Array.from(tbody.querySelectorAll(`tr[data-layer-child-of="${CSS.escape(layerTarget.key)}"]`));
+      
+      if(existingChildren.length > 0){
+        // Re-layering: remove all existing layer children first
+        console.log('🔧 Omskiktar grupp - tar bort', existingChildren.length, 'befintliga skikt');
+        existingChildren.forEach(child => child.remove());
+        
+        // Also remove layer-parent class and attributes from parent
+        const parentTr = tbody.querySelector(`tr[data-layer-key="${CSS.escape(layerTarget.key)}"]`);
+        if(parentTr){
+          parentTr.classList.remove('layer-parent');
+          parentTr.removeAttribute('data-layer-key');
+          parentTr.removeAttribute('data-open');
+          
+          // Reset action buttons to original state
+          const actionTd = parentTr.querySelector('td:first-child');
+          if(actionTd){
+            actionTd.innerHTML = '';
+            const layerBtn = document.createElement('button');
+            layerBtn.type = 'button';
+            layerBtn.textContent = 'Skikta skikt';
+            layerBtn.addEventListener('click', function(ev){
+              ev.stopPropagation();
+              openLayerModal({ type: 'group', key: layerTarget.key });
+            });
+            actionTd.appendChild(layerBtn);
+            
+            const climateBtn = document.createElement('button');
+            climateBtn.type = 'button';
+            climateBtn.textContent = 'Mappa klimatresurs';
+            climateBtn.addEventListener('click', function(ev){
+              ev.stopPropagation();
+              openClimateModal({ type: 'group', key: layerTarget.key });
+            });
+            actionTd.appendChild(climateBtn);
+          }
+          
+          // Remove layer label from first data cell
+          const firstDataTd = parentTr.querySelector('td:nth-child(2)');
+          if(firstDataTd){
+            const toggle = firstDataTd.querySelector('.group-toggle');
+            const layerLabel = firstDataTd.querySelector('span:last-child');
+            if(toggle) toggle.remove();
+            if(layerLabel && layerLabel.textContent.includes('skikt')) layerLabel.remove();
+          }
+        }
+      }
+      
+      // Now split the group rows (which are no longer layer children)
+      const rows = Array.from(tbody.querySelectorAll('tr[data-group-child-of="' + CSS.escape(layerTarget.key) + '"]:not([data-layer-child-of])'));
       console.log('🔧 Skiktar grupp - antal rader:', rows.length);
-      rows.forEach((row, index) => {
-        console.log('🔧 Skiktar rad', index + 1, 'av', rows.length);
-        splitRow(row);
+      
+      // Generate layer keys for each layer NUMBER (not each row)
+      // So all rows in layer 1 share the same key, all rows in layer 2 share another key, etc.
+      const layerKeys = Array.from({ length: count }, (_, i) => 
+        layerTarget.key + '_Layer_' + (i + 1)
+      );
+      console.log('🔧 Genererade layerKeys:', layerKeys);
+      
+      rows.forEach((row, rowIndex) => {
+        console.log('🔧 Skiktar rad', rowIndex + 1, 'av', rows.length);
+        
+        // Split this row, but we need to set individual layerKeys for each child
+        // So we'll do it manually here instead of calling splitRow
+        const rowLayerKey = 'row-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        
+        // Save layer data for this row
+        const hasOriginal = !!row._originalRowData;
+        const rowData = row._originalRowData || getRowDataFromTr(row);
+        if(rowData && Array.isArray(rowData)){
+          const layerChildOf = row.getAttribute('data-layer-child-of');
+          const signature = getRowSignature(rowData, layerChildOf);
+          const beforeSize = layerData.size;
+          layerData.set(signature, { count, thicknesses, layerKey: rowLayerKey });
+          const afterSize = layerData.size;
+          console.log('💾 SAVE:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize, '- Signature:', signature.substring(0, 60));
+        }
+        
+        // Even split if no thicknesses provided
+        const multipliers = thicknesses.length > 0
+          ? thicknesses.map(t => t / thicknesses.reduce((a,b)=>a+b,0))
+          : Array(count).fill(1 / count);
+        
+        // Convert original row to parent row
+        row.classList.remove('is-new');
+        row.classList.add('layer-parent');
+        row.setAttribute('data-layer-key', rowLayerKey);
+        row.setAttribute('data-open', 'true');
+        
+        // Update action buttons on parent row
+        const actionTd = row.querySelector('td:first-child');
+        if(actionTd){
+          actionTd.innerHTML = '';
+          const parentLayerBtn = document.createElement('button');
+          parentLayerBtn.type = 'button';
+          parentLayerBtn.textContent = 'Skikta skikt';
+          parentLayerBtn.addEventListener('click', function(ev){
+            ev.stopPropagation();
+            openLayerModal({ type: 'group', key: rowLayerKey });
+          });
+          actionTd.appendChild(parentLayerBtn);
+          
+          const parentClimateBtn = document.createElement('button');
+          parentClimateBtn.type = 'button';
+          parentClimateBtn.textContent = 'Mappa klimatresurs';
+          parentClimateBtn.addEventListener('click', function(ev){
+            ev.stopPropagation();
+            openClimateModal({ type: 'group', key: rowLayerKey });
+          });
+          actionTd.appendChild(parentClimateBtn);
+        }
+        
+        // Add toggle to first data cell
+        const firstDataTd = row.querySelector('td:nth-child(2)');
+        if(firstDataTd){
+          const toggle = document.createElement('span');
+          toggle.className = 'group-toggle';
+          toggle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>';
+          firstDataTd.insertBefore(toggle, firstDataTd.firstChild);
+          
+          const layerLabel = document.createElement('span');
+          layerLabel.textContent = ' [' + multipliers.length + ' skikt]';
+          layerLabel.style.marginLeft = '4px';
+          firstDataTd.appendChild(layerLabel);
+        }
+        
+        // Preserve parent's group membership and original data for children
+        const parentGroupKey = row.getAttribute('data-group-child-of');
+        const originalRowData = row._originalRowData;
+        
+        // Create child layer rows
+        const fragments = multipliers.map((m, i) => {
+          const clone = cloneRowWithMultiplier(row, m, i, multipliers.length);
+          // Mark as child of this row's layer
+          clone.setAttribute('data-layer-child-of', rowLayerKey);
+          // Also inherit parent's group membership if it exists
+          if(parentGroupKey){
+            clone.setAttribute('data-group-child-of', parentGroupKey);
+          }
+          // Set immediate parent for toggle
+          clone.setAttribute('data-parent-key', rowLayerKey);
+          // Set the SHARED layer key for this layer number
+          clone.setAttribute('data-layer-key', layerKeys[i]);
+          // Preserve original row data
+          if(originalRowData){
+            clone._originalRowData = originalRowData;
+          }
+          return clone;
+        });
+        
+        // Insert layer children right after the parent
+        let insertAfter = row;
+        fragments.forEach(f => {
+          tbody.insertBefore(f, insertAfter.nextSibling);
+          insertAfter = f;
+        });
       });
     }
     // Re-apply filters to keep visibility consistent
@@ -1115,7 +1836,12 @@
     const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
     const existingFactorHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor');
     const FactorUnit = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor enhet');
-    const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Avfallsfaktor');
+    const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Spillfaktor');
+    const existingA1_A3Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A1-A3');
+    const existingA4Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A4');
+    const existingA5Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A5');
+    const existingInbyggdViktHeader = Array.from(headerRow.children).find(th => th.textContent === 'Inbyggd vikt');
+    const existingInkoptViktHeader = Array.from(headerRow.children).find(th => th.textContent === 'Inköpt vikt');
     
     if(!existingClimateHeader){
       // Add "Klimatresurs" header
@@ -1139,10 +1865,45 @@
     }
     
     if(!existingWasteHeader){
-      // Add "Avfallsfaktor" header
+      // Add "Spillfaktor" header
       const wasteTh = document.createElement('th');
-      wasteTh.textContent = 'Avfallsfaktor';
+      wasteTh.textContent = 'Spillfaktor';
       headerRow.appendChild(wasteTh);
+    }
+    
+    if(!existingA1_A3Header){
+      // Add "Emissionsfaktor A1-A3" header
+      const a1a3Th = document.createElement('th');
+      a1a3Th.textContent = 'Emissionsfaktor A1-A3';
+      headerRow.appendChild(a1a3Th);
+    }
+    
+    if(!existingA4Header){
+      // Add "Emissionsfaktor A4" header
+      const a4Th = document.createElement('th');
+      a4Th.textContent = 'Emissionsfaktor A4';
+      headerRow.appendChild(a4Th);
+    }
+    
+    if(!existingA5Header){
+      // Add "Emissionsfaktor A5" header
+      const a5Th = document.createElement('th');
+      a5Th.textContent = 'Emissionsfaktor A5';
+      headerRow.appendChild(a5Th);
+    }
+    
+    if(!existingInbyggdViktHeader){
+      // Add "Inbyggd vikt" header
+      const inbyggdTh = document.createElement('th');
+      inbyggdTh.textContent = 'Inbyggd vikt';
+      headerRow.appendChild(inbyggdTh);
+    }
+    
+    if(!existingInkoptViktHeader){
+      // Add "Inköpt vikt" header
+      const inkoptTh = document.createElement('th');
+      inkoptTh.textContent = 'Inköpt vikt';
+      headerRow.appendChild(inkoptTh);
     }
 
     const resourceName = resource.Name || 'Namnlös resurs';
@@ -1155,12 +1916,39 @@
     const conversionUnit = (resource.Conversions && resource.Conversions[0] && resource.Conversions[0].Unit) || 'N/A';
     const wasteFactor = resource.WasteFactor || 'N/A';
     
+    // Extract emission factors from DataItems
+    let a1a3Conservative = 'N/A';
+    let a4Value = 'N/A';
+    let a5Value = 'N/A';
+    if(resource.DataItems && Array.isArray(resource.DataItems) && resource.DataItems.length > 0){
+      const dataItem = resource.DataItems[0];
+      if(dataItem.DataValueItems && Array.isArray(dataItem.DataValueItems)){
+        const conservativeItem = dataItem.DataValueItems.find(item => item.DataModuleCode === 'A1-A3 Conservative');
+        if(conservativeItem && conservativeItem.Value !== undefined){
+          a1a3Conservative = conservativeItem.Value;
+        }
+        
+        const a4Item = dataItem.DataValueItems.find(item => item.DataModuleCode === 'A4');
+        if(a4Item && a4Item.Value !== undefined){
+          a4Value = a4Item.Value;
+        }
+        
+        const a5Item = dataItem.DataValueItems.find(item => item.DataModuleCode === 'A5.1');
+        if(a5Item && a5Item.Value !== undefined){
+          a5Value = a5Item.Value;
+        }
+      }
+    }
+    
     function addClimateToRow(tr){
       // Check if row already has climate cells
       const existingClimateCell = tr.querySelector('td[data-climate-cell="true"]');
       const existingFactorCell = tr.querySelector('td[data-factor-cell="true"]');
       const existingUnitCell = tr.querySelector('td[data-unit-cell="true"]');
       const existingWasteCell = tr.querySelector('td[data-waste-cell="true"]');
+      const existingA1_A3Cell = tr.querySelector('td[data-A1_A3-cell="true"]');
+      const existingA4Cell = tr.querySelector('td[data-A4-cell="true"]');
+      const existingA5Cell = tr.querySelector('td[data-A5-cell="true"]');
       
       if(existingClimateCell){
         existingClimateCell.textContent = resourceName;
@@ -1202,25 +1990,233 @@
         tr.appendChild(wasteTd);
       }
       
+      if(existingA1_A3Cell){
+        existingA1_A3Cell.textContent = a1a3Conservative;
+      } else {
+        // Add new A1-A3 cell
+        const a1a3Td = document.createElement('td');
+        a1a3Td.textContent = a1a3Conservative;
+        a1a3Td.setAttribute('data-A1_A3-cell', 'true');
+        tr.appendChild(a1a3Td);
+      }
+      
+      if(existingA4Cell){
+        existingA4Cell.textContent = a4Value;
+      } else {
+        // Add new A4 cell
+        const a4Td = document.createElement('td');
+        a4Td.textContent = a4Value;
+        a4Td.setAttribute('data-A4-cell', 'true');
+        tr.appendChild(a4Td);
+      }
+      
+      if(existingA5Cell){
+        existingA5Cell.textContent = a5Value;
+      } else {
+        // Add new A5 cell
+        const a5Td = document.createElement('td');
+        a5Td.textContent = a5Value;
+        a5Td.setAttribute('data-A5-cell', 'true');
+        tr.appendChild(a5Td);
+      }
+      
+      // Calculate Inbyggd vikt and Inköpt vikt for this row
+      let inbyggdVikt = 'N/A';
+      let inkoptVikt = 'N/A';
+      
+      // Get headers to find Volume and Net Area columns
+      const allHeaders = Array.from(headerRow.children).map(th => th.textContent);
+      const volumeColIndex = allHeaders.findIndex(h => String(h).toLowerCase() === 'volume');
+      const netAreaColIndex = allHeaders.findIndex(h => String(h).toLowerCase() === 'net area');
+      
+      console.log('🔍 [applyClimate] Beräknar vikt - Unit:', conversionUnit, 'Factor:', conversionFactor, 'Waste:', wasteFactor);
+      console.log('🔍 [applyClimate] Column indices - Volume:', volumeColIndex, 'NetArea:', netAreaColIndex);
+      console.log('🔍 [applyClimate] Headers:', allHeaders);
+      
+      if(conversionFactor !== 'N/A' && Number.isFinite(parseFloat(conversionFactor))){
+        const factor = parseFloat(conversionFactor);
+        const cells = Array.from(tr.children);
+        
+        console.log('🔍 [applyClimate] Factor is valid:', factor);
+        console.log('🔍 [applyClimate] Number of cells:', cells.length);
+        
+        // Normalize unit to handle both kg/m3 and kg/m³ (with superscript)
+        const normalizedUnit = String(conversionUnit).replace(/[²³]/g, function(match){
+          return match === '²' ? '2' : '3';
+        });
+        console.log('🔍 [applyClimate] Normalized unit:', normalizedUnit);
+        
+        if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
+          // Inbyggd vikt = Omräkningsfaktor × Volume
+          const volumeCell = cells[volumeColIndex];
+          console.log('🔍 [applyClimate] Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
+          if(volumeCell){
+            const volume = parseNumberLike(volumeCell.textContent);
+            console.log('🔍 [applyClimate] Parsed volume:', volume);
+            if(Number.isFinite(volume)){
+              inbyggdVikt = factor * volume;
+              console.log('✅ [applyClimate] Inbyggd vikt calculated:', inbyggdVikt);
+            }
+          }
+        } else if(normalizedUnit === 'kg/m2' && netAreaColIndex !== -1){
+          // Inbyggd vikt = Omräkningsfaktor × Net Area
+          const netAreaCell = cells[netAreaColIndex];
+          console.log('🔍 [applyClimate] NetArea cell:', netAreaCell?.textContent, 'at index:', netAreaColIndex);
+          if(netAreaCell){
+            const netArea = parseNumberLike(netAreaCell.textContent);
+            console.log('🔍 [applyClimate] Parsed netArea:', netArea);
+            if(Number.isFinite(netArea)){
+              inbyggdVikt = factor * netArea;
+              console.log('✅ [applyClimate] Inbyggd vikt calculated:', inbyggdVikt);
+            }
+          }
+        } else {
+          console.log('❌ [applyClimate] Unit mismatch or column not found. Unit:', conversionUnit, 'Normalized:', normalizedUnit, 'VolumeIdx:', volumeColIndex, 'NetAreaIdx:', netAreaColIndex);
+        }
+        
+        // Calculate Inköpt vikt = Inbyggd vikt × Spillfaktor
+        if(inbyggdVikt !== 'N/A' && wasteFactor !== 'N/A' && Number.isFinite(parseFloat(wasteFactor))){
+          const waste = parseFloat(wasteFactor);
+          inkoptVikt = inbyggdVikt * waste;
+          console.log('✅ [applyClimate] Inköpt vikt calculated:', inkoptVikt);
+        }
+      } else {
+        console.log('❌ [applyClimate] Conversion factor not valid:', conversionFactor);
+      }
+      
+      const existingInbyggdViktCell = tr.querySelector('td[data-inbyggd-vikt-cell="true"]');
+      if(existingInbyggdViktCell){
+        existingInbyggdViktCell.textContent = inbyggdVikt !== 'N/A' ? inbyggdVikt.toFixed(2) : 'N/A';
+      } else {
+        const inbyggdViktTd = document.createElement('td');
+        inbyggdViktTd.textContent = inbyggdVikt !== 'N/A' ? inbyggdVikt.toFixed(2) : 'N/A';
+        inbyggdViktTd.setAttribute('data-inbyggd-vikt-cell', 'true');
+        tr.appendChild(inbyggdViktTd);
+      }
+      
+      const existingInkoptViktCell = tr.querySelector('td[data-inkopt-vikt-cell="true"]');
+      if(existingInkoptViktCell){
+        existingInkoptViktCell.textContent = inkoptVikt !== 'N/A' ? inkoptVikt.toFixed(2) : 'N/A';
+      } else {
+        const inkoptViktTd = document.createElement('td');
+        inkoptViktTd.textContent = inkoptVikt !== 'N/A' ? inkoptVikt.toFixed(2) : 'N/A';
+        inkoptViktTd.setAttribute('data-inkopt-vikt-cell', 'true');
+        tr.appendChild(inkoptViktTd);
+      }
+      
       // Save climate data for this row
       // Use original row data if available, otherwise extract from DOM
       const rowData = tr._originalRowData || getRowDataFromTr(tr);
       if(rowData){
         const layerChildOf = tr.getAttribute('data-layer-child-of');
         const signature = getRowSignature(rowData, layerChildOf);
-        climateData.set(signature, { name: resourceName, factor: conversionFactor, unit: conversionUnit, waste: wasteFactor });
+        climateData.set(signature, { name: resourceName, factor: conversionFactor, unit: conversionUnit, waste: wasteFactor, a1a3: a1a3Conservative, a4: a4Value, a5: a5Value });
       }
     }
     
     if(climateTarget.type === 'row' && climateTarget.rowEl){
       addClimateToRow(climateTarget.rowEl);
+      
+      // Update parent row's weight sums if this row belongs to a group
+      const groupKey = climateTarget.rowEl.getAttribute('data-group-child-of');
+      if(groupKey){
+        updateGroupWeightSums(groupKey, tbody);
+      }
     } else if(climateTarget.type === 'group' && climateTarget.key != null){
       const rows = Array.from(tbody.querySelectorAll('tr[data-group-child-of="' + CSS.escape(climateTarget.key) + '"]'));
       rows.forEach(addClimateToRow);
+      
+      // Update parent row's weight sums after applying climate to all children
+      updateGroupWeightSums(climateTarget.key, tbody);
     }
     
     // Re-apply filters to keep visibility consistent
     applyFilters();
+  }
+  
+  // Helper function to update weight sums for a group parent
+  function updateGroupWeightSums(groupKey, tbody){
+    console.log('🔍 [updateGroupWeightSums] Called with groupKey:', groupKey);
+    const parentTr = tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(groupKey)}"]`);
+    console.log('🔍 [updateGroupWeightSums] Found parent:', !!parentTr);
+    if(!parentTr) return;
+    
+    const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+    console.log('🔍 [updateGroupWeightSums] Number of children:', childRows.length);
+    
+    let sumInbyggdVikt = 0;
+    let sumInkoptVikt = 0;
+    let countInbyggd = 0;
+    let countInkopt = 0;
+    
+    childRows.forEach(childTr => {
+      const inbyggdCell = childTr.querySelector('td[data-inbyggd-vikt-cell="true"]');
+      const inkoptCell = childTr.querySelector('td[data-inkopt-vikt-cell="true"]');
+      
+      if(inbyggdCell){
+        const val = parseNumberLike(inbyggdCell.textContent);
+        console.log('🔍 [updateGroupWeightSums] Inbyggd cell value:', inbyggdCell.textContent, 'Parsed:', val);
+        if(Number.isFinite(val)){
+          sumInbyggdVikt += val;
+          countInbyggd++;
+        }
+      }
+      
+      if(inkoptCell){
+        const val = parseNumberLike(inkoptCell.textContent);
+        console.log('🔍 [updateGroupWeightSums] Inkopt cell value:', inkoptCell.textContent, 'Parsed:', val);
+        if(Number.isFinite(val)){
+          sumInkoptVikt += val;
+          countInkopt++;
+        }
+      }
+    });
+    
+    console.log('🔍 [updateGroupWeightSums] Sums - Inbyggd:', sumInbyggdVikt, 'count:', countInbyggd, 'Inkopt:', sumInkoptVikt, 'count:', countInkopt);
+    
+    // Find the column indices for Inbyggd vikt and Inköpt vikt from headers
+    const table = parentTr.closest('table');
+    if(!table) return;
+    const thead = table.querySelector('thead');
+    if(!thead) return;
+    const headerRow = thead.querySelector('tr:first-child');
+    if(!headerRow) return;
+    
+    const headers = Array.from(headerRow.children).map(th => th.textContent);
+    const inbyggdViktColIndex = headers.findIndex(h => h === 'Inbyggd vikt');
+    const inkoptViktColIndex = headers.findIndex(h => h === 'Inköpt vikt');
+    
+    console.log('🔍 [updateGroupWeightSums] Column indices - Inbyggd:', inbyggdViktColIndex, 'Inkopt:', inkoptViktColIndex);
+    
+    // Update parent's cells by index
+    const parentCells = Array.from(parentTr.children);
+    console.log('🔍 [updateGroupWeightSums] Parent has', parentCells.length, 'cells, need at least', Math.max(inbyggdViktColIndex, inkoptViktColIndex) + 1);
+    
+    // If parent doesn't have enough cells, add them
+    const neededCells = Math.max(inbyggdViktColIndex, inkoptViktColIndex) + 1;
+    while(parentCells.length < neededCells){
+      const td = document.createElement('td');
+      td.textContent = '';
+      parentTr.appendChild(td);
+      parentCells.push(td);
+      console.log('🔧 [updateGroupWeightSums] Added missing cell, now has', parentCells.length, 'cells');
+    }
+    
+    if(inbyggdViktColIndex !== -1 && parentCells[inbyggdViktColIndex]){
+      const cell = parentCells[inbyggdViktColIndex];
+      cell.textContent = countInbyggd > 0 ? sumInbyggdVikt.toFixed(2) : '';
+      // Also add the attribute for future lookups
+      cell.setAttribute('data-sum-inbyggd-vikt', 'true');
+      console.log('✅ [updateGroupWeightSums] Updated Inbyggd cell to:', cell.textContent);
+    }
+    
+    if(inkoptViktColIndex !== -1 && parentCells[inkoptViktColIndex]){
+      const cell = parentCells[inkoptViktColIndex];
+      cell.textContent = countInkopt > 0 ? sumInkoptVikt.toFixed(2) : '';
+      // Also add the attribute for future lookups
+      cell.setAttribute('data-sum-inkopt-vikt', 'true');
+      console.log('✅ [updateGroupWeightSums] Updated Inkopt cell to:', cell.textContent);
+    }
   }
   
   output.addEventListener('input', function(e){ const t = e.target; if(t && t.closest && t.closest('thead') && t.tagName === 'INPUT'){ applyFilters(); } });

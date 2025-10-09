@@ -95,9 +95,12 @@
         </label>
       </div>
       <p class="muted">Lämna tjocklekar tomma för att fördela jämnt.</p>
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
-        <button id="layerCancel" type="button">Avbryt</button>
-        <button id="layerApply" type="button">Dela</button>
+      <div style="display:flex; gap:8px; justify-content:space-between; margin-top:12px;">
+        <button id="layerMapClimate" type="button" style="background:#4caf50; color:white; border:1px solid #45a049;">Mappa klimatresurs till skikt</button>
+        <div style="display:flex; gap:8px;">
+          <button id="layerCancel" type="button">Avbryt</button>
+          <button id="layerApply" type="button">Dela</button>
+        </div>
       </div>
     </div>
   </div>
@@ -120,6 +123,24 @@
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
         <button id="climateCancel" type="button">Avbryt</button>
         <button id="climateApply" type="button">Mappa</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-layer Climate Resource Mapping modal -->
+  <div id="multiLayerClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:16px; border-radius:8px; width: min(700px, 92vw); max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
+      <h2 style="margin-top:0;">Mappa klimatresurser till skikt</h2>
+      
+      <p class="muted" style="margin-bottom:16px;">Välj klimatresurs för varje skikt individuellt.</p>
+      
+      <div id="multiLayerClimateContent" style="display:flex; flex-direction:column; gap:12px;">
+        <!-- Will be populated dynamically -->
+      </div>
+
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+        <button id="multiLayerClimateCancel" type="button">Avbryt</button>
+        <button id="multiLayerClimateNext" type="button">Nästa</button>
       </div>
     </div>
   </div>
