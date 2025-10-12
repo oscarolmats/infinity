@@ -6,7 +6,7 @@
   <title>Tabellen</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 1rem; }
-    .container { max-width: 95vw; margin: 0 auto; }
+    .container { max-width: calc(95vw - 340px); margin: 0 auto; margin-right: 360px; }
     .picker { margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #ddd; padding: 8px; }
@@ -36,7 +36,8 @@
       padding: 12px 16px; 
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       font-size: 0.85rem;
-      max-width: 280px;
+      max-width: 300px;
+      width: 300px;
     }
     .api-indicator.connected { border-color: #4caf50; }
     .api-indicator.error { border-color: #f44336; }
@@ -56,6 +57,72 @@
     .api-status-dot.connected { background: #4caf50; }
     .api-status-dot.error { background: #f44336; }
     .api-details { color: #666; font-size: 0.8rem; line-height: 1.4; }
+    .climate-summary {
+      position: fixed;
+      top: 140px;
+      right: 16px;
+      background: white;
+      border: 2px solid #2196f3;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      font-size: 0.9rem;
+      width: 300px;
+    }
+    .climate-summary h3 {
+      margin: 0 0 12px 0;
+      font-size: 1rem;
+      color: #1976d2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .climate-summary-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      align-items: baseline;
+    }
+    .climate-summary-item:last-child {
+      border-bottom: none;
+      font-weight: 600;
+      font-size: 1.05em;
+      padding-top: 12px;
+      margin-top: 4px;
+      border-top: 2px solid #2196f3;
+    }
+    .climate-summary-label {
+      color: #555;
+    }
+    .climate-summary-value {
+      font-weight: 600;
+      color: #1976d2;
+      font-family: 'Courier New', monospace;
+    }
+    .climate-summary-total {
+      color: #1565c0 !important;
+      font-size: 1.1em;
+    }
+    
+    /* Responsive design for smaller screens */
+    @media (max-width: 1200px) {
+      .container {
+        max-width: 95vw;
+        margin-right: auto;
+      }
+      .api-indicator,
+      .climate-summary {
+        position: relative;
+        right: auto;
+        margin-bottom: 16px;
+        width: 100%;
+        max-width: 400px;
+      }
+      .climate-summary {
+        top: auto;
+      }
+    }
   </style>
 </head>
 <body>
@@ -64,6 +131,32 @@
     <div class="api-status">
       <span class="api-status-dot"></span>
       <span>Ansluter till Boverket...</span>
+    </div>
+  </div>
+
+  <!-- Climate Impact Summary -->
+  <div id="climateSummary" class="climate-summary" style="display: none;">
+    <h3>
+      <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+      </svg>
+      Klimatpåverkan
+    </h3>
+    <div class="climate-summary-item">
+      <span class="climate-summary-label">A1-A3 (produkt):</span>
+      <span class="climate-summary-value" id="summaryA1A3">0.00 kg CO₂e</span>
+    </div>
+    <div class="climate-summary-item">
+      <span class="climate-summary-label">A4 (transport):</span>
+      <span class="climate-summary-value" id="summaryA4">0.00 kg CO₂e</span>
+    </div>
+    <div class="climate-summary-item">
+      <span class="climate-summary-label">A5 (byggproduktion):</span>
+      <span class="climate-summary-value" id="summaryA5">0.00 kg CO₂e</span>
+    </div>
+    <div class="climate-summary-item">
+      <span class="climate-summary-label">Totalt:</span>
+      <span class="climate-summary-value climate-summary-total" id="summaryTotal">0.00 kg CO₂e</span>
     </div>
   </div>
 
@@ -76,6 +169,7 @@
       <label for="groupBy" class="muted">Gruppera efter:</label>
       <select id="groupBy"></select>
       <button id="toggleAllBtn" type="button">Fäll ihop alla</button>
+      <button id="exportBtn" type="button" style="background:#2196f3; color:white; border:1px solid #1976d2;">Exportera till Excel</button>
     </div>
     <div id="output"></div>
   </div>
@@ -145,6 +239,43 @@
     </div>
   </div>
 
+  <!-- Manual Conversion Factor modal -->
+  <div id="manualFactorModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 1000;">
+    <div style="background:#fff; padding:20px; border-radius:8px; width: min(500px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2);">
+      <h2 style="margin-top:0; color: #ff9800;">⚠️ Saknad omräkningsfaktor</h2>
+      
+      <p style="margin-bottom:16px;">
+        Den valda klimatresursen <strong id="manualFactorResourceName"></strong> saknar omräkningsfaktor i API:n.
+        Vänligen ange en egen omräkningsfaktor:
+      </p>
+
+      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
+        <label style="display:flex; flex-direction:column; gap:4px;">
+          <span style="font-weight:600;">Omräkningsfaktor:</span>
+          <input id="manualFactorValue" type="number" step="0.001" placeholder="t.ex. 2400" style="padding:8px; border:1px solid #ddd; border-radius:4px;" />
+        </label>
+
+        <label style="display:flex; flex-direction:column; gap:4px;">
+          <span style="font-weight:600;">Enhet:</span>
+          <select id="manualFactorUnit" style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+            <option value="kg/m3">kg/m³ (volym)</option>
+            <option value="kg/m2">kg/m² (area)</option>
+            <option value="kg/m">kg/m (längd)</option>
+            <option value="kg/st">kg/st (styck)</option>
+          </select>
+        </label>
+      </div>
+
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button id="manualFactorCancel" type="button">Avbryt</button>
+        <button id="manualFactorApply" type="button" style="background:#4caf50; color:white; border:1px solid #45a049;">Använd</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SheetJS library for Excel export -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  
   <script src="public/app.js"></script>
 
   <script>
