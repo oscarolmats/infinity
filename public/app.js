@@ -1880,20 +1880,27 @@
       }
       
       clone.classList.add('is-new');
+      
+      // FIRST: Read the tds before modifying anything
+      let tds = Array.from(clone.children);
+      
       // Try to scale numeric cells for Net Area, Volume, Count
       const headerTexts = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
       const idxNetArea = headerTexts.findIndex(h => String(h).toLowerCase() === 'net area');
       const idxVolume = headerTexts.findIndex(h => String(h).toLowerCase() === 'volume');
       const idxCount = headerTexts.findIndex(h => String(h).toLowerCase() === 'count');
-      const tds = Array.from(clone.children);
       
       // Read Net Area BEFORE scaling it (for volume calculation)
+      // Count backwards from the original end to find the right cells
+      const originalCellCount = tds.length;
+      const countCellIdx = originalCellCount - 1; // Last original cell = Count (tds[12])
+      const volumeCellIdx = countCellIdx - 1; // Second to last = Volume (tds[11])
+      const netAreaCellIdx = volumeCellIdx - 4; // Net Area is 4 cells before Volume (tds[7])
+      
       let originalNetArea = null;
-      if(idxNetArea >= 0){
-        const netAreaTd = tds[idxNetArea + 1];
-        if(netAreaTd){
-          originalNetArea = parseNumberLike(netAreaTd.textContent);
-        }
+      const netAreaTd = tds[netAreaCellIdx];
+      if(netAreaTd){
+        originalNetArea = parseNumberLike(netAreaTd.textContent);
       }
       
       // Add badge into first data cell (after action column)
@@ -1903,50 +1910,41 @@
         firstDataTd.insertBefore(badge, firstDataTd.firstChild);
       }
       
-      function scaleCell(idx){
-        if(idx < 0) return;
-        const td = tds[idx + 1] || null; // +1 offset for action column
-        if(!td) return;
-        const n = parseNumberLike(td.textContent);
-        if(Number.isFinite(n)){ td.textContent = String(n * multiplier); }
-      }
+      // Don't scale Net Area or Count - they remain unchanged
+      // Instead, update Thickness column with the layer thickness
       
-      // Scale Net Area and Count with multiplier
-      scaleCell(idxNetArea); 
-      scaleCell(idxCount);
+      // Find Thickness column: Net Area(7) -> Length(8) -> Thickness(9) -> Height(10) -> Volume(11)
+      const thicknessCellIdx = volumeCellIdx - 2; // Thickness is 2 cells before Volume
       
       // For Volume: if we have thickness specified, calculate Volume = Net Area × thickness (in meters)
-      console.log('🔍 Layer', layerIndex + 1, '- layerThickness:', layerThickness, 'idxVolume:', idxVolume, 'originalNetArea:', originalNetArea);
-      console.log('🔍 Total cells in row:', tds.length, 'Headers:', headerTexts.length);
-      
-      if(layerThickness && idxVolume >= 0 && originalNetArea !== null && Number.isFinite(originalNetArea)){
-        const volumeTd = tds[idxVolume + 1]; // +1 offset for action column
-        console.log('🔍 volumeTd found:', !!volumeTd, 'at index:', idxVolume + 1);
-        console.log('🔍 volumeTd current content BEFORE update:', volumeTd?.textContent);
-        if(volumeTd){
-          // Thickness is always in mm, convert to meters
+      if(layerThickness && originalNetArea !== null && Number.isFinite(originalNetArea)){
+        // Update Thickness cell with the layer thickness (convert from mm to m)
+        const thicknessTd = tds[thicknessCellIdx];
+        if(thicknessTd){
           const thicknessInMeters = layerThickness / 1000;
-          console.log('🔍 Converting from mm:', layerThickness, '→', thicknessInMeters, 'm');
-          
+          thicknessTd.textContent = String(thicknessInMeters);
+        }
+        
+        // Calculate and update Volume
+        const volumeTd = tds[volumeCellIdx];
+        if(volumeTd){
+          // Thickness is in mm, convert to meters for volume calculation
+          const thicknessInMeters = layerThickness / 1000;
           const newVolume = originalNetArea * thicknessInMeters;
-          console.log('✅ Calculated volume:', originalNetArea, '×', thicknessInMeters, '=', newVolume);
           volumeTd.textContent = String(newVolume);
-          console.log('📝 Set volumeTd.textContent to:', volumeTd.textContent);
-          
-          // Double check immediately after
-          setTimeout(() => {
-            console.log('⏱️ 10ms later, volumeTd.textContent is:', volumeTd.textContent);
-          }, 10);
-          setTimeout(() => {
-            console.log('⏱️ 100ms later, volumeTd.textContent is:', volumeTd.textContent);
-          }, 100);
         }
       } else {
-        console.log('❌ Falling back to multiplier. layerThickness:', layerThickness, 'idxVolume:', idxVolume, 'originalNetArea:', originalNetArea);
-        if(idxVolume >= 0){
-          // No thickness specified, use multiplier
-          scaleCell(idxVolume);
+        // No thickness specified, scale all numeric cells with multiplier
+        function scaleCell(tdIndex){
+          if(tdIndex < 0 || tdIndex >= tds.length) return;
+          const td = tds[tdIndex];
+          if(!td) return;
+          const n = parseNumberLike(td.textContent);
+          if(Number.isFinite(n)){ td.textContent = String(n * multiplier); }
         }
+        scaleCell(netAreaCellIdx);
+        scaleCell(volumeCellIdx);
+        scaleCell(countCellIdx);
       }
       
       return clone;
@@ -2047,21 +2045,49 @@
       // Insert layer children right after the parent
       let insertAfter = tr;
       fragments.forEach((f, idx) => {
-        // Log volume before insertion
-        const volumeCell = f.querySelector('td:nth-child(13)'); // Volume column
-        if(volumeCell){
-          console.log('🔷 Before insertion, layer', idx + 1, 'volume cell:', volumeCell.textContent);
-        }
-        
         tbody.insertBefore(f, insertAfter.nextSibling);
-        
-        // Log volume after insertion
-        if(volumeCell){
-          console.log('🔶 After insertion, layer', idx + 1, 'volume cell:', volumeCell.textContent);
-        }
-        
         insertAfter = f;
       });
+      
+      // Update parent row's Volume to show sum of all layers (AFTER creating children)
+      if(thicknesses.length > 0){
+        const parentTds = Array.from(tr.children);
+        const parentOriginalCellCount = parentTds.length; // Parent may have more cells after climate columns added
+        
+        // Use same backward counting as in cloneRowWithMultiplier
+        // Find where the original data ends (before any added climate columns)
+        let parentDataCellCount = parentOriginalCellCount;
+        // If parent has been extended with climate columns, find original end
+        for(let i = parentTds.length - 1; i >= 0; i--){
+          if(parentTds[i].hasAttribute('data-climate-cell') || 
+             parentTds[i].hasAttribute('data-factor-cell') ||
+             parentTds[i].textContent === ''){
+            parentDataCellCount = i;
+          } else {
+            break;
+          }
+        }
+        
+        const parentCountCellIdx = Math.min(12, parentDataCellCount - 1); // Count is typically at index 12
+        const parentVolumeCellIdx = parentCountCellIdx - 1; // Volume is before Count
+        const parentNetAreaCellIdx = parentVolumeCellIdx - 4; // Net Area is 4 cells before Volume
+        
+        const parentVolumeTd = parentTds[parentVolumeCellIdx];
+        const parentNetAreaTd = parentTds[parentNetAreaCellIdx];
+        
+        if(parentVolumeTd && parentNetAreaTd){
+          const netArea = parseNumberLike(parentNetAreaTd.textContent);
+          if(Number.isFinite(netArea)){
+            // Calculate total volume from all layers
+            let totalVolume = 0;
+            for(let i = 0; i < thicknesses.length; i++){
+              const thicknessInMeters = thicknesses[i] / 1000;
+              totalVolume += netArea * thicknessInMeters;
+            }
+            parentVolumeTd.textContent = String(totalVolume);
+          }
+        }
+      }
     }
 
     if(layerTarget.type === 'row' && layerTarget.rowEl){
@@ -2226,6 +2252,44 @@
           tbody.insertBefore(f, insertAfter.nextSibling);
           insertAfter = f;
         });
+        
+        // Update parent row's Volume to show sum of all layers (AFTER creating children)
+        if(thicknesses.length > 0){
+          const groupParentTds = Array.from(row.children);
+          const groupParentOriginalCellCount = groupParentTds.length;
+          
+          // Find where original data ends
+          let groupParentDataCellCount = groupParentOriginalCellCount;
+          for(let i = groupParentTds.length - 1; i >= 0; i--){
+            if(groupParentTds[i].hasAttribute('data-climate-cell') || 
+               groupParentTds[i].hasAttribute('data-factor-cell') ||
+               groupParentTds[i].textContent === ''){
+              groupParentDataCellCount = i;
+            } else {
+              break;
+            }
+          }
+          
+          const groupParentCountCellIdx = Math.min(12, groupParentDataCellCount - 1);
+          const groupParentVolumeCellIdx = groupParentCountCellIdx - 1;
+          const groupParentNetAreaCellIdx = groupParentVolumeCellIdx - 4;
+          
+          const groupParentVolumeTd = groupParentTds[groupParentVolumeCellIdx];
+          const groupParentNetAreaTd = groupParentTds[groupParentNetAreaCellIdx];
+          
+          if(groupParentVolumeTd && groupParentNetAreaTd){
+            const groupNetArea = parseNumberLike(groupParentNetAreaTd.textContent);
+            if(Number.isFinite(groupNetArea)){
+              // Calculate total volume from all layers
+              let groupTotalVolume = 0;
+              for(let i = 0; i < thicknesses.length; i++){
+                const groupThicknessInMeters = thicknesses[i] / 1000;
+                groupTotalVolume += groupNetArea * groupThicknessInMeters;
+              }
+              groupParentVolumeTd.textContent = String(groupTotalVolume);
+            }
+          }
+        }
       });
     }
     // Re-apply filters to keep visibility consistent
