@@ -26,6 +26,42 @@
     tr.is-new td { background: #fff7cc; }
     .badge-new { display:inline-block; background:#ffec99; color:#5c4400; border:1px solid #e6c466; border-radius:10px; padding:0 6px; font-size:11px; margin-right:6px; }
     .hidden { display: none; }
+    /* Editable cells */
+    td.editable { 
+      cursor: text;
+      position: relative;
+    }
+    td.editable:hover {
+      background: #f0f0f0;
+    }
+    td.editable input {
+      width: 100%;
+      border: 2px solid #4caf50;
+      padding: 6px;
+      font-family: inherit;
+      font-size: inherit;
+      box-sizing: border-box;
+    }
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #ddd;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .autocomplete-item {
+      padding: 8px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+    .autocomplete-item:hover {
+      background: #e3f2fd;
+    }
     .api-indicator { 
       position: fixed; 
       top: 16px; 
@@ -169,7 +205,12 @@
       <label for="groupBy" class="muted">Gruppera efter:</label>
       <select id="groupBy"></select>
       <button id="toggleAllBtn" type="button">Fäll ihop alla</button>
+      <button id="addRowBtn" type="button" style="background:#4caf50; color:white; border:1px solid #45a049;">Lägg till rad</button>
       <button id="exportBtn" type="button" style="background:#2196f3; color:white; border:1px solid #1976d2;">Exportera till Excel</button>
+      <button id="saveProjectBtn" type="button" style="background:#9c27b0; color:white; border:1px solid #7b1fa2;">💾 Spara</button>
+      <button id="saveAsProjectBtn" type="button" style="background:#7b1fa2; color:white; border:1px solid #6a1b9a;">Spara som...</button>
+      <button id="loadProjectBtn" type="button" style="background:#ff9800; color:white; border:1px solid #f57c00;">📂 Öppna projekt</button>
+      <input id="projectFileInput" type="file" accept=".json,application/json" style="display:none;" />
     </div>
     <div id="output"></div>
   </div>

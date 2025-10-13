@@ -3,8 +3,15 @@
   const filterInput = document.getElementById('filterInput');
   const toggleAllBtn = document.getElementById('toggleAllBtn');
   const exportBtn = document.getElementById('exportBtn');
+  const saveProjectBtn = document.getElementById('saveProjectBtn');
+  const saveAsProjectBtn = document.getElementById('saveAsProjectBtn');
+  const loadProjectBtn = document.getElementById('loadProjectBtn');
+  const projectFileInput = document.getElementById('projectFileInput');
   const groupBySelect = document.getElementById('groupBy');
   let lastRows = null; // cache of parsed rows for re-rendering
+  let lastHeaders = null; // cache of headers for project save/load
+  let originalFileName = null; // store original data file name
+  let savedFileHandle = null; // store file handle for quick save
   
   // Storage for layers and climate resources
   let layerData = new Map(); // key: row signature -> { count, thicknesses, layerKey }
@@ -176,7 +183,7 @@
       tr.classList.add('layer-parent');
       // Don't add 'group-parent' class, only layer-parent
       tr.setAttribute('data-layer-key', savedLayerKey);
-      tr.setAttribute('data-open', 'true');
+      tr.setAttribute('data-open', 'false'); // Start collapsed by default
       
       // Update action buttons on parent row
       const actionTd = tr.querySelector('td:first-child');
@@ -909,6 +916,7 @@
       const parentTr = document.createElement('tr');
       parentTr.className = 'group-parent';
       parentTr.setAttribute('data-group-key', String(key));
+      parentTr.setAttribute('data-open', 'false'); // Start collapsed by default
       // Create one cell per column so sums align under headers
       // Parent action cell (group layer)
       const actionTd = document.createElement('td');
@@ -917,7 +925,25 @@
       actionTd.appendChild(groupBtn);
       
       const groupClimateBtn = document.createElement('button'); groupClimateBtn.type = 'button'; groupClimateBtn.textContent = 'Mappa klimatresurs';
-      groupClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openClimateModal({ type: 'group', key: String(key) }); });
+      groupClimateBtn.addEventListener('click', function(ev){ 
+        ev.stopPropagation(); 
+        // Check if this group has been layered (has layer children with layer keys)
+        const table = groupBtn.closest('table');
+        if(table){
+          const tbody = table.querySelector('tbody');
+          if(tbody){
+            const layerRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(String(key))}"][data-layer-key]`));
+            if(layerRows.length > 0){
+              // Group is layered, open multi-layer climate modal
+              console.log('🔍 Opening multi-layer climate modal for layered group:', key);
+              openMultiLayerClimateModal(String(key));
+              return;
+            }
+          }
+        }
+        // Group is not layered, open regular climate modal
+        openClimateModal({ type: 'group', key: String(key) }); 
+      });
       actionTd.appendChild(groupClimateBtn);
       
       parentTr.appendChild(actionTd);
@@ -1218,6 +1244,7 @@
   function renderTableWithOptionalGrouping(rows){
     if(!rows || rows.length === 0){ output.innerHTML = '<div>Ingen data att visa.</div>'; return; }
     const headers = rows[0];
+    lastHeaders = headers; // Store headers for project save/load
     const bodyRows = rows.slice(1);
     const selected = groupBySelect ? groupBySelect.value : '';
     const groupIdx = selected === '' ? -1 : parseInt(selected, 10);
@@ -1325,11 +1352,39 @@
     ensureColumnFilters();
     applyFilters();
     
+    // Hide all child rows initially since parents start collapsed
+    const table = getTable();
+    if(table){
+      const tbody = table.querySelector('tbody');
+      if(tbody){
+        // Hide all group children
+        const groupChildren = tbody.querySelectorAll('tr[data-group-child-of]');
+        groupChildren.forEach(child => {
+          const parentKey = child.getAttribute('data-group-child-of');
+          const parent = tbody.querySelector(`tr[data-group-key="${CSS.escape(parentKey)}"]`);
+          if(parent && parent.getAttribute('data-open') === 'false'){
+            child.style.display = 'none';
+          }
+        });
+        
+        // Hide all layer children
+        const layerChildren = tbody.querySelectorAll('tr[data-parent-key]');
+        layerChildren.forEach(child => {
+          const parentKey = child.getAttribute('data-parent-key');
+          const parent = tbody.querySelector(`tr[data-layer-key="${CSS.escape(parentKey)}"]`);
+          if(parent && parent.getAttribute('data-open') === 'false'){
+            child.style.display = 'none';
+          }
+        });
+      }
+    }
+    
     // Update climate summary after rendering
     setTimeout(() => updateClimateSummary(), 100);
   }
 
   function handleFile(file){
+    originalFileName = file.name; // Store original file name
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     if(ext === 'xlsx'){
       output.textContent = 'Laser Excel...';
@@ -1380,6 +1435,208 @@
     exportBtn.addEventListener('click', function(){
       exportTableToExcel();
     });
+  }
+  
+  // Add row button
+  const addRowBtn = document.getElementById('addRowBtn');
+  if(addRowBtn){
+    addRowBtn.addEventListener('click', function(){
+      addNewRow();
+    });
+  }
+  
+  function addNewRow(){
+    const table = getTable();
+    if(!table) {
+      alert('Ladda en tabell först');
+      return;
+    }
+    
+    const tbody = table.querySelector('tbody');
+    const thead = table.querySelector('thead');
+    if(!tbody || !thead) return;
+    
+    // Get headers
+    const headers = Array.from(thead.querySelectorAll('th')).map(th => th.textContent);
+    
+    // Filter out climate-related headers - new rows should not have these initially
+    const climateHeaders = ['Klimatresurs', 'Omräkningsfaktor', 'Omräkningsfaktor enhet', 'Spillfaktor', 
+                           'Emissionsfaktor A1-A3', 'Emissionsfaktor A4', 'Emissionsfaktor A5',
+                           'Inbyggd vikt', 'Inköpt vikt', 'Klimatpåverkan A1-A3', 'Klimatpåverkan A4', 'Klimatpåverkan A5'];
+    const baseHeaders = headers.filter(h => !climateHeaders.includes(h) && h.trim() !== '');
+    
+    // Get all existing values for autocomplete (only from base headers)
+    const columnValues = new Map();
+    baseHeaders.forEach((header, idx) => {
+      columnValues.set(idx, new Set());
+    });
+    
+    // Collect unique values from each column
+    Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+      // Skip parent rows
+      if(tr.classList.contains('group-parent') || tr.classList.contains('layer-parent')) return;
+      
+      const dataCells = Array.from(tr.querySelectorAll('td')).slice(0, baseHeaders.length + 1); // +1 for action
+      dataCells.forEach((td, idx) => {
+        if(idx === 0) return; // Skip action column
+        const value = td.textContent.trim();
+        if(value){
+          columnValues.get(idx - 1)?.add(value);
+        }
+      });
+    });
+    
+    // Create new row
+    const newTr = document.createElement('tr');
+    newTr.classList.add('is-new');
+    
+    // Action cell with save button
+    const actionTd = document.createElement('td');
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Spara';
+    saveBtn.style.background = '#4caf50';
+    saveBtn.style.color = 'white';
+    saveBtn.addEventListener('click', function(){
+      finalizeNewRow(newTr);
+    });
+    actionTd.appendChild(saveBtn);
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Avbryt';
+    cancelBtn.addEventListener('click', function(){
+      newTr.remove();
+    });
+    actionTd.appendChild(cancelBtn);
+    
+    newTr.appendChild(actionTd);
+    
+    // Create editable cells ONLY for base columns (not climate columns)
+    baseHeaders.forEach((header, idx) => {
+      const td = document.createElement('td');
+      td.classList.add('editable');
+      td.textContent = '';
+      
+      // Make cell clickable to edit
+      if(td.classList.contains('editable')){
+        td.addEventListener('click', function(){
+          if(td.querySelector('input')) return; // Already editing
+        
+        const currentValue = td.textContent;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentValue;
+        
+        // Create autocomplete list
+        const autocompleteDiv = document.createElement('div');
+        autocompleteDiv.className = 'autocomplete-list';
+        autocompleteDiv.style.display = 'none';
+        
+        // Show autocomplete on input
+        input.addEventListener('input', function(){
+          const searchTerm = input.value.toLowerCase();
+          const values = Array.from(columnValues.get(idx) || []);
+          const filtered = values.filter(v => v.toLowerCase().includes(searchTerm));
+          
+          if(filtered.length > 0 && searchTerm){
+            autocompleteDiv.innerHTML = '';
+            filtered.slice(0, 10).forEach(value => {
+              const item = document.createElement('div');
+              item.className = 'autocomplete-item';
+              item.textContent = value;
+              item.addEventListener('click', function(){
+                input.value = value;
+                autocompleteDiv.style.display = 'none';
+              });
+              autocompleteDiv.appendChild(item);
+            });
+            autocompleteDiv.style.display = 'block';
+          } else {
+            autocompleteDiv.style.display = 'none';
+          }
+        });
+        
+        // Save on Enter
+        input.addEventListener('keydown', function(e){
+          if(e.key === 'Enter'){
+            td.textContent = input.value;
+            td.innerHTML = td.textContent; // Remove input
+            autocompleteDiv.remove();
+          } else if(e.key === 'Escape'){
+            td.innerHTML = currentValue;
+            autocompleteDiv.remove();
+          }
+        });
+        
+        // Save on blur
+        input.addEventListener('blur', function(){
+          setTimeout(() => {
+            td.textContent = input.value;
+            td.innerHTML = td.textContent; // Remove input
+            autocompleteDiv.remove();
+          }, 200); // Delay to allow clicking autocomplete
+        });
+        
+        td.innerHTML = '';
+        td.appendChild(input);
+        td.appendChild(autocompleteDiv);
+        input.focus();
+        });
+      }
+      
+      newTr.appendChild(td);
+    });
+    
+    // Insert at top of tbody
+    tbody.insertBefore(newTr, tbody.firstChild);
+  }
+  
+  function finalizeNewRow(tr){
+    // Remove editable class and convert to normal row
+    tr.classList.remove('is-new');
+    
+    // Get all cell values
+    const cells = Array.from(tr.querySelectorAll('td.editable'));
+    const rowData = cells.map(td => td.textContent.trim());
+    
+    // Store as original row data
+    tr._originalRowData = rowData;
+    
+    // Add to lastRows so it persists when re-grouping
+    if(lastRows){
+      lastRows.push(rowData);
+      console.log('✅ Added to lastRows, new count:', lastRows.length);
+    }
+    
+    // Replace action buttons with standard ones
+    const actionTd = tr.querySelector('td:first-child');
+    if(actionTd){
+      actionTd.innerHTML = '';
+      
+      const layerBtn = document.createElement('button');
+      layerBtn.type = 'button';
+      layerBtn.textContent = 'Skikta';
+      layerBtn.addEventListener('click', function(ev){ 
+        ev.stopPropagation(); 
+        openLayerModal({ type: 'row', rowEl: tr }); 
+      });
+      actionTd.appendChild(layerBtn);
+      
+      const climateBtn = document.createElement('button');
+      climateBtn.type = 'button';
+      climateBtn.textContent = 'Mappa klimatresurs';
+      climateBtn.addEventListener('click', function(ev){ 
+        ev.stopPropagation(); 
+        openClimateModal({ type: 'row', rowEl: tr }); 
+      });
+      actionTd.appendChild(climateBtn);
+    }
+    
+    // Remove editable class from cells
+    cells.forEach(td => td.classList.remove('editable'));
+    
+    console.log('✅ New row saved:', rowData);
   }
   
   function exportTableToExcel(){
@@ -1465,7 +1722,27 @@
     layerTarget = target;
     
     // Pre-fill with existing values if editing an already layered item
-    if(target.type === 'group' && target.key){
+    if(target.type === 'row' && target.rowEl){
+      // For a single row, check if it's a layer parent
+      const layerKey = target.rowEl.getAttribute('data-layer-key');
+      if(layerKey){
+        // This row is already layered, get its layer data
+        const rowData = target.rowEl._originalRowData || getRowDataFromTr(target.rowEl);
+        if(rowData){
+          const layerChildOf = target.rowEl.getAttribute('data-layer-child-of');
+          const signature = getRowSignature(rowData, layerChildOf);
+          const saved = layerData.get(signature);
+          if(saved){
+            if(layerCountInput) layerCountInput.value = saved.count;
+            if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
+          }
+        }
+      } else {
+        // Not yet layered, clear the inputs
+        if(layerCountInput) layerCountInput.value = '2';
+        if(layerThicknessesInput) layerThicknessesInput.value = '';
+      }
+    } else if(target.type === 'group' && target.key){
       // Find existing layer data for this group
       const table = getTable();
       if(table){
@@ -1483,6 +1760,10 @@
                 if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
               }
             }
+          } else {
+            // Not yet layered, clear the inputs
+            if(layerCountInput) layerCountInput.value = '2';
+            if(layerThicknessesInput) layerThicknessesInput.value = '';
           }
         }
       }
@@ -1605,7 +1886,7 @@
   function showNextLayerSelection(){
     if(!multiLayerClimateTarget) return;
     
-    const { uniqueLayers, currentLayerIndex, selectedResources } = multiLayerClimateTarget;
+    const { uniqueLayers, currentLayerIndex, selectedResources, layerRows, groupKey } = multiLayerClimateTarget;
     
     if(currentLayerIndex >= uniqueLayers.length){
       // All layers have been selected, now apply them all
@@ -1615,10 +1896,28 @@
     
     const layerNum = uniqueLayers[currentLayerIndex];
     
+    // Try to find existing climate data for this layer
+    let existingResourceIndex = null;
+    const layerKeyPattern = groupKey + '_Layer_' + layerNum;
+    const layerRow = layerRows.find(row => row.dataset.layerKey === layerKeyPattern);
+    
+    if(layerRow){
+      // Check if this row has climate data
+      const climateCell = layerRow.querySelector('td[data-climate-cell="true"]');
+      if(climateCell && climateCell.textContent){
+        const resourceName = climateCell.textContent;
+        // Find matching resource in climateResources
+        if(window.climateResources){
+          existingResourceIndex = window.climateResources.findIndex(r => r.Name === resourceName);
+        }
+      }
+    }
+    
     // Update modal title
     const modalTitle = multiLayerClimateModal.querySelector('h2');
     if(modalTitle){
-      modalTitle.textContent = `Välj klimatresurs för Skikt ${layerNum} (${currentLayerIndex + 1}/${uniqueLayers.length})`;
+      const editText = existingResourceIndex !== null && existingResourceIndex >= 0 ? ' (redigera)' : '';
+      modalTitle.textContent = `Välj klimatresurs för Skikt ${layerNum}${editText} (${currentLayerIndex + 1}/${uniqueLayers.length})`;
     }
     
     // Show which layers have been selected
@@ -1670,6 +1969,10 @@
         const option = document.createElement('option');
         option.value = resIndex;
         option.textContent = resource.Name || 'Namnlös resurs';
+        // Pre-select if this is the existing resource
+        if(existingResourceIndex !== null && resIndex === existingResourceIndex){
+          option.selected = true;
+        }
         select.appendChild(option);
       });
     }
@@ -1954,6 +2257,31 @@
       // Use saved layer key if provided, otherwise generate new one
       const layerKey = savedLayerKey || 'layer-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
       
+      // Check if this row is already layered (has existing layer children)
+      const existingLayerKey = tr.getAttribute('data-layer-key');
+      if(existingLayerKey && !savedLayerKey){
+        // Re-layering: remove all existing layer children first
+        const existingChildren = Array.from(tbody.querySelectorAll(`tr[data-layer-child-of="${CSS.escape(existingLayerKey)}"]`));
+        console.log('🔧 Omskiktar rad - tar bort', existingChildren.length, 'befintliga skikt');
+        existingChildren.forEach(child => child.remove());
+        
+        // Remove layer label from first data cell
+        const firstDataTd = tr.querySelector('td:nth-child(2)');
+        if(firstDataTd){
+          const toggle = firstDataTd.querySelector('.group-toggle');
+          const layerLabel = Array.from(firstDataTd.childNodes).find(node => 
+            node.nodeType === Node.TEXT_NODE && node.textContent.includes('skikt')
+          );
+          if(toggle) toggle.remove();
+          if(layerLabel) layerLabel.remove();
+          // Also remove any span with layer count
+          const spans = firstDataTd.querySelectorAll('span');
+          spans.forEach(span => {
+            if(span.textContent.includes('skikt')) span.remove();
+          });
+        }
+      }
+      
       // Save layer data for this row
       if(!savedLayerKey){
         // Use original row data if available, otherwise extract from DOM
@@ -1963,7 +2291,7 @@
           const layerChildOf = tr.getAttribute('data-layer-child-of');
           const signature = getRowSignature(rowData, layerChildOf);
           const beforeSize = layerData.size;
-          layerData.set(signature, { count, thicknesses, layerKey });
+          layerData.set(signature, { count, thicknesses, layerKey: existingLayerKey || layerKey });
           const afterSize = layerData.size;
           console.log('💾 SAVE:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize, '- Signature:', signature.substring(0, 60));
         }
@@ -1979,7 +2307,7 @@
       tr.classList.add('layer-parent');
       // Don't add 'group-parent' class, only layer-parent
       tr.setAttribute('data-layer-key', layerKey);
-      tr.setAttribute('data-open', 'true');
+      tr.setAttribute('data-open', 'false'); // Start collapsed by default
       
       // Update action buttons on parent row
       const actionTd = tr.querySelector('td:first-child');
@@ -1990,7 +2318,8 @@
         parentLayerBtn.textContent = 'Skikta skikt';
         parentLayerBtn.addEventListener('click', function(ev){
           ev.stopPropagation();
-          openLayerModal({ type: 'group', key: layerKey });
+          // Open as 'row' type so it can be re-layered
+          openLayerModal({ type: 'row', rowEl: tr });
         });
         actionTd.appendChild(parentLayerBtn);
         
@@ -2156,9 +2485,29 @@
       rows.forEach((row, rowIndex) => {
         console.log('🔧 Skiktar rad', rowIndex + 1, 'av', rows.length);
         
+        // Check if this row is already layered and remove existing children
+        const existingRowLayerKey = row.getAttribute('data-layer-key');
+        if(existingRowLayerKey){
+          // This row is already layered - remove its children
+          const existingRowChildren = Array.from(tbody.querySelectorAll(`tr[data-layer-child-of="${CSS.escape(existingRowLayerKey)}"]`));
+          console.log('🔧 Omskiktar rad inom grupp - tar bort', existingRowChildren.length, 'befintliga skikt');
+          existingRowChildren.forEach(child => child.remove());
+          
+          // Remove layer label from first data cell
+          const firstDataTd = row.querySelector('td:nth-child(2)');
+          if(firstDataTd){
+            const toggle = firstDataTd.querySelector('.group-toggle');
+            const spans = firstDataTd.querySelectorAll('span');
+            if(toggle) toggle.remove();
+            spans.forEach(span => {
+              if(span.textContent.includes('skikt')) span.remove();
+            });
+          }
+        }
+        
         // Split this row, but we need to set individual layerKeys for each child
         // So we'll do it manually here instead of calling splitRow
-        const rowLayerKey = 'row-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        const rowLayerKey = existingRowLayerKey || 'row-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         
         // Save layer data for this row
         const hasOriginal = !!row._originalRowData;
@@ -2181,7 +2530,7 @@
         row.classList.remove('is-new');
         row.classList.add('layer-parent');
         row.setAttribute('data-layer-key', rowLayerKey);
-        row.setAttribute('data-open', 'true');
+        row.setAttribute('data-open', 'false'); // Start collapsed by default
         
         // Update action buttons on parent row
         const actionTd = row.querySelector('td:first-child');
@@ -2975,12 +3324,21 @@
           }
         } else {
           // No visible children, use parent's own climate data if it exists
-          const a1a3Cell = tr.querySelector('td[data-klimat-a1a3-cell="true"]');
-          const a4Cell = tr.querySelector('td[data-klimat-a4-cell="true"]');
-          const a5Cell = tr.querySelector('td[data-klimat-a5-cell="true"]');
+          console.log('📊 Parent with no visible children, using own data');
+          
+          // Try sum cells first (for group parents), then regular climate cells
+          let a1a3Cell = tr.querySelector('td[data-sum-klimat-a1a3="true"]');
+          if(!a1a3Cell) a1a3Cell = tr.querySelector('td[data-klimat-a1a3-cell="true"]');
+          
+          let a4Cell = tr.querySelector('td[data-sum-klimat-a4="true"]');
+          if(!a4Cell) a4Cell = tr.querySelector('td[data-klimat-a4-cell="true"]');
+          
+          let a5Cell = tr.querySelector('td[data-sum-klimat-a5="true"]');
+          if(!a5Cell) a5Cell = tr.querySelector('td[data-klimat-a5-cell="true"]');
           
           if(a1a3Cell){
             const val = parseNumberLike(a1a3Cell.textContent);
+            console.log('  A1-A3:', a1a3Cell.textContent, '→', val);
             if(Number.isFinite(val)){
               totalA1A3 += val;
               hasAnyData = true;
@@ -2989,6 +3347,7 @@
           
           if(a4Cell){
             const val = parseNumberLike(a4Cell.textContent);
+            console.log('  A4:', a4Cell.textContent, '→', val);
             if(Number.isFinite(val)){
               totalA4 += val;
               hasAnyData = true;
@@ -2997,6 +3356,7 @@
           
           if(a5Cell){
             const val = parseNumberLike(a5Cell.textContent);
+            console.log('  A5:', a5Cell.textContent, '→', val);
             if(Number.isFinite(val)){
               totalA5 += val;
               hasAnyData = true;
@@ -3074,4 +3434,219 @@
     
     toggleParentRow(parentTr);
   });
+
+  // ============ PROJECT SAVE/LOAD FUNCTIONS ============
+  
+  function getProjectData(){
+    if(!lastRows || !lastHeaders){
+      return null;
+    }
+    
+    // Create project data object
+    return {
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      originalFileName: originalFileName,
+      headers: lastHeaders,
+      rows: lastRows.slice(1), // Exclude header row
+      layerData: Array.from(layerData.entries()).map(([key, value]) => ({
+        key,
+        count: value.count,
+        thicknesses: value.thicknesses,
+        layerKey: value.layerKey
+      })),
+      climateData: Array.from(climateData.entries()).map(([key, value]) => ({
+        key,
+        resourceName: value
+      }))
+    };
+  }
+  
+  async function saveProjectWithDialog(){
+    const projectData = getProjectData();
+    if(!projectData){
+      alert('Ingen data att spara. Ladda en fil först.');
+      return;
+    }
+    
+    const jsonStr = JSON.stringify(projectData, null, 2);
+    
+    // Check if File System Access API is available
+    if('showSaveFilePicker' in window){
+      try {
+        const baseName = originalFileName ? originalFileName.replace(/\.[^.]+$/, '') : 'projekt';
+        const fileHandle = await window.showSaveFilePicker({
+          suggestedName: `${baseName}_projekt.json`,
+          types: [{
+            description: 'JSON Project File',
+            accept: { 'application/json': ['.json'] }
+          }]
+        });
+        
+        const writable = await fileHandle.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        
+        // Store file handle for quick save
+        savedFileHandle = fileHandle;
+        
+        // Update save button text to show file is saved
+        if(saveProjectBtn){
+          const fileName = fileHandle.name;
+          saveProjectBtn.textContent = `💾 Spara`;
+          saveProjectBtn.title = `Sparad som: ${fileName}`;
+        }
+        
+        console.log('✅ Projekt sparat:', fileHandle.name);
+      } catch(err){
+        if(err.name !== 'AbortError'){
+          console.error('Fel vid sparande:', err);
+          alert('Kunde inte spara filen: ' + err.message);
+        }
+      }
+    } else {
+      // Fallback for browsers that don't support File System Access API
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const baseName = originalFileName ? originalFileName.replace(/\.[^.]+$/, '') : 'projekt';
+      a.download = `${baseName}_projekt.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log('✅ Projekt sparat (fallback)');
+    }
+  }
+  
+  async function saveProject(){
+    // Quick save to existing file
+    if(savedFileHandle){
+      try {
+        const projectData = getProjectData();
+        if(!projectData){
+          alert('Ingen data att spara. Ladda en fil först.');
+          return;
+        }
+        
+        const jsonStr = JSON.stringify(projectData, null, 2);
+        const writable = await savedFileHandle.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        
+        console.log('✅ Projekt sparat snabbt:', savedFileHandle.name);
+        
+        // Visual feedback
+        const originalText = saveProjectBtn.textContent;
+        saveProjectBtn.textContent = '✅ Sparat!';
+        setTimeout(() => {
+          saveProjectBtn.textContent = originalText;
+        }, 1500);
+      } catch(err){
+        console.error('Fel vid snabbsparande:', err);
+        // If quick save fails, fall back to save dialog
+        saveProjectWithDialog();
+      }
+    } else {
+      // No saved file yet, show save dialog
+      saveProjectWithDialog();
+    }
+  }
+  
+  function loadProject(file){
+    const reader = new FileReader();
+    
+    reader.onload = function(e){
+      try {
+        const projectData = JSON.parse(e.target.result);
+        
+        // Validate project data
+        if(!projectData.version || !projectData.headers || !projectData.rows){
+          alert('Ogiltig projektfil. Kontrollera att filen är en giltig JSON-projektfil.');
+          return;
+        }
+        
+        console.log('📂 Laddar projekt:', projectData);
+        
+        // Restore basic data
+        originalFileName = projectData.originalFileName || 'unknown';
+        lastHeaders = projectData.headers;
+        lastRows = [projectData.headers, ...projectData.rows];
+        
+        // Clear existing data
+        layerData.clear();
+        climateData.clear();
+        
+        // Restore layer data
+        if(projectData.layerData && Array.isArray(projectData.layerData)){
+          projectData.layerData.forEach(item => {
+            layerData.set(item.key, {
+              count: item.count,
+              thicknesses: item.thicknesses,
+              layerKey: item.layerKey
+            });
+          });
+        }
+        
+        // Restore climate data
+        if(projectData.climateData && Array.isArray(projectData.climateData)){
+          projectData.climateData.forEach(item => {
+            climateData.set(item.key, item.resourceName);
+          });
+        }
+        
+        console.log('✅ Projekt laddat. Rader:', lastRows.length, 'Skikt:', layerData.size, 'Klimat:', climateData.size);
+        
+        // Clear saved file handle when loading a different file
+        savedFileHandle = null;
+        if(saveProjectBtn){
+          saveProjectBtn.textContent = '💾 Spara';
+          saveProjectBtn.title = '';
+        }
+        
+        // Render the table
+        renderTableWithOptionalGrouping(lastRows);
+        
+        // Apply saved layers and climate mappings
+        setTimeout(() => {
+          applySavedLayers();
+          applySavedClimate();
+          updateClimateSummary();
+        }, 100);
+        
+      } catch(err){
+        console.error('Fel vid laddning av projekt:', err);
+        alert('Kunde inte ladda projektfilen. Felmeddelande: ' + err.message);
+      }
+    };
+    
+    reader.readAsText(file);
+  }
+  
+  // Event listeners for save/load buttons
+  if(saveProjectBtn){
+    saveProjectBtn.addEventListener('click', saveProject);
+  }
+  
+  if(saveAsProjectBtn){
+    saveAsProjectBtn.addEventListener('click', saveProjectWithDialog);
+  }
+  
+  if(loadProjectBtn){
+    loadProjectBtn.addEventListener('click', function(){
+      projectFileInput.click();
+    });
+  }
+  
+  if(projectFileInput){
+    projectFileInput.addEventListener('change', function(e){
+      const file = e.target.files[0];
+      if(file){
+        loadProject(file);
+      }
+      // Reset input so same file can be loaded again
+      e.target.value = '';
+    });
+  }
 })();
