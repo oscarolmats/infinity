@@ -31,6 +31,12 @@ app.use(express.json());
 // Serve static files (CSS, JS, etc.)
 app.use(express.static(path.join(__dirname, '../')));
 
+// Explicit route for app.js
+app.get('/app.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.sendFile(path.join(__dirname, '../app.js'));
+});
+
 // Root endpoint - servera index.html
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../index.html'));
