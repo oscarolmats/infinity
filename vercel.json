@@ -8,16 +8,14 @@
     {
       "source": "/api/(.*)",
       "destination": "/api"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/app.js",
-      "dest": "/app.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "/api"
+      "source": "/app.js",
+      "destination": "/app.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/api"
     }
   ]
 }
