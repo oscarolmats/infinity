@@ -6,6 +6,10 @@
       "destination": "/api/test.js"
     },
     {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
       "source": "/(.*)",
       "destination": "/api"
     }

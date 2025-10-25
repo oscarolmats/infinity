@@ -28,22 +28,12 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Serve static files (CSS, JS, etc.)
+app.use(express.static(path.join(__dirname, '../')));
+
 // Root endpoint - servera index.html
 app.get('/', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Tabellen</title>
-        <meta charset="utf-8">
-    </head>
-    <body>
-        <h1>Tabellen App</h1>
-        <p>Server is running on Vercel!</p>
-        <p><a href="/api/health">Test API Health</a></p>
-    </body>
-    </html>
-  `);
+  res.sendFile(path.join(__dirname, '../index.html'));
 });
 
 // Health check
