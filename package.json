@@ -2,9 +2,11 @@
   "name": "tabellen",
   "version": "1.0.0",
   "description": "Excel och CSV tabellvisare",
-  "main": "server.js",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node api/index.js",
+    "dev": "node server.js",
+    "build": "echo 'No build step required'"
   },
   "license": "ISC",
   "dependencies": {

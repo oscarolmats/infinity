@@ -79,7 +79,7 @@
   async function uploadExcel(file){
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch('/upload', { method: 'POST', body: form });
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
     if(!res.ok){ throw new Error('Uppladdning misslyckades'); }
     return await res.text();
   }
