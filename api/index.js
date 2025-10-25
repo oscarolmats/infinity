@@ -29,8 +29,11 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Serve static files
+app.use(express.static(path.join(__dirname, '../')));
+
 // Hantera Excel-uppladdningar
-app.post('/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).send('Ingen fil uppladdad');
@@ -78,8 +81,13 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
+});
+
+// Root endpoint för att servera index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../index.html'));
 });
 
 // Export app för Vercel (VIKTIGT: använd inte app.listen())
