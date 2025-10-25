@@ -207,6 +207,8 @@
       <button id="toggleAllBtn" type="button">Fäll ihop alla</button>
       <button id="addRowBtn" type="button" style="background:#4caf50; color:white; border:1px solid #45a049;">Lägg till rad</button>
       <button id="exportBtn" type="button" style="background:#2196f3; color:white; border:1px solid #1976d2;">Exportera till Excel</button>
+      <button id="undoBtn" type="button" style="background:#607d8b; color:white; border:1px solid #455a64;" title="Ångra (Ctrl+Z)" disabled>↶ Ångra</button>
+      <button id="redoBtn" type="button" style="background:#607d8b; color:white; border:1px solid #455a64;" title="Gör om (Ctrl+Y)" disabled>↷ Gör om</button>
       <button id="saveProjectBtn" type="button" style="background:#9c27b0; color:white; border:1px solid #7b1fa2;">💾 Spara</button>
       <button id="saveAsProjectBtn" type="button" style="background:#7b1fa2; color:white; border:1px solid #6a1b9a;">Spara som...</button>
       <button id="loadProjectBtn" type="button" style="background:#ff9800; color:white; border:1px solid #f57c00;">📂 Öppna projekt</button>
@@ -217,7 +219,7 @@
 
   <!-- Layer modal -->
   <div id="layerModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
-    <div style="background:#fff; padding:16px; border-radius:8px; width: min(520px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2);">
+    <div style="background:#fff; padding:16px; border-radius:8px; width: min(600px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto;">
       <h2 style="margin-top:0;">Dela i skikt</h2>
       <div style="display:flex; gap:12px;">
         <label style="flex:1;">
@@ -230,6 +232,34 @@
         </label>
       </div>
       <p class="muted">Lämna tjocklekar tomma för att fördela jämnt.</p>
+      
+      <!-- Mixed Layer Section -->
+      <div style="margin-top:16px; padding:12px; border:1px solid #ddd; border-radius:4px; background:#f9f9f9;">
+        <h3 style="margin-top:0; margin-bottom:12px; font-size:1rem;">Blandade skikt</h3>
+        <p class="muted" style="margin-top:0; margin-bottom:12px;">Bocka i vilka skikt som är blandningar av två material:</p>
+        
+        <div id="mixedLayerCheckboxes" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:8px; margin-bottom:16px;">
+          <!-- Will be populated dynamically based on layer count -->
+        </div>
+        
+        <div id="mixedLayerDetails" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #ddd;">
+          <p class="muted" style="margin-top:0; margin-bottom:12px;">Konfigurera de blandade skikten:</p>
+          <div id="mixedLayerConfigs">
+            <!-- Will be populated dynamically for each mixed layer -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- Layer Names and Climate Resources Section -->
+      <div id="layerNamesSection" style="margin-top:16px; padding:12px; border:1px solid #ddd; border-radius:4px; background:#f9f9f9;">
+        <h3 style="margin-top:0; margin-bottom:12px; font-size:1rem;">Skiktnamn och klimatresurser</h3>
+        <p class="muted" style="margin-top:0; margin-bottom:12px;">Namnge varje skikt och välj klimatresurs (valfritt):</p>
+        
+        <div id="layerNamesContainer">
+          <!-- Will be populated dynamically based on layer count -->
+        </div>
+      </div>
+      
       <div style="display:flex; gap:8px; justify-content:space-between; margin-top:12px;">
         <button id="layerMapClimate" type="button" style="background:#4caf50; color:white; border:1px solid #45a049;">Mappa klimatresurs till skikt</button>
         <div style="display:flex; gap:8px;">
@@ -263,19 +293,19 @@
   </div>
 
   <!-- Multi-layer Climate Resource Mapping modal -->
-  <div id="multiLayerClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
-    <div style="background:#fff; padding:16px; border-radius:8px; width: min(700px, 92vw); max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
+  <div id="multiLayerClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:100;">
+    <div style="background:#fff; padding:20px; border-radius:8px; width: min(900px, 95vw); max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
       <h2 style="margin-top:0;">Mappa klimatresurser till skikt</h2>
       
-      <p class="muted" style="margin-bottom:16px;">Välj klimatresurs för varje skikt individuellt.</p>
+      <p class="muted" style="margin-bottom:16px;">Sök och välj klimatresurs för varje skikt. Du kan skriva för att filtrera listan.</p>
       
-      <div id="multiLayerClimateContent" style="display:flex; flex-direction:column; gap:12px;">
+      <div id="multiLayerClimateContent" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap:16px; margin-bottom:16px;">
         <!-- Will be populated dynamically -->
       </div>
 
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
-        <button id="multiLayerClimateCancel" type="button">Avbryt</button>
-        <button id="multiLayerClimateNext" type="button">Nästa</button>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:2px solid #ddd;">
+        <button id="multiLayerClimateCancel" type="button" style="padding:10px 20px;">Avbryt</button>
+        <button id="multiLayerClimateApply" type="button" style="background:#4caf50; color:white; border:1px solid #45a049; padding:10px 24px; font-weight:600;">Applicera alla</button>
       </div>
     </div>
   </div>
