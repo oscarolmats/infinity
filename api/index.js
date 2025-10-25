@@ -2,11 +2,10 @@ const express = require('express');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
 const path = require('path');
-const fs = require('fs');
 
 const app = express();
 
-// Konfigurera multer för Vercel (använd memory storage istället för disk)
+// Konfigurera multer för Vercel
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
@@ -14,7 +13,7 @@ const upload = multer({
   }
 });
 
-// CORS för frontend
+// CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -29,10 +28,34 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// Serve static files
-app.use(express.static(path.join(__dirname, '../')));
+// Root endpoint - servera index.html
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Tabellen</title>
+        <meta charset="utf-8">
+    </head>
+    <body>
+        <h1>Tabellen App</h1>
+        <p>Server is running on Vercel!</p>
+        <p><a href="/api/health">Test API Health</a></p>
+    </body>
+    </html>
+  `);
+});
 
-// Hantera Excel-uppladdningar
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Server is running on Vercel',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Upload endpoint
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -40,8 +63,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     }
 
     const workbook = new ExcelJS.Workbook();
-    
-    // Läs från buffer istället för fil
     await workbook.xlsx.load(req.file.buffer);
     
     const worksheet = workbook.worksheets[0];
@@ -76,19 +97,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     res.send(html);
   } catch (error) {
     console.error('Fel vid läsning av Excel:', error);
-    res.status(500).send('Kunde inte läsa Excel-filen');
+    res.status(500).send('Kunde inte läsa Excel-filen: ' + error.message);
   }
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
-});
-
-// Root endpoint för att servera index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../index.html'));
-});
-
-// Export app för Vercel (VIKTIGT: använd inte app.listen())
+// Export för Vercel
 module.exports = app;
