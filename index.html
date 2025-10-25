@@ -292,6 +292,102 @@
     </div>
   </div>
 
+  <!-- Alternative Climate Resource modal -->
+  <div id="altClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:100;">
+    <div style="background:#fff; padding:20px; border-radius:8px; width: min(700px, 95vw); max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
+      <h2 style="margin-top:0; color:#2196f3;">🌱 Alternativ klimatresurs</h2>
+      
+      <p class="muted" style="margin-bottom:16px;">Mata in EPD-data manuellt för denna resurs.</p>
+      
+      <div style="display:grid; gap:16px; margin-bottom:20px;">
+        <!-- EPD Name -->
+        <div>
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            EPD-namn *
+          </label>
+          <input id="altClimateName" type="text" placeholder="t.ex. Betong C25/30" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
+        </div>
+
+        <!-- Declared Unit -->
+        <div>
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            Deklarerad enhet *
+          </label>
+          <select id="altClimateUnit" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
+            <option value="">Välj enhet...</option>
+            <option value="kg">kg (kilogram)</option>
+            <option value="m2">m² (kvadratmeter)</option>
+            <option value="m3">m³ (kubikmeter)</option>
+            <option value="st">st (styck)</option>
+            <option value="m">m (meter)</option>
+            <option value="l">l (liter)</option>
+            <option value="t">t (ton)</option>
+          </select>
+        </div>
+
+        <!-- Conversion Factor -->
+        <div>
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            Omräkningsfaktor *
+          </label>
+          <input id="altClimateFactor" type="number" step="0.001" placeholder="t.ex. 1.0" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
+        </div>
+
+        <!-- Conversion Factor Unit -->
+        <div>
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            Omräkningsfaktor enhet *
+          </label>
+          <select id="altClimateFactorUnit" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
+            <option value="">Välj enhet...</option>
+            <option value="kg/m³">kg/m³ (volym)</option>
+            <option value="kg/m²">kg/m² (area)</option>
+            <option value="kg/m">kg/m (längd)</option>
+            <option value="kg/st">kg/st (styck)</option>
+          </select>
+        </div>
+
+        <!-- Climate Impact A1-A3 -->
+        <div>
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            Klimatpåverkan A1-A3 (kg CO₂e/deklarerad enhet) *
+          </label>
+          <input id="altClimateA1A3" type="number" step="0.001" placeholder="t.ex. 0.245" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
+          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
+            ⚠️ Ange decimaltal (t.ex. 0.245, inte 245)
+          </small>
+        </div>
+
+        <!-- Climate Impact A4 -->
+        <div>
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            Klimatpåverkan A4 (kg CO₂e/deklarerad enhet)
+          </label>
+          <input id="altClimateA4" type="number" step="0.001" placeholder="t.ex. 0.012" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
+          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
+            ⚠️ Ange decimaltal (t.ex. 0.012, inte 12)
+          </small>
+        </div>
+
+        <!-- Climate Impact A5 -->
+        <div>
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            Klimatpåverkan A5 (kg CO₂e/deklarerad enhet)
+          </label>
+          <input id="altClimateA5" type="number" step="0.001" placeholder="t.ex. 0.008" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
+          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
+            ⚠️ Ange decimaltal (t.ex. 0.008, inte 8)
+          </small>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px; padding-top:16px; border-top:2px solid #ddd;">
+        <button id="altClimateCancel" type="button" style="padding:10px 20px; background:#f5f5f5; border:1px solid #ddd; border-radius:4px;">Avbryt</button>
+        <button id="altClimateApply" type="button" style="background:#2196f3; color:white; border:1px solid #1976d2; padding:10px 24px; font-weight:600; border-radius:4px;">Lägg till resurs</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Multi-layer Climate Resource Mapping modal -->
   <div id="multiLayerClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:100;">
     <div style="background:#fff; padding:20px; border-radius:8px; width: min(900px, 95vw); max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
@@ -329,8 +425,8 @@
         <label style="display:flex; flex-direction:column; gap:4px;">
           <span style="font-weight:600;">Enhet:</span>
           <select id="manualFactorUnit" style="padding:8px; border:1px solid #ddd; border-radius:4px;">
-            <option value="kg/m3">kg/m³ (volym)</option>
-            <option value="kg/m2">kg/m² (area)</option>
+            <option value="kg/m³">kg/m³ (volym)</option>
+            <option value="kg/m²">kg/m² (area)</option>
             <option value="kg/m">kg/m (längd)</option>
             <option value="kg/st">kg/st (styck)</option>
           </select>
