@@ -25,6 +25,40 @@
     /* New rows visual marking */
     tr.is-new td { background: #fff7cc; }
     .badge-new { display:inline-block; background:#ffec99; color:#5c4400; border:1px solid #e6c466; border-radius:10px; padding:0 6px; font-size:11px; margin-right:6px; }
+    
+    /* Climate mapping indicators */
+    tr.climate-mapped { 
+      background-color: #e8f5e9 !important; 
+      border-left: 4px solid #4caf50 !important; 
+    }
+    tr.climate-mapped-alt { 
+      background-color: #fff3e0 !important; 
+      border-left: 4px solid #ff9800 !important; 
+    }
+    tr.climate-mapped-both { 
+      background: linear-gradient(90deg, #e8f5e9 50%, #fff3e0 50%) !important; 
+      border-left: 4px solid #4caf50 !important; 
+      border-right: 4px solid #ff9800 !important; 
+    }
+    
+    /* Parent row indicators */
+    tr.group-parent.climate-mapped,
+    tr.layer-parent.climate-mapped { 
+      background-color: #e8f5e9 !important; 
+      border-left: 4px solid #4caf50 !important; 
+    }
+    tr.group-parent.climate-mapped-alt,
+    tr.layer-parent.climate-mapped-alt { 
+      background-color: #fff3e0 !important; 
+      border-left: 4px solid #ff9800 !important; 
+    }
+    tr.group-parent.climate-mapped-both,
+    tr.layer-parent.climate-mapped-both { 
+      background: linear-gradient(90deg, #e8f5e9 50%, #fff3e0 50%) !important; 
+      border-left: 4px solid #4caf50 !important; 
+      border-right: 4px solid #ff9800 !important; 
+    }
+    
     .hidden { display: none; }
     /* Editable cells */
     td.editable { 
@@ -62,10 +96,17 @@
     .autocomplete-item:hover {
       background: #e3f2fd;
     }
-    .api-indicator { 
+    .status-indicators {
       position: fixed; 
       top: 16px; 
       right: 16px; 
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+    }
+    
+    .api-indicator { 
       background: white; 
       border: 2px solid #ddd; 
       border-radius: 8px; 
@@ -162,11 +203,20 @@
   </style>
 </head>
 <body>
-  <!-- API Status Indicator -->
-  <div id="apiIndicator" class="api-indicator">
-    <div class="api-status">
-      <span class="api-status-dot"></span>
-      <span>Ansluter till Boverket...</span>
+  <!-- API Status Indicators -->
+  <div class="status-indicators">
+    <div id="apiIndicator" class="api-indicator">
+      <div class="api-status">
+        <span class="api-status-dot"></span>
+        <span>Ansluter till Boverket...</span>
+      </div>
+    </div>
+    
+    <div id="epdIndicator" class="api-indicator">
+      <div class="api-status">
+        <span class="api-status-dot"></span>
+        <span>Laddar EPD-filer...</span>
+      </div>
     </div>
   </div>
 
@@ -295,7 +345,43 @@
   <!-- Alternative Climate Resource modal -->
   <div id="altClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:100;">
     <div style="background:#fff; padding:20px; border-radius:8px; width: min(700px, 95vw); max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
-      <h2 style="margin-top:0; color:#2196f3;">🌱 Alternativ klimatresurs</h2>
+      <h2 style="margin-top:0; color:#2196f3;">Alternativ klimatresurs</h2>
+      
+      <!-- EPD Selection Method -->
+      <div style="margin-bottom:20px; padding:16px; background:#f8f9fa; border-radius:8px; border:1px solid #e9ecef;">
+        <h3 style="margin-top:0; margin-bottom:12px; color:#333; font-size:16px;">Välj datakälla</h3>
+        <div style="display:flex; gap:12px; margin-bottom:16px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="radio" name="epdSource" value="manual" checked style="margin:0;">
+            <span>Manuell inmatning</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="radio" name="epdSource" value="epd" style="margin:0;">
+            <span>Välj från EPD-fil</span>
+          </label>
+        </div>
+        
+        <!-- EPD File Selection -->
+        <div id="epdFileSection" style="display:none;">
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            Välj EPD-fil
+          </label>
+          <select id="epdFileSelect" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
+            <option value="">Laddar EPD-filer...</option>
+          </select>
+          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
+            EPD-filer läses från mappen "epd" i programmets rotmapp
+          </small>
+        </div>
+        
+        <!-- EPD Preview -->
+        <div id="epdPreview" style="display:none; margin-top:16px; padding:12px; background:#e8f5e8; border-radius:6px; border:1px solid #c3e6c3;">
+          <h4 style="margin:0 0 8px 0; color:#2e7d32; font-size:14px;">📋 EPD-förhandsvisning</h4>
+          <div id="epdPreviewContent" style="font-size:13px; color:#333;">
+            <!-- Will be populated with EPD data -->
+          </div>
+        </div>
+      </div>
       
       <p class="muted" style="margin-bottom:16px;">Mata in EPD-data manuellt för denna resurs.</p>
       
@@ -347,15 +433,23 @@
           </select>
         </div>
 
+        <!-- Waste Factor -->
+        <div>
+          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+            Spillfaktor (decimaltal)
+          </label>
+          <input id="altClimateWaste" type="number" step="0.01" placeholder="t.ex. 0.05" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
+          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
+            Används för att beräkna inköpt vikt. 0.05 = 5% spill
+          </small>
+        </div>
+
         <!-- Climate Impact A1-A3 -->
         <div>
           <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
             Klimatpåverkan A1-A3 (kg CO₂e/deklarerad enhet) *
           </label>
           <input id="altClimateA1A3" type="number" step="0.001" placeholder="t.ex. 0.245" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
-            ⚠️ Ange decimaltal (t.ex. 0.245, inte 245)
-          </small>
         </div>
 
         <!-- Climate Impact A4 -->
@@ -364,9 +458,6 @@
             Klimatpåverkan A4 (kg CO₂e/deklarerad enhet)
           </label>
           <input id="altClimateA4" type="number" step="0.001" placeholder="t.ex. 0.012" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
-            ⚠️ Ange decimaltal (t.ex. 0.012, inte 12)
-          </small>
         </div>
 
         <!-- Climate Impact A5 -->
@@ -375,9 +466,6 @@
             Klimatpåverkan A5 (kg CO₂e/deklarerad enhet)
           </label>
           <input id="altClimateA5" type="number" step="0.001" placeholder="t.ex. 0.008" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
-            ⚠️ Ange decimaltal (t.ex. 0.008, inte 8)
-          </small>
         </div>
       </div>
 
@@ -443,10 +531,14 @@
   <!-- SheetJS library for Excel export -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   
+  <!-- EPD Parser -->
+  <script src="epd-parser.js"></script>
+  
   <script src="app.js"></script>
 
   <script>
     const apiIndicator = document.getElementById('apiIndicator');
+    const epdIndicator = document.getElementById('epdIndicator');
     const climateResourceSelect = document.getElementById('climateResourceSelect');
     
     // Store climate resources globally so they can be accessed when numbering
@@ -531,6 +623,8 @@
         `;
         climateResourceSelect.innerHTML = '<option value="">Kunde inte ladda resurser</option>';
       });
+    
+    // EPD files will be loaded by app.js after it initializes
     
   </script>
 </body>

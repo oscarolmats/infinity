@@ -380,7 +380,7 @@
     const signature = getRowSignature(rowData, layerChildOf);
     const saved = layerData.get(signature);
     
-    console.log('🔍 LOOKUP:', rowData[1]?.substring(0,10), '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Found:', !!saved, '- Signature:', signature.substring(0, 60));
+    //console.log('🔍 LOOKUP:', rowData[1]?.substring(0,10), '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Found:', !!saved, '- Signature:', signature.substring(0, 60));
     
     if(saved){
       console.log('✅ RESTORE:', rowData[1]?.substring(0,10), '- applying', saved.count, 'layers');
@@ -729,6 +729,7 @@
           name: resourceName,
           factor: conversionFactor,
           factorUnit: conversionUnit,
+          waste: wasteFactor,
           a1a3: a1a3Factor,
           a4: a4Factor,
           a5: a5Factor,
@@ -944,6 +945,9 @@
     
     // Update climate summary after changes
     setTimeout(() => updateClimateSummary(), 100);
+    
+    // Update climate mapping indicators
+    updateAllClimateMappingIndicators();
   }
 
   function toggleDescendants(parentTr, show, visited = new Set()){
@@ -1122,6 +1126,9 @@
     
     // Update climate summary after filtering
     setTimeout(() => updateClimateSummary(), 50);
+    
+    // Update climate mapping indicators
+    updateAllClimateMappingIndicators();
   }
 
   function parseNumberLike(v){
@@ -1342,92 +1349,8 @@
     const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
     groupParents.forEach(parentTr => {
       const groupKey = parentTr.getAttribute('data-group-key');
-      const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
-      
-      let sumInbyggdVikt = 0;
-      let sumInkoptVikt = 0;
-      let countInbyggd = 0;
-      let countInkopt = 0;
-      
-      let sumKlimatA1A3 = 0;
-      let sumKlimatA4 = 0;
-      let sumKlimatA5 = 0;
-      let countKlimatA1A3 = 0;
-      let countKlimatA4 = 0;
-      let countKlimatA5 = 0;
-      
-      childRows.forEach(childTr => {
-        const inbyggdCell = childTr.querySelector('td[data-inbyggd-vikt-cell="true"]');
-        const inkoptCell = childTr.querySelector('td[data-inkopt-vikt-cell="true"]');
-        
-        if(inbyggdCell){
-          const val = parseNumberLike(inbyggdCell.textContent);
-          if(Number.isFinite(val)){
-            sumInbyggdVikt += val;
-            countInbyggd++;
-          }
-        }
-        
-        if(inkoptCell){
-          const val = parseNumberLike(inkoptCell.textContent);
-          if(Number.isFinite(val)){
-            sumInkoptVikt += val;
-            countInkopt++;
-          }
-        }
-        
-        const klimatA1A3Cell = childTr.querySelector('td[data-klimat-a1a3-cell="true"]');
-        if(klimatA1A3Cell){
-          const val = parseNumberLike(klimatA1A3Cell.textContent);
-          if(Number.isFinite(val)){
-            sumKlimatA1A3 += val;
-            countKlimatA1A3++;
-          }
-        }
-        
-        const klimatA4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"]');
-        if(klimatA4Cell){
-          const val = parseNumberLike(klimatA4Cell.textContent);
-          if(Number.isFinite(val)){
-            sumKlimatA4 += val;
-            countKlimatA4++;
-          }
-        }
-        
-        const klimatA5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"]');
-        if(klimatA5Cell){
-          const val = parseNumberLike(klimatA5Cell.textContent);
-          if(Number.isFinite(val)){
-            sumKlimatA5 += val;
-            countKlimatA5++;
-          }
-        }
-      });
-      
-      // Update parent's sum cells
-      const parentInbyggdCell = parentTr.querySelector('td[data-sum-inbyggd-vikt="true"]');
-      if(parentInbyggdCell){
-        parentInbyggdCell.textContent = countInbyggd > 0 ? sumInbyggdVikt.toFixed(2) : '';
-      }
-      
-      const parentInkoptCell = parentTr.querySelector('td[data-sum-inkopt-vikt="true"]');
-      if(parentInkoptCell){
-        parentInkoptCell.textContent = countInkopt > 0 ? sumInkoptVikt.toFixed(2) : '';
-      }
-      
-      const parentKlimatA1A3Cell = parentTr.querySelector('td[data-sum-klimat-a1a3="true"]');
-      if(parentKlimatA1A3Cell){
-        parentKlimatA1A3Cell.textContent = countKlimatA1A3 > 0 ? sumKlimatA1A3.toFixed(2) : '';
-      }
-      
-      const parentKlimatA4Cell = parentTr.querySelector('td[data-sum-klimat-a4="true"]');
-      if(parentKlimatA4Cell){
-        parentKlimatA4Cell.textContent = countKlimatA4 > 0 ? sumKlimatA4.toFixed(2) : '';
-      }
-      
-      const parentKlimatA5Cell = parentTr.querySelector('td[data-sum-klimat-a5="true"]');
-      if(parentKlimatA5Cell){
-        parentKlimatA5Cell.textContent = countKlimatA5 > 0 ? sumKlimatA5.toFixed(2) : '';
+      if(groupKey){
+        updateGroupWeightSums(groupKey, tbody);
       }
     });
     
@@ -1663,6 +1586,9 @@
     
     // Update climate summary after rendering
     setTimeout(() => updateClimateSummary(), 100);
+    
+    // Update climate mapping indicators
+    updateAllClimateMappingIndicators();
     
     // Save initial state after table is rendered (but not during restore)
     if(!isRestoringState && undoStack.length === 0){
@@ -2425,11 +2351,278 @@
   const altClimateUnit = document.getElementById('altClimateUnit');
   const altClimateFactor = document.getElementById('altClimateFactor');
   const altClimateFactorUnit = document.getElementById('altClimateFactorUnit');
+  const altClimateWaste = document.getElementById('altClimateWaste');
   const altClimateA1A3 = document.getElementById('altClimateA1A3');
   const altClimateA4 = document.getElementById('altClimateA4');
   const altClimateA5 = document.getElementById('altClimateA5');
   const altClimateCancel = document.getElementById('altClimateCancel');
   const altClimateApply = document.getElementById('altClimateApply');
+  
+  // EPD-related elements
+  const epdFileSection = document.getElementById('epdFileSection');
+  const epdFileSelect = document.getElementById('epdFileSelect');
+  const epdPreview = document.getElementById('epdPreview');
+  const epdPreviewContent = document.getElementById('epdPreviewContent');
+  
+  // Store loaded EPD data
+  let loadedEpdData = new Map();
+  let epdFilesLoaded = false;
+  
+  // Function to load EPD files from the epd directory
+  async function loadEpdFiles() {
+    // Return cached result if already loaded
+    if(epdFilesLoaded) {
+      return { success: true, count: loadedEpdData.size, files: Array.from(loadedEpdData.values()) };
+    }
+    
+    try {
+      // Try to load real EPD files from the epd directory
+      let epdFiles = [];
+      
+      // Load local EPD files dynamically
+      console.log(' [loadEpdFiles] Loading EPD files dynamically...');
+      
+      // Try to load EPD file list from index.json
+      let epdFileList = [];
+      try {
+        const indexResponse = await fetch('./epd/index.json');
+        if(indexResponse.ok) {
+          epdFileList = await indexResponse.json();
+          console.log(' [loadEpdFiles] Loaded EPD file list:', epdFileList);
+        } else {
+          console.log(' [loadEpdFiles] Could not load index.json, using fallback list');
+          // Fallback to known files
+          epdFileList = [
+            '98bf1f1c-275a-428f-9f27-6e07ec19f810.csv',
+            'bddf46b3-86a7-47d0-913f-38437ddda3ff.csv', 
+            'c898b335-b39b-4d55-bd38-ac5bf864ebf2.csv'
+          ];
+        }
+      } catch (error) {
+        console.log(' [loadEpdFiles] Error loading index.json:', error);
+        // Fallback to known files
+        epdFileList = [
+          '98bf1f1c-275a-428f-9f27-6e07ec19f810.csv',
+          'bddf46b3-86a7-47d0-913f-38437ddda3ff.csv', 
+          'c898b335-b39b-4d55-bd38-ac5bf864ebf2.csv'
+        ];
+      }
+      
+      console.log(' [loadEpdFiles] Processing EPD files:', epdFileList);
+      
+      // Load all files in parallel for better performance
+      const filePromises = epdFileList.map(async (filename) => {
+        try {
+          console.log(` [loadEpdFiles] Attempting to load: ${filename}`);
+          
+          // Try different paths in parallel
+          const paths = [
+            `./epd/${filename}`,
+            `/epd/${filename}`,
+            `epd/${filename}`
+          ];
+          
+          // Try all paths in parallel and take the first successful one
+          const pathPromises = paths.map(async (path) => {
+            try {
+              const response = await fetch(path);
+              console.log(` [loadEpdFiles] Response for ${path}:`, response.status, response.ok);
+              
+              if(response.ok) {
+                const csvText = await response.text();
+                console.log(` [loadEpdFiles] Successfully loaded ${filename}, length: ${csvText.length}`);
+                const parsedData = parseEpdCsv(csvText);
+                return {
+                  filename: filename,
+                  name: parsedData.name || filename.replace('.csv', ''),
+                  data: parsedData
+                };
+              }
+              return null;
+            } catch (pathError) {
+              console.log(` [loadEpdFiles] Failed to load ${path}:`, pathError);
+              return null;
+            }
+          });
+          
+          // Wait for the first successful response
+          const results = await Promise.allSettled(pathPromises);
+          const successfulResult = results.find(result => 
+            result.status === 'fulfilled' && result.value !== null
+          );
+          
+          if(successfulResult) {
+            console.log(` [loadEpdFiles] Parsed data for ${filename}:`, successfulResult.value.data);
+            return successfulResult.value;
+          } else {
+            console.log(` [loadEpdFiles] Could not load ${filename} from any path`);
+            return null;
+          }
+        } catch (fileError) {
+          console.log(` [loadEpdFiles] Error loading ${filename}:`, fileError);
+          return null;
+        }
+      });
+      
+      // Wait for all files to load
+      const fileResults = await Promise.allSettled(filePromises);
+      fileResults.forEach(result => {
+        if(result.status === 'fulfilled' && result.value !== null) {
+          epdFiles.push(result.value);
+        }
+      });
+      
+      // Fallback to demo data if no real files found
+      if(epdFiles.length === 0) {
+        console.log(' [loadEpdFiles] No EPD files loaded, using demo data');
+        
+        // Add all demo EPDs
+        epdFiles = [
+          {
+            filename: '98bf1f1c-275a-428f-9f27-6e07ec19f810.csv',
+            name: 'AST S LEC and AST S+ LEC wall-panel',
+            data: await parseEpdCsv(`
+UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Category (en);Compliance;Background database(s);Location code;Type;Reference year;Valid until;URL;Declaration owner;Publication date;Registration number;Registration authority;Predecessor UUID;Predecessor Version;Predecessor URL;Ref. quantity;Ref. unit;Reference flow UUID;Reference flow name;Bulk Density (kg/m3);Grammage (kg/m2);Gross Density (kg/m3);Layer Thickness (m);Productiveness (m2);Linear Density (kg/m);Weight Per Piece (kg);Conversion factor to 1kg;Carbon content (biogenic) in kg;Carbon content (biogenic) - packaging in kg;Module;Scenario;Scenario Description;GWP;ODP;POCP;AP;EP;ADPE;ADPF;PERE;PERM;PERT;PENRE;PENRM;PENRT;SM;RSF;NRSF;FW;HWD;NHWD;RWD;CRU;MFR;MER;EEE;EET;AP (A2);GWPtotal (A2);GWPbiogenic (A2);GWPfossil (A2);GWPluluc (A2);ETPfw (A2);PM (A2);EPmarine (A2);EPfreshwater (A2);EPterrestrial (A2);HTPc (A2);HTPnc (A2);IRP (A2);SOP (A2);ODP (A2);POCP (A2);ADPF (A2);ADPE (A2);WDP (A2);GWP_IOBC_GHG;
+98bf1f1c-275a-428f-9f27-6e07ec19f810;00.03.000;;AST S LEC and AST S+ LEC wall-panel;;;'Byggevarer' / 'Bygningsplater / Skillevegg';'Construction' / 'Building boards';'EN 15804+A2' / 'ISO 14025' / 'ISO 21930';'ecoinvent database (b497a91f-e14b-4b69-8f28-f50eb1576766)';FI;specific dataset;2023;2028;https://epdnorway.lca-data.com/resource/processes/98bf1f1c-275a-428f-9f27-6e07ec19f810?version=00.03.000;Paroc panel systems;2023-11-22;NEPD-5438-4715-EN;EPD Norway;;;;1;qm;487800d2-ae77-46a3-9fdb-65f0cbab587d;AST S LEC and AST S+ LEC wall-panel;;;;;;;;;0;0;A1-A3;;;;;;;;;;319;2.19;321;248;11.1;259;7.73;0;0;0.321;0.000165;3.073;0.00625;0;0;0;0;0;0.0914;16.8;0.0121;17;0.0239;139;0.00000101;0.0172;0.0000797;0.307;0.0000000363;0.000000103;0.278;55.8;0.0000000115;0.0431;248;0.00184;2.91;;
+98bf1f1c-275a-428f-9f27-6e07ec19f810;00.03.000;;AST S LEC and AST S+ LEC wall-panel;;;'Byggevarer' / 'Bygningsplater / Skillevegg';'Construction' / 'Building boards';'EN 15804+A2' / 'ISO 14025' / 'ISO 21930';'ecoinvent database (b497a91f-e14b-4b69-8f28-f50eb1576766)';FI;specific dataset;2023;2028;https://epdnorway.lca-data.com/resource/processes/98bf1f1c-275a-428f-9f27-6e07ec19f810?version=00.03.000;Paroc panel systems;2023-11-22;NEPD-5438-4715-EN;EPD Norway;;;;1;qm;487800d2-ae77-46a3-9fdb-65f0cbab587d;AST S LEC and AST S+ LEC wall-panel;;;;;;;;;0;0;A4;;;;;;;;;;1.99;0;1.99;28.3;0;28.3;0;0;0;0.00219;0.000000000105;0.00407;0.0000366;0;0;0;0;0;0.00861;2.11;0.00612;2.08;0.0191;19.7;0.0000000535;0.00403;0.00000752;0.0451;0.000000000401;0.0000000247;0.00528;11.7;0;0.00785;28.3;0.000000133;0.0238;;
+98bf1f1c-275a-428f-9f27-6e07ec19f810;00.03.000;;AST S LEC and AST S+ LEC wall-panel;;;'Byggevarer' / 'Bygningsplater / Skillevegg';'Construction' / 'Building boards';'EN 15804+A2' / 'ISO 14025' / 'ISO 21930';'ecoinvent database (b497a91f-e14b-4b69-8f28-f50eb1576766)';FI;specific dataset;2023;2028;https://epdnorway.lca-data.com/resource/processes/98bf1f1c-275a-428f-9f27-6e07ec19f810?version=00.03.000;Paroc panel systems;2023-11-22;NEPD-5438-4715-EN;EPD Norway;;;;1;qm;487800d2-ae77-46a3-9fdb-65f0cbab587d;AST S LEC and AST S+ LEC wall-panel;;;;;;;;;0;0;A5;;;;;;;;;;2.83;-2.19;0.643;24.2;-11.1;13.1;0.0122;0;0;0.00997;0.00000000989;0.0616;0.0000219;0;0;0;1.49;2.64;0.00338;2.15;0.0224;2.12;0.000409;3.13;0.0000000419;0.000765;0.00000102;0.00826;0.0000000127;0.0000000206;0.0245;0.657;0;0.0026;13.1;0.0000071;0.401;;
+            `)
+          }
+        ];
+      }
+      
+      // Populate the dropdown
+      if(epdFileSelect) {
+        epdFileSelect.innerHTML = '<option value="">Välj EPD-fil...</option>';
+        console.log(` [loadEpdFiles] Loaded ${epdFiles.length} EPD files:`, epdFiles.map(f => f.name));
+        epdFiles.forEach((file, index) => {
+          const option = document.createElement('option');
+          option.value = index;
+          option.textContent = file.name;
+          epdFileSelect.appendChild(option);
+        });
+      }
+      
+      // Store the data
+      loadedEpdData.clear();
+      epdFiles.forEach((file, index) => {
+        loadedEpdData.set(index.toString(), file.data);
+      });
+      
+      // Mark as loaded
+      epdFilesLoaded = true;
+      
+      // Return success result
+      return { success: true, count: epdFiles.length, files: epdFiles };
+      
+    } catch (error) {
+      console.error('Error loading EPD files:', error);
+      if(epdFileSelect) {
+        epdFileSelect.innerHTML = '<option value="">Fel vid laddning av EPD-filer</option>';
+      }
+      
+      // Return error result
+      throw error;
+    }
+  }
+  
+  // Function to parse EPD CSV data using the external parser
+  function parseEpdCsv(csvText) {
+    // Initialize parser if not already done
+    if (!window.epdParser) {
+      window.epdParser = new EpdParser();
+      window.epdParser.setDebug(false); // Disable debug logging for production
+    }
+    return window.epdParser.parseEpdCsv(csvText);
+  }
+  
+  // Function to show EPD preview
+  function showEpdPreview(epdData) {
+    if(!epdPreview || !epdPreviewContent) return;
+    
+    // Handle unit display
+    let displayUnit = epdData.refUnit || 'kg';
+    if(displayUnit === 'qm') {
+      displayUnit = 'm²';
+    }
+    
+    const previewHtml = `
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:12px;">
+        <div><strong>Namn:</strong> ${epdData.name || 'Okänt'}</div>
+        <div><strong>Enhet:</strong> ${displayUnit}</div>
+        <div><strong>A1-A3:</strong> ${epdData.a1a3 ? epdData.a1a3.toFixed(3) : '0'} kg CO₂e/${displayUnit}</div>
+        <div><strong>A4:</strong> ${epdData.a4 ? epdData.a4.toFixed(3) : '0'} kg CO₂e/${displayUnit}</div>
+        <div><strong>A5:</strong> ${epdData.a5 ? epdData.a5.toFixed(3) : '0'} kg CO₂e/${displayUnit}</div>
+        <div style="grid-column: 1 / -1; margin-top:8px; padding-top:8px; border-top:1px solid #ddd;">
+          <strong>Deklarationsägare:</strong> ${epdData.declarationOwner || 'Okänd'}
+        </div>
+        <div><strong>Publiceringsdatum:</strong> ${epdData.publicationDate || 'Okänt'}</div>
+        <div><strong>Registreringsnummer:</strong> ${epdData.registrationNumber || 'Okänt'}</div>
+        <div style="grid-column: 1 / -1; margin-top:8px;">
+          <strong>EPD URL:</strong> 
+          ${epdData.url ? `<a href="${epdData.url}" target="_blank" style="color:#2196f3; text-decoration:none; word-break:break-all;">${epdData.url}</a>` : 'Ingen URL tillgänglig'}
+        </div>
+      </div>
+    `;
+    
+    epdPreviewContent.innerHTML = previewHtml;
+    epdPreview.style.display = 'block';
+  }
+  
+  // Function to populate form fields from EPD data
+  function populateFormFromEpd(epdData) {
+    if(altClimateName) altClimateName.value = epdData.name || '';
+    
+    // Handle unit conversion
+    let displayUnit = epdData.refUnit || 'kg';
+    if(displayUnit === 'qm') {
+      displayUnit = 'm2'; // Convert qm to m2 for display
+    }
+    if(altClimateUnit) altClimateUnit.value = displayUnit;
+    
+    // Convert GWP values based on unit
+    // EPD values are in kg CO₂e per declared unit
+    // We need to convert them to kg CO₂e per kg for the form
+    if(altClimateA1A3) {
+      if(epdData.a1a3) {
+        // For m² units, we need a conversion factor (typically 10-50 kg/m² for building materials)
+        // For now, we'll use the raw values and let user adjust conversion factor
+        altClimateA1A3.value = epdData.a1a3.toFixed(6);
+      } else {
+        altClimateA1A3.value = '';
+      }
+    }
+    
+    if(altClimateA4) {
+      if(epdData.a4) {
+        altClimateA4.value = epdData.a4.toFixed(6);
+      } else {
+        altClimateA4.value = '';
+      }
+    }
+    
+    if(altClimateA5) {
+      if(epdData.a5) {
+        altClimateA5.value = epdData.a5.toFixed(6);
+      } else {
+        altClimateA5.value = '';
+      }
+    }
+    
+    // Set default conversion factor based on unit
+    if(altClimateFactor && altClimateFactorUnit) {
+      if(displayUnit === 'm2') {
+        altClimateFactor.value = '20.0'; // Typical weight per m² for building materials
+        altClimateFactorUnit.value = 'kg/m²';
+      } else if(displayUnit === 'm3') {
+        altClimateFactor.value = '1.0';
+        altClimateFactorUnit.value = 'kg/m³';
+      } else {
+        altClimateFactor.value = '1.0';
+        altClimateFactorUnit.value = 'kg/m³';
+      }
+    }
+  }
   
   function openAltClimateModal(target){
     climateTarget = target;
@@ -2440,9 +2633,19 @@
       if(altClimateUnit) altClimateUnit.value = '';
       if(altClimateFactor) altClimateFactor.value = '';
       if(altClimateFactorUnit) altClimateFactorUnit.value = '';
+      if(altClimateWaste) altClimateWaste.value = '';
       if(altClimateA1A3) altClimateA1A3.value = '';
       if(altClimateA4) altClimateA4.value = '';
       if(altClimateA5) altClimateA5.value = '';
+      
+      // Reset EPD selection
+      const manualRadio = document.querySelector('input[name="epdSource"][value="manual"]');
+      if(manualRadio) manualRadio.checked = true;
+      if(epdFileSection) epdFileSection.style.display = 'none';
+      if(epdPreview) epdPreview.style.display = 'none';
+      if(epdFileSelect) epdFileSelect.value = '';
+      
+      // EPD files are already loaded by the indicator on page load
     }
   }
   
@@ -2456,6 +2659,29 @@
   // Alternative climate modal event listeners
   if(altClimateCancel){ altClimateCancel.addEventListener('click', closeAltClimateModal); }
   if(altClimateModal){ altClimateModal.addEventListener('click', function(e){ if(e.target === altClimateModal) closeAltClimateModal(); }); }
+  
+  // EPD source selection event listeners
+  document.addEventListener('change', function(e) {
+    if(e.target.name === 'epdSource') {
+      const isManual = e.target.value === 'manual';
+      if(epdFileSection) epdFileSection.style.display = isManual ? 'none' : 'block';
+      if(epdPreview) epdPreview.style.display = 'none';
+    }
+  });
+  
+  // EPD file selection event listener
+  if(epdFileSelect) {
+    epdFileSelect.addEventListener('change', function(e) {
+      const selectedIndex = e.target.value;
+      if(selectedIndex && loadedEpdData.has(selectedIndex)) {
+        const epdData = loadedEpdData.get(selectedIndex);
+        showEpdPreview(epdData);
+        populateFormFromEpd(epdData);
+      } else {
+        if(epdPreview) epdPreview.style.display = 'none';
+      }
+    });
+  }
   
   // Apply alternative climate resource
   if(altClimateApply){
@@ -2488,25 +2714,16 @@
         unit: altClimateUnit.value,
         factor: parseFloat(altClimateFactor.value) || 1,
         factorUnit: altClimateFactorUnit.value,
+        waste: parseFloat(altClimateWaste.value) || 0,
         a1a3: parseFloat(altClimateA1A3.value) || 0,
         a4: parseFloat(altClimateA4.value) || 0,
         a5: parseFloat(altClimateA5.value) || 0,
         isCustom: true
       };
       
-      // Warn if climate factors seem too high
-      if(customResource.a1a3 > 10){
-        alert('⚠️ Varning: A1-A3 faktorn verkar för hög (' + customResource.a1a3 + '). Vanliga värden är 0.1-1.0 kg CO₂e/kg. Kontrollera att du angett decimaltal (t.ex. 0.245, inte 245).');
-      }
-      if(customResource.a4 > 10){
-        alert('⚠️ Varning: A4 faktorn verkar för hög (' + customResource.a4 + '). Vanliga värden är 0.01-0.1 kg CO₂e/kg. Kontrollera att du angett decimaltal (t.ex. 0.012, inte 12).');
-      }
-      if(customResource.a5 > 10){
-        alert('⚠️ Varning: A5 faktorn verkar för hög (' + customResource.a5 + '). Vanliga värden är 0.01-0.1 kg CO₂e/kg. Kontrollera att du angett decimaltal (t.ex. 0.008, inte 8).');
-      }
       
-      console.log('🌱 [AltClimate] Applying custom resource:', customResource);
-      console.log('🌱 [AltClimate] A1-A3 factor:', customResource.a1a3, 'A4 factor:', customResource.a4, 'A5 factor:', customResource.a5);
+      console.log(' [AltClimate] Applying custom resource:', customResource);
+      console.log(' [AltClimate] A1-A3 factor:', customResource.a1a3, 'A4 factor:', customResource.a4, 'A5 factor:', customResource.a5);
       
       // Apply the custom resource
       applyCustomClimateResource(customResource);
@@ -4476,6 +4693,117 @@
     continueApplyClimateResource(resource, resourceName, conversionFactor, conversionUnit, wasteFactor, tbody, thead, headerRow, savedClimateTarget);
   }
   
+  // Function to update climate mapping indicators on a row
+  function updateClimateMappingIndicator(row) {
+    if(!row) return;
+    
+    // Remove existing climate mapping classes
+    row.classList.remove('climate-mapped', 'climate-mapped-alt', 'climate-mapped-both');
+    
+    // Check if row has climate cells
+    const hasClimateCell = row.querySelector('td[data-climate-cell="true"]');
+    const hasCustomClimateCell = row.querySelector('td[data-climate-cell="true"]') && 
+                                 row.querySelector('td[data-climate-cell="true"]').textContent && 
+                                 !row.querySelector('td[data-climate-cell="true"]').textContent.includes('Boverket');
+    
+    // Determine mapping type based on climate data
+    const rowData = row._originalRowData || getRowDataFromTr(row);
+    const layerChildOf = row.getAttribute('data-layer-child-of');
+    const signature = getRowSignature(rowData, layerChildOf);
+    const climateInfo = climateData.get(signature);
+    
+    let hasBoverket = false;
+    let hasCustom = false;
+    
+    if(climateInfo) {
+      hasBoverket = !climateInfo.isCustom;
+      hasCustom = climateInfo.isCustom;
+    } else if(hasClimateCell) {
+      // Fallback: check if climate cell exists and has content
+      const climateText = hasClimateCell.textContent;
+      hasBoverket = climateText && climateText.trim() !== '';
+    }
+    
+    // Apply appropriate class
+    if(hasBoverket && hasCustom) {
+      row.classList.add('climate-mapped-both');
+    } else if(hasBoverket) {
+      row.classList.add('climate-mapped');
+    } else if(hasCustom) {
+      row.classList.add('climate-mapped-alt');
+    }
+    
+    // Update button texts
+    updateClimateButtonTexts(row, hasBoverket, hasCustom);
+  }
+  
+  // Function to update climate button texts based on mapping status
+  function updateClimateButtonTexts(row, hasBoverket = false, hasCustom = false) {
+    if(!row) return;
+    
+    const actionCell = row.querySelector('td:first-child');
+    if(!actionCell) return;
+    
+    // Find buttons by their text content
+    const allButtons = Array.from(actionCell.querySelectorAll('button'));
+    
+    const climateBtn = allButtons.find(btn => 
+      btn.textContent.includes('Mappa klimatresurs') || 
+      btn.textContent.includes('Redigera mappning')
+    );
+    
+    const altClimateBtn = allButtons.find(btn => 
+      btn.textContent.includes('Mappa till alternativ') || 
+      btn.textContent.includes('Redigera alternativ')
+    );
+    
+    // Update Boverket climate button
+    if(climateBtn) {
+      climateBtn.textContent = hasBoverket ? 'Redigera mappning' : 'Mappa klimatresurs';
+    }
+    
+    // Update alternative climate button
+    if(altClimateBtn) {
+      altClimateBtn.textContent = hasCustom ? 'Redigera alternativ mappning' : 'Mappa till alternativ klimatresurs';
+    }
+  }
+  
+  // Function to update all climate mapping indicators in the table
+  function updateAllClimateMappingIndicators() {
+    const table = getTable();
+    if(!table) return;
+    
+    const tbody = table.querySelector('tbody');
+    if(!tbody) return;
+    
+    const allRows = Array.from(tbody.querySelectorAll('tr'));
+    allRows.forEach(updateClimateMappingIndicator);
+  }
+
+  // Function to preserve parent row collapsed state after climate mapping
+  function preserveParentRowStates(){
+    const table = getTable(); if(!table) return;
+    const tbody = table.querySelector('tbody'); if(!tbody) return;
+    
+    // Find all parent rows (both group and layer parents)
+    const parentRows = Array.from(tbody.querySelectorAll('tr[data-group-key], tr[data-layer-key]'));
+    
+    parentRows.forEach(parentRow => {
+      const isOpen = parentRow.getAttribute('data-open') !== 'false';
+      
+      if(!isOpen) {
+        // If parent is collapsed, hide all its children
+        const parentKey = parentRow.getAttribute('data-group-key') || parentRow.getAttribute('data-layer-key');
+        if(parentKey) {
+          const children = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(parentKey)}"], tr[data-layer-child-of="${CSS.escape(parentKey)}"]`));
+          children.forEach(child => {
+            child.style.display = 'none';
+          });
+        }
+      }
+    });
+  }
+
   function continueApplyClimateResource(resource, resourceName, conversionFactor, conversionUnit, wasteFactor, tbody, thead, headerRow, savedClimateTarget){
     // Extract emission factors from DataItems
     let a1a3Conservative = 'N/A';
@@ -4729,6 +5057,9 @@
     if(savedClimateTarget.type === 'row' && savedClimateTarget.rowEl){
       addClimateToRow(savedClimateTarget.rowEl);
       
+      // Update climate mapping indicator
+      updateClimateMappingIndicator(savedClimateTarget.rowEl);
+      
       // Update parent row's weight sums if this row belongs to a group
       const groupKey = savedClimateTarget.rowEl.getAttribute('data-group-child-of');
       if(groupKey){
@@ -4736,17 +5067,24 @@
       }
     } else if(savedClimateTarget.type === 'group' && savedClimateTarget.key != null){
       const rows = Array.from(tbody.querySelectorAll('tr[data-group-child-of="' + CSS.escape(savedClimateTarget.key) + '"]'));
-      rows.forEach(addClimateToRow);
+      rows.forEach(row => {
+        addClimateToRow(row);
+        // Update climate mapping indicator for each row
+        updateClimateMappingIndicator(row);
+      });
       
       // Update parent row's weight sums after applying climate to all children
       updateGroupWeightSums(savedClimateTarget.key, tbody);
     }
     
-    // Re-apply filters to keep visibility consistent
-    applyFilters();
-    
-    // Update climate summary
-    setTimeout(() => updateClimateSummary(), 100);
+  // Re-apply filters to keep visibility consistent
+  applyFilters();
+  
+  // Preserve parent row collapsed state after climate mapping
+  preserveParentRowStates();
+  
+  // Update climate summary
+  setTimeout(() => updateClimateSummary(), 100);
   }
   
   // Apply custom climate resource (for alternative climate modal)
@@ -4766,6 +5104,7 @@
     const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
     const existingFactorHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor');
     const existingFactorUnitHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor enhet');
+    const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Spillfaktor');
     const existingA1A3Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A1-A3');
     const existingA4Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A4');
     const existingA5Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A5');
@@ -4787,6 +5126,12 @@
       const factorUnitTh = document.createElement('th');
       factorUnitTh.textContent = 'Omräkningsfaktor enhet';
       headerRow.appendChild(factorUnitTh);
+    }
+    
+    if(!existingWasteHeader){
+      const wasteTh = document.createElement('th');
+      wasteTh.textContent = 'Spillfaktor';
+      headerRow.appendChild(wasteTh);
     }
     
     if(!existingA1A3Header){
@@ -4830,9 +5175,9 @@
       const a1a3ImpactTh = document.createElement('th');
       a1a3ImpactTh.textContent = 'Klimatpåverkan A1-A3';
       headerRow.appendChild(a1a3ImpactTh);
-      console.log('🌱 [applyCustomClimateResource] Created A1-A3 header');
+      console.log(' [applyCustomClimateResource] Created A1-A3 header');
     } else {
-      console.log('🌱 [applyCustomClimateResource] A1-A3 header already exists');
+      console.log(' [applyCustomClimateResource] A1-A3 header already exists');
     }
     
     if(!existingA4ImpactHeader){
@@ -4852,20 +5197,31 @@
       const tr = savedClimateTarget.rowEl;
       applyCustomClimateToRow(tr, customResource, headerRow);
       
+      // Update climate mapping indicator
+      updateClimateMappingIndicator(tr);
+      
       // Save to climateData for persistence
-      const rowData = Array.from(tr.children).map(td => td.textContent);
+      // Use original row data instead of DOM content to match signature generation during restore
+      const rowData = tr._originalRowData || getRowDataFromTr(tr);
       const layerChildOf = tr.getAttribute('data-layer-child-of');
       const signature = getRowSignature(rowData, layerChildOf);
       climateData.set(signature, { 
         name: customResource.name, 
         factor: customResource.factor, 
         unit: customResource.factorUnit, 
+        waste: customResource.waste,
         a1a3: customResource.a1a3, 
         a4: customResource.a4, 
         a5: customResource.a5,
         isCustom: true 
       });
-      console.log('🌱 [applyCustomClimateResource] Saved to climateData:', signature, customResource.name);
+      console.log(' [applyCustomClimateResource] Saved to climateData:', signature, customResource.name);
+      
+      // Update parent row's weight sums if this row belongs to a group
+      const groupKey = tr.getAttribute('data-group-child-of');
+      if(groupKey){
+        updateGroupWeightSums(groupKey, tbody);
+      }
       
     } else if(savedClimateTarget.type === 'group' && savedClimateTarget.key){
       const groupKey = savedClimateTarget.key;
@@ -4873,24 +5229,35 @@
       childRows.forEach(childRow => {
         applyCustomClimateToRow(childRow, customResource, headerRow);
         
+        // Update climate mapping indicator for each row
+        updateClimateMappingIndicator(childRow);
+        
         // Save to climateData for persistence
-        const rowData = Array.from(childRow.children).map(td => td.textContent);
+        // Use original row data instead of DOM content to match signature generation during restore
+        const rowData = childRow._originalRowData || getRowDataFromTr(childRow);
         const layerChildOf = childRow.getAttribute('data-layer-child-of');
         const signature = getRowSignature(rowData, layerChildOf);
         climateData.set(signature, { 
           name: customResource.name, 
           factor: customResource.factor, 
           unit: customResource.factorUnit, 
+          waste: customResource.waste,
           a1a3: customResource.a1a3, 
           a4: customResource.a4, 
           a5: customResource.a5,
           isCustom: true 
         });
       });
+      
+      // Update parent row's weight sums after applying climate to all children
+      updateGroupWeightSums(savedClimateTarget.key, tbody);
     }
     
     // Re-apply filters
     applyFilters();
+    
+    // Preserve parent row collapsed state after climate mapping
+    preserveParentRowStates();
     
     // Update climate summary
     setTimeout(() => {
@@ -4912,6 +5279,7 @@
     const climateIndex = headerTexts.findIndex(h => h === 'Klimatresurs');
     const factorIndex = headerTexts.findIndex(h => h === 'Omräkningsfaktor');
     const factorUnitIndex = headerTexts.findIndex(h => h === 'Omräkningsfaktor enhet');
+    const wasteIndex = headerTexts.findIndex(h => h === 'Spillfaktor');
     const a1a3Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A1-A3');
     const a4Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A4');
     const a5Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A5');
@@ -4947,6 +5315,13 @@
       const factorUnitCell = tr.children[factorUnitIndex];
       factorUnitCell.textContent = customResource.factorUnit;
       factorUnitCell.setAttribute('data-unit-cell', 'true');
+    }
+    
+    // Update waste factor
+    if(wasteIndex >= 0 && tr.children[wasteIndex]){
+      const wasteCell = tr.children[wasteIndex];
+      wasteCell.textContent = customResource.waste;
+      wasteCell.setAttribute('data-waste-cell', 'true');
     }
     
     // Update A1-A3 factor
@@ -5008,12 +5383,17 @@
               }
             }
             
-            // Update Inköpt vikt (same as Inbyggd vikt for custom resources)
+            // Calculate Inköpt vikt = Inbyggd vikt × Spillfaktor
+            let inkoptVikt = inbyggdVikt;
+            if(Number.isFinite(customResource.waste) && customResource.waste > 0){
+              inkoptVikt = inbyggdVikt * customResource.waste;
+            }
+            
             const inkoptViktIndex = headerTexts.findIndex(h => h === 'Inköpt vikt');
             if(inkoptViktIndex >= 0){
               const inkoptViktCell = cells[inkoptViktIndex];
               if(inkoptViktCell){
-                inkoptViktCell.textContent = String(inbyggdVikt);
+                inkoptViktCell.textContent = String(inkoptVikt);
                 inkoptViktCell.setAttribute('data-inkopt-vikt-cell', 'true');
               }
             }
@@ -5074,11 +5454,17 @@
               }
             }
             
+            // Calculate Inköpt vikt = Inbyggd vikt × Spillfaktor
+            let inkoptVikt = inbyggdVikt;
+            if(Number.isFinite(customResource.waste) && customResource.waste > 0){
+              inkoptVikt = inbyggdVikt * customResource.waste;
+            }
+            
             const inkoptViktIndex = headerTexts.findIndex(h => h === 'Inköpt vikt');
             if(inkoptViktIndex >= 0){
               const inkoptViktCell = cells[inkoptViktIndex];
               if(inkoptViktCell){
-                inkoptViktCell.textContent = String(inbyggdVikt);
+                inkoptViktCell.textContent = String(inkoptVikt);
                 inkoptViktCell.setAttribute('data-inkopt-vikt-cell', 'true');
               }
             }
@@ -5116,7 +5502,7 @@
               }
             }
             
-            console.log('🌱 [calculateCustomClimateImpact] Calculated impacts (area-based):');
+            console.log(' [calculateCustomClimateImpact] Calculated impacts (area-based):');
             console.log('  Inbyggd vikt:', inbyggdVikt, 'kg');
             console.log('  A1-A3 impact:', a1a3Impact, 'kg CO₂e');
             console.log('  A4 impact:', a4Impact, 'kg CO₂e');
@@ -5134,7 +5520,7 @@
             // Update weight and impact columns (same logic as above)
             updateWeightAndImpactColumns(tr, headerTexts, inbyggdVikt, customResource);
             
-            console.log('🌱 [calculateCustomClimateImpact] Calculated impacts (length-based):');
+            console.log(' [calculateCustomClimateImpact] Calculated impacts (length-based):');
             console.log('  Inbyggd vikt:', inbyggdVikt, 'kg');
           }
         }
@@ -5151,15 +5537,15 @@
               // Update weight and impact columns (same logic as above)
               updateWeightAndImpactColumns(tr, headerTexts, inbyggdVikt, customResource);
               
-              console.log('🌱 [calculateCustomClimateImpact] Calculated impacts (count-based):');
+              console.log(' [calculateCustomClimateImpact] Calculated impacts (count-based):');
               console.log('  Inbyggd vikt:', inbyggdVikt, 'kg');
             }
           }
         } else {
-          console.log('🌱 [calculateCustomClimateImpact] Count column not found for kg/st calculation');
+          console.log(' [calculateCustomClimateImpact] Count column not found for kg/st calculation');
         }
       } else {
-        console.log('🌱 [calculateCustomClimateImpact] Unsupported unit or missing columns:', normalizedUnit);
+        console.log(' [calculateCustomClimateImpact] Unsupported unit or missing columns:', normalizedUnit);
       }
     }
   }
@@ -5189,7 +5575,7 @@
     }
     
     // Calculate climate impact
-    console.log('🌱 [updateWeightAndImpactColumns] Before calculation:');
+    console.log(' [updateWeightAndImpactColumns] Before calculation:');
     console.log('  Inbyggd vikt:', inbyggdVikt, 'kg');
     console.log('  A1-A3 factor:', customResource.a1a3, 'kg CO₂e/kg');
     console.log('  A4 factor:', customResource.a4, 'kg CO₂e/kg');
@@ -5228,13 +5614,200 @@
       }
     }
     
-    console.log('🌱 [updateWeightAndImpactColumns] Updated impacts:');
+    console.log(' [updateWeightAndImpactColumns] Updated impacts:');
     console.log('  Inbyggd vikt:', inbyggdVikt, 'kg');
     console.log('  A1-A3 impact:', a1a3Impact, 'kg CO₂e');
     console.log('  A4 impact:', a4Impact, 'kg CO₂e');
     console.log('  A5 impact:', a5Impact, 'kg CO₂e');
   }
   
+  // Helper function to check if all children have the same climate resource and display it on parent
+  function updateParentClimateDisplay(groupKey, tbody){
+    const parentTr = tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(groupKey)}"]`);
+    if(!parentTr) return;
+    
+    const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+    if(childRows.length === 0) return;
+    
+    // Check if all children have the same climate resource
+    let commonClimateResource = null;
+    let commonFactor = null;
+    let commonFactorUnit = null;
+    let commonWaste = null;
+    let commonA1A3 = null;
+    let commonA4 = null;
+    let commonA5 = null;
+    let allHaveSameClimate = true;
+    
+    childRows.forEach((childTr, index) => {
+      const climateCell = childTr.querySelector('td[data-climate-cell="true"]');
+      const factorCell = childTr.querySelector('td[data-factor-cell="true"]');
+      const factorUnitCell = childTr.querySelector('td[data-unit-cell="true"]');
+      const wasteCell = childTr.querySelector('td[data-waste-cell="true"]');
+      const a1a3Cell = childTr.querySelector('td[data-klimat-a1a3-cell="true"], td[data-A1_A3-cell="true"]');
+      const a4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"], td[data-A4-cell="true"]');
+      const a5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"], td[data-A5-cell="true"]');
+      
+      if(!climateCell || !factorCell || !factorUnitCell || !wasteCell || !a1a3Cell || !a4Cell || !a5Cell) {
+        allHaveSameClimate = false;
+        return;
+      }
+      
+      const climateName = climateCell.textContent.trim();
+      const factor = factorCell.textContent.trim();
+      const factorUnit = factorUnitCell.textContent.trim();
+      const waste = wasteCell.textContent.trim();
+      const a1a3 = a1a3Cell.textContent.trim();
+      const a4 = a4Cell.textContent.trim();
+      const a5 = a5Cell.textContent.trim();
+      
+      if(index === 0) {
+        // First child - set as reference
+        commonClimateResource = climateName;
+        commonFactor = factor;
+        commonFactorUnit = factorUnit;
+        commonWaste = waste;
+        commonA1A3 = a1a3;
+        commonA4 = a4;
+        commonA5 = a5;
+      } else {
+        // Compare with reference
+        if(climateName !== commonClimateResource || 
+           factor !== commonFactor || 
+           factorUnit !== commonFactorUnit ||
+           waste !== commonWaste ||
+           a1a3 !== commonA1A3 ||
+           a4 !== commonA4 ||
+           a5 !== commonA5) {
+          allHaveSameClimate = false;
+        }
+      }
+    });
+    
+    // Get table headers to find column indices
+    const table = parentTr.closest('table');
+    const thead = table.querySelector('thead');
+    const headerRow = thead.querySelector('tr');
+    const headers = Array.from(headerRow.children).map(th => th.textContent);
+    
+    const climateIndex = headers.findIndex(h => h === 'Klimatresurs');
+    const factorIndex = headers.findIndex(h => h === 'Omräkningsfaktor');
+    const factorUnitIndex = headers.findIndex(h => h === 'Omräkningsfaktor enhet');
+    const wasteIndex = headers.findIndex(h => h === 'Spillfaktor');
+    const a1a3Index = headers.findIndex(h => h === 'Emissionsfaktor A1-A3');
+    const a4Index = headers.findIndex(h => h === 'Emissionsfaktor A4');
+    const a5Index = headers.findIndex(h => h === 'Emissionsfaktor A5');
+    
+    // For climate impact columns, we should NOT overwrite the sums - they are calculated separately
+    const klimatA1A3Index = headers.findIndex(h => h === 'Klimatpåverkan A1-A3');
+    const klimatA4Index = headers.findIndex(h => h === 'Klimatpåverkan A4');
+    const klimatA5Index = headers.findIndex(h => h === 'Klimatpåverkan A5');
+    
+    // Ensure parent has enough cells
+    const neededCells = Math.max(climateIndex, factorIndex, factorUnitIndex, wasteIndex, a1a3Index, a4Index, a5Index) + 1;
+    while(parentTr.children.length < neededCells) {
+      const td = document.createElement('td');
+      td.textContent = '';
+      parentTr.appendChild(td);
+    }
+    
+    if(allHaveSameClimate && commonClimateResource) {
+      // Display the common climate resource on parent
+      if(climateIndex >= 0) {
+        const cell = parentTr.children[climateIndex];
+        cell.textContent = commonClimateResource;
+        cell.setAttribute('data-climate-cell', 'true');
+      }
+      
+      if(factorIndex >= 0) {
+        const cell = parentTr.children[factorIndex];
+        cell.textContent = commonFactor;
+        cell.setAttribute('data-factor-cell', 'true');
+      }
+      
+      if(factorUnitIndex >= 0) {
+        const cell = parentTr.children[factorUnitIndex];
+        cell.textContent = commonFactorUnit;
+        cell.setAttribute('data-unit-cell', 'true');
+      }
+      
+      if(wasteIndex >= 0) {
+        const cell = parentTr.children[wasteIndex];
+        cell.textContent = commonWaste;
+        cell.setAttribute('data-waste-cell', 'true');
+      }
+      
+      if(a1a3Index >= 0) {
+        const cell = parentTr.children[a1a3Index];
+        cell.textContent = commonA1A3;
+        cell.setAttribute('data-A1_A3-cell', 'true');
+      }
+      
+      if(a4Index >= 0) {
+        const cell = parentTr.children[a4Index];
+        cell.textContent = commonA4;
+        cell.setAttribute('data-A4-cell', 'true');
+      }
+      
+      if(a5Index >= 0) {
+        const cell = parentTr.children[a5Index];
+        cell.textContent = commonA5;
+        cell.setAttribute('data-A5-cell', 'true');
+      }
+      
+      // Note: We do NOT update klimatpåverkan columns here - they are handled by updateGroupWeightSums
+      
+      console.log('✅ [updateParentClimateDisplay] Set common climate on parent:', commonClimateResource);
+    } else {
+      // Clear climate data from parent if children don't all have the same
+      if(climateIndex >= 0) {
+        const cell = parentTr.children[climateIndex];
+        cell.textContent = '';
+        cell.removeAttribute('data-climate-cell');
+      }
+      
+      if(factorIndex >= 0) {
+        const cell = parentTr.children[factorIndex];
+        cell.textContent = '';
+        cell.removeAttribute('data-factor-cell');
+      }
+      
+      if(factorUnitIndex >= 0) {
+        const cell = parentTr.children[factorUnitIndex];
+        cell.textContent = '';
+        cell.removeAttribute('data-unit-cell');
+      }
+      
+      if(wasteIndex >= 0) {
+        const cell = parentTr.children[wasteIndex];
+        cell.textContent = '';
+        cell.removeAttribute('data-waste-cell');
+      }
+      
+      if(a1a3Index >= 0) {
+        const cell = parentTr.children[a1a3Index];
+        cell.textContent = '';
+        cell.removeAttribute('data-A1_A3-cell');
+      }
+      
+      if(a4Index >= 0) {
+        const cell = parentTr.children[a4Index];
+        cell.textContent = '';
+        cell.removeAttribute('data-A4-cell');
+      }
+      
+      if(a5Index >= 0) {
+        const cell = parentTr.children[a5Index];
+        cell.textContent = '';
+        cell.removeAttribute('data-A5-cell');
+      }
+      
+      // Note: We do NOT clear klimatpåverkan columns here - they are handled by updateGroupWeightSums
+      
+      console.log('🧹 [updateParentClimateDisplay] Cleared climate data from parent - children have different resources');
+    }
+  }
+
   // Helper function to update weight sums for a group parent
   function updateGroupWeightSums(groupKey, tbody){
     console.log('🔍 [updateGroupWeightSums] Called with groupKey:', groupKey);
@@ -5242,7 +5815,8 @@
     console.log('🔍 [updateGroupWeightSums] Found parent:', !!parentTr);
     if(!parentTr) return;
     
-    const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+    // Get all child rows - only direct children, not grandchildren (same logic as updateClimateSummary)
+    const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]:not([data-parent-key])`));
     console.log('🔍 [updateGroupWeightSums] Number of children:', childRows.length);
     
     let sumInbyggdVikt = 0;
@@ -5257,13 +5831,13 @@
     let countKlimatA4 = 0;
     let countKlimatA5 = 0;
     
-    childRows.forEach(childTr => {
+    childRows.forEach((childTr, index) => {
       const inbyggdCell = childTr.querySelector('td[data-inbyggd-vikt-cell="true"]');
       const inkoptCell = childTr.querySelector('td[data-inkopt-vikt-cell="true"]');
       
       if(inbyggdCell){
         const val = parseNumberLike(inbyggdCell.textContent);
-        console.log('🔍 [updateGroupWeightSums] Inbyggd cell value:', inbyggdCell.textContent, 'Parsed:', val);
+        console.log('🔍 [updateGroupWeightSums] Child', index, 'Inbyggd cell value:', inbyggdCell.textContent, 'Parsed:', val);
         if(Number.isFinite(val)){
           sumInbyggdVikt += val;
           countInbyggd++;
@@ -5272,16 +5846,18 @@
       
       if(inkoptCell){
         const val = parseNumberLike(inkoptCell.textContent);
-        console.log('🔍 [updateGroupWeightSums] Inkopt cell value:', inkoptCell.textContent, 'Parsed:', val);
+        console.log('🔍 [updateGroupWeightSums] Child', index, 'Inkopt cell value:', inkoptCell.textContent, 'Parsed:', val);
         if(Number.isFinite(val)){
           sumInkoptVikt += val;
           countInkopt++;
         }
       }
       
+      // Look for climate impact cells (not emission factor cells)
       const klimatA1A3Cell = childTr.querySelector('td[data-klimat-a1a3-cell="true"]');
       if(klimatA1A3Cell){
         const val = parseNumberLike(klimatA1A3Cell.textContent);
+        console.log('🔍 [updateGroupWeightSums] Child', index, 'Klimatpåverkan A1-A3 cell value:', klimatA1A3Cell.textContent, 'Parsed:', val);
         if(Number.isFinite(val)){
           sumKlimatA1A3 += val;
           countKlimatA1A3++;
@@ -5291,6 +5867,7 @@
       const klimatA4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"]');
       if(klimatA4Cell){
         const val = parseNumberLike(klimatA4Cell.textContent);
+        console.log('🔍 [updateGroupWeightSums] Child', index, 'Klimatpåverkan A4 cell value:', klimatA4Cell.textContent, 'Parsed:', val);
         if(Number.isFinite(val)){
           sumKlimatA4 += val;
           countKlimatA4++;
@@ -5300,6 +5877,7 @@
       const klimatA5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"]');
       if(klimatA5Cell){
         const val = parseNumberLike(klimatA5Cell.textContent);
+        console.log('🔍 [updateGroupWeightSums] Child', index, 'Klimatpåverkan A5 cell value:', klimatA5Cell.textContent, 'Parsed:', val);
         if(Number.isFinite(val)){
           sumKlimatA5 += val;
           countKlimatA5++;
@@ -5360,26 +5938,44 @@
     
     if(klimatA1A3ColIndex !== -1 && parentCells[klimatA1A3ColIndex]){
       const cell = parentCells[klimatA1A3ColIndex];
-      cell.textContent = countKlimatA1A3 > 0 ? sumKlimatA1A3.toFixed(2) : '';
+      const newValue = countKlimatA1A3 > 0 ? sumKlimatA1A3.toFixed(2) : '';
+      cell.textContent = newValue;
       // Also add the attribute for future lookups
       cell.setAttribute('data-sum-klimat-a1a3', 'true');
-      console.log('✅ [updateGroupWeightSums] Updated Klimat A1-A3 cell to:', cell.textContent);
+      console.log('✅ [updateGroupWeightSums] Updated Klimat A1-A3 cell to:', newValue, '(calculated sum:', sumKlimatA1A3, 'from', countKlimatA1A3, 'children)');
     }
     
     if(klimatA4ColIndex !== -1 && parentCells[klimatA4ColIndex]){
       const cell = parentCells[klimatA4ColIndex];
-      cell.textContent = countKlimatA4 > 0 ? sumKlimatA4.toFixed(2) : '';
+      const newValue = countKlimatA4 > 0 ? sumKlimatA4.toFixed(2) : '';
+      cell.textContent = newValue;
       // Also add the attribute for future lookups
       cell.setAttribute('data-sum-klimat-a4', 'true');
-      console.log('✅ [updateGroupWeightSums] Updated Klimat A4 cell to:', cell.textContent);
+      console.log('✅ [updateGroupWeightSums] Updated Klimat A4 cell to:', newValue, '(calculated sum:', sumKlimatA4, 'from', countKlimatA4, 'children)');
     }
     
     if(klimatA5ColIndex !== -1 && parentCells[klimatA5ColIndex]){
       const cell = parentCells[klimatA5ColIndex];
-      cell.textContent = countKlimatA5 > 0 ? sumKlimatA5.toFixed(2) : '';
+      const newValue = countKlimatA5 > 0 ? sumKlimatA5.toFixed(2) : '';
+      cell.textContent = newValue;
       // Also add the attribute for future lookups
       cell.setAttribute('data-sum-klimat-a5', 'true');
-      console.log('✅ [updateGroupWeightSums] Updated Klimat A5 cell to:', cell.textContent);
+      console.log('✅ [updateGroupWeightSums] Updated Klimat A5 cell to:', newValue, '(calculated sum:', sumKlimatA5, 'from', countKlimatA5, 'children)');
+    }
+    
+    // Also update parent climate display (show climate resource data if all children have same)
+    updateParentClimateDisplay(groupKey, tbody);
+    
+    // Debug: Check what values are actually on the parent row after all updates
+    console.log('🔍 [DEBUG] Final parent row values after all updates:');
+    if(klimatA1A3ColIndex !== -1 && parentCells[klimatA1A3ColIndex]){
+      console.log('🔍 [DEBUG] Parent Klimat A1-A3 cell final value:', parentCells[klimatA1A3ColIndex].textContent);
+    }
+    if(klimatA4ColIndex !== -1 && parentCells[klimatA4ColIndex]){
+      console.log('🔍 [DEBUG] Parent Klimat A4 cell final value:', parentCells[klimatA4ColIndex].textContent);
+    }
+    if(klimatA5ColIndex !== -1 && parentCells[klimatA5ColIndex]){
+      console.log('🔍 [DEBUG] Parent Klimat A5 cell final value:', parentCells[klimatA5ColIndex].textContent);
     }
   }
   
@@ -5503,7 +6099,6 @@
           }
         } else {
           // No visible children, use parent's own climate data if it exists
-          console.log('📊 Parent with no visible children, using own data');
           
           // Try sum cells first (for group parents), then regular climate cells
           let a1a3Cell = tr.querySelector('td[data-sum-klimat-a1a3="true"]');
@@ -5517,7 +6112,6 @@
           
           if(a1a3Cell){
             const val = parseNumberLike(a1a3Cell.textContent);
-            console.log('  A1-A3:', a1a3Cell.textContent, '→', val);
             if(Number.isFinite(val)){
               totalA1A3 += val;
               hasAnyData = true;
@@ -5526,7 +6120,6 @@
           
           if(a4Cell){
             const val = parseNumberLike(a4Cell.textContent);
-            console.log('  A4:', a4Cell.textContent, '→', val);
             if(Number.isFinite(val)){
               totalA4 += val;
               hasAnyData = true;
@@ -5535,7 +6128,6 @@
           
           if(a5Cell){
             const val = parseNumberLike(a5Cell.textContent);
-            console.log('  A5:', a5Cell.textContent, '→', val);
             if(Number.isFinite(val)){
               totalA5 += val;
               hasAnyData = true;
@@ -5960,4 +6552,35 @@
       e.target.value = '';
     });
   }
+  
+  // Load EPD files on page load
+  loadEpdFiles().then((result) => {
+    // EPD files loaded successfully
+    const epdIndicator = document.getElementById('epdIndicator');
+    if(epdIndicator) {
+      epdIndicator.className = 'api-indicator connected';
+      epdIndicator.innerHTML = `
+        <div class="api-status">
+          <span class="api-status-dot connected"></span>
+          <span>EPD-filer laddade</span>
+        </div>
+        <div class="api-details">${result.count} filer tillgängliga för alternativ klimatresurs</div>
+      `;
+    }
+  }).catch(err => {
+    console.error('EPD Loading Error:', err);
+    
+    // Update EPD indicator with error status
+    const epdIndicator = document.getElementById('epdIndicator');
+    if(epdIndicator) {
+      epdIndicator.className = 'api-indicator error';
+      epdIndicator.innerHTML = `
+        <div class="api-status">
+          <span class="api-status-dot error"></span>
+          <span>EPD-laddning misslyckades</span>
+        </div>
+        <div class="api-details">${err.message || 'Okänt fel'}</div>
+      `;
+    }
+  });
 })();
