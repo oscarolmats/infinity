@@ -106,6 +106,55 @@
       z-index: 1000;
     }
     
+    /* Make action buttons display horizontally */
+    td:first-child {
+      display: flex;
+      flex-direction: row;
+      gap: 4px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    
+    /* Progress Bar Styles */
+    .progress-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 300px;
+      height: 8px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 9999;
+      border: 2px solid #4caf50;
+    }
+    
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50, #8bc34a);
+      width: 0%;
+      transition: width 0.3s ease;
+      animation: progress-pulse 2s ease-in-out infinite;
+    }
+    
+    .progress-bar-text {
+      position: absolute;
+      top: -25px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      font-weight: 500;
+    }
+    
+    @keyframes progress-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
     .api-indicator { 
       background: white; 
       border: 2px solid #ddd; 
@@ -246,22 +295,28 @@
     </div>
   </div>
 
+  <!-- Progress Bar -->
+  <div id="progressBar" class="progress-bar" style="display: none;">
+    <div class="progress-bar-fill"></div>
+    <div class="progress-bar-text">Bearbetar...</div>
+  </div>
+
   <div class="container">
-    <h1>Visa tabell</h1>
-    <p class="muted">VÃ¤lj en <strong>.xlsx</strong> (server) eller <strong>.csv/.tsv</strong> (klient). Filtrera globalt eller per kolumn. Gruppering sker pÃ¥ kolumnen "Type" om den finns.</p>
+    <h1>INFINITY</h1>
     <div class="picker">
       <input id="fileInput" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"/>
       <input id="filterInput" class="filter" type="search" placeholder="Filtrera rader..." />
       <label for="groupBy" class="muted">Gruppera efter:</label>
       <select id="groupBy"></select>
       <button id="toggleAllBtn" type="button">Fäll ihop alla</button>
-      <button id="addRowBtn" type="button" style="background:#4caf50; color:white; border:1px solid #45a049;">Lägg till rad</button>
-      <button id="exportBtn" type="button" style="background:#2196f3; color:white; border:1px solid #1976d2;">Exportera till Excel</button>
-      <button id="undoBtn" type="button" style="background:#607d8b; color:white; border:1px solid #455a64;" title="Ångra (Ctrl+Z)" disabled>↶ Ångra</button>
-      <button id="redoBtn" type="button" style="background:#607d8b; color:white; border:1px solid #455a64;" title="Gör om (Ctrl+Y)" disabled>↷ Gör om</button>
-      <button id="saveProjectBtn" type="button" style="background:#9c27b0; color:white; border:1px solid #7b1fa2;">💾 Spara</button>
-      <button id="saveAsProjectBtn" type="button" style="background:#7b1fa2; color:white; border:1px solid #6a1b9a;">Spara som...</button>
-      <button id="loadProjectBtn" type="button" style="background:#ff9800; color:white; border:1px solid #f57c00;">📂 Öppna projekt</button>
+      <button id="addRowBtn" type="button" style="background:#607d8b; color:white;">Lägg till rad</button>
+      <button id="exportBtn" type="button" style="background:#607d8b; color:white;">Exportera till Excel</button>
+      <button id="undoBtn" type="button" style="background:#607d8b; color:white;" title="Ångra (Ctrl+Z)" disabled>↶ Ångra</button>
+      <button id="redoBtn" type="button" style="background:#607d8b; color:white;" title="Gör om (Ctrl+Y)" disabled>↷ Gör om</button>
+      <button id="saveProjectBtn" type="button" style="background:#607d8b; color:white;">Spara</button>
+      <button id="saveAsProjectBtn" type="button" style="background:#607d8b; color:white;">Spara som...</button>
+      <button id="loadProjectBtn" type="button" style="background:#607d8b; color:white;">Öppna projekt</button>
+      <button id="testProgressBtn" type="button" style="background:#ff9800; color:white;">Testa Progress Bar</button>
       <input id="projectFileInput" type="file" accept=".json,application/json" style="display:none;" />
     </div>
     <div id="output"></div>
@@ -308,10 +363,10 @@
         <div id="layerNamesContainer">
           <!-- Will be populated dynamically based on layer count -->
         </div>
+        
       </div>
       
       <div style="display:flex; gap:8px; justify-content:space-between; margin-top:12px;">
-        <button id="layerMapClimate" type="button" style="background:#4caf50; color:white; border:1px solid #45a049;">Mappa klimatresurs till skikt</button>
         <div style="display:flex; gap:8px;">
           <button id="layerCancel" type="button">Avbryt</button>
           <button id="layerApply" type="button">Dela</button>

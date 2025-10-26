@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/oscar/Documents/oldtabell/infinity/public/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
