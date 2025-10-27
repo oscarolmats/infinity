@@ -7040,7 +7040,7 @@ function updateClimateSummary(){
     if(summaryTotal) summaryTotal.textContent = total.toFixed(2) + ' kg CO₂e';
   } else {
     // Hide summary if no data
-    //if(climateSummary) climateSummary.style.display = 'none';
+    if(climateSummary) climateSummary.style.display = 'none';
   }
 }
 

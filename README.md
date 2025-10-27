@@ -4,12 +4,12 @@ En webbapplikation för att visa och manipulera Excel- och CSV-filer med avancer
 
 ## Funktioner
 
-- 📊 **Excel & CSV-support** - Läs både .xlsx och .csv/.tsv filer
-- 🔍 **Filtrering** - Global och per-kolumn filtrering
-- 📁 **Gruppering** - Gruppera data efter valfri kolumn
-- 🏗️ **Skiktfunktionalitet** - Dela objekt i konfigurerbara skikt
-- 📈 **Automatisk skalning** - Net Area, Volume och Count skalas automatiskt
-- 🎨 **Visuella indikatorer** - Nya skikt markeras med badges
+-  **Excel & CSV-support** - Läs både .xlsx och .csv/.tsv filer
+-  **Filtrering** - Global och per-kolumn filtrering
+-  **Gruppering** - Gruppera data efter valfri kolumn
+-  **Skiktfunktionalitet** - Dela objekt i konfigurerbara skikt
+-  **Automatisk skalning** - Net Area, Volume och Count skalas automatiskt
+-  **Visuella indikatorer** - Nya skikt markeras med badges
 
 ## Installation
 
