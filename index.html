@@ -332,7 +332,7 @@
           <input id="layerCount" type="number" min="1" value="2" style="width:100%;" />
         </label>
         <label style="flex:2;">
-          Tjocklekar (kommaseparerade)
+          Tjocklekar (kommaseparerade i mm)
           <input id="layerThicknesses" type="text" placeholder="t.ex. 10,5" style="width:100%;" />
         </label>
       </div>
@@ -588,8 +588,8 @@
   
   <!-- EPD Parser -->
   <script src="epd-parser.js"></script>
-  
-  <script src="app.js"></script>
+
+  <script type="module" src="app.js"></script>
 
   <script>
     const apiIndicator = document.getElementById('apiIndicator');
