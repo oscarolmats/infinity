@@ -393,28 +393,34 @@
         hasSharedKeys: !!saved.sharedLayerKeys,
         sharedKeys: saved.sharedLayerKeys?.map(k => k?.substring(0, 30)),
         hasLayerNames: !!saved.layerNames,
-        layerNames: saved.layerNames
+        layerNames: saved.layerNames,
+        hasMixedLayerConfigs: !!saved.mixedLayerConfigs,
+        mixedLayerConfigs: saved.mixedLayerConfigs
       });
 
-      // Trigger layer split with saved parameters and layerKey
-      layerTarget = { type: 'row', rowEl: tr };
+      // Trigger layer split with saved parameters
       const tempCount = saved.count;
       const tempThicknesses = saved.thicknesses;
       const tempLayerKey = saved.layerKey;
       const tempSharedLayerKeys = saved.sharedLayerKeys || null;
       const tempLayerNames = saved.layerNames || [];
+      const tempMixedLayerConfigs = saved.mixedLayerConfigs || [];
+      const tempClimateResources = saved.climateResources || [];
+      const tempClimateTypes = saved.climateTypes || [];
+      const tempClimateFactors = saved.climateFactors || [];
+
+      console.log('🔄 [applySavedLayers] Calling applyLayerSplitWithKey with mixedLayerConfigs:', tempMixedLayerConfigs);
 
       const table = tr.closest('table');
       const tbody = table ? table.querySelector('tbody') : null;
       if(tbody){
-        applyLayerSplitWithKey(tr, tbody, tempCount, tempThicknesses, tempLayerKey, false, tempSharedLayerKeys, tempLayerNames);
+        applyLayerSplitWithKey(tr, tbody, tempCount, tempThicknesses, tempLayerKey, false, tempSharedLayerKeys, tempLayerNames, tempMixedLayerConfigs, tempClimateResources, tempClimateTypes, tempClimateFactors);
       }
-      layerTarget = null;
     }
   }
   
   // Helper function for applying layers with a specific key
-  function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNested = false, sharedLayerKeys = null, layerNames = []){
+  function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNested = false, sharedLayerKeys = null, layerNames = [], mixedLayerConfigs = [], climateResources = [], climateTypes = [], climateFactors = []){
     const table = tr.closest('table');
 
     console.log('🔧 [applyLayerSplitWithKey] Called with:', {
@@ -424,8 +430,30 @@
       hasSharedKeys: !!sharedLayerKeys,
       sharedKeys: sharedLayerKeys?.map(k => k?.substring(0, 30)),
       hasLayerNames: layerNames.length > 0,
-      layerNames
+      layerNames,
+      hasMixedLayerConfigs: mixedLayerConfigs.length > 0,
+      mixedLayerConfigs
     });
+
+    // IMPORTANT: Save layer data to Map BEFORE modifying anything
+    // This uses the ORIGINAL _originalRowData (before names are changed for mixed layers)
+    // This ensures the signature matches when the table is rebuilt from CSV data
+    const originalRowData = tr._originalRowData;
+    if(originalRowData){
+      const baseSignature = getRowSignature(originalRowData, null);
+      layerData.set(baseSignature, {
+        count,
+        thicknesses,
+        layerKey,
+        sharedLayerKeys: sharedLayerKeys || undefined,
+        layerNames: layerNames.length > 0 ? layerNames : undefined,
+        mixedLayerConfigs: mixedLayerConfigs.length > 0 ? mixedLayerConfigs : undefined,
+        climateResources: climateResources.length > 0 ? climateResources : undefined,
+        climateTypes: climateTypes.length > 0 ? climateTypes : undefined,
+        climateFactors: climateFactors.length > 0 ? climateFactors : undefined
+      });
+      console.log('💾 [applyLayerSplitWithKey] Saved layer data EARLY with original signature, mixedLayerConfigs:', mixedLayerConfigs.length > 0);
+    }
 
     function splitRowWithKey(tr, savedLayerKey){
       const multipliers = thicknesses.length > 0
@@ -642,22 +670,165 @@
             const childSaved = layerData.get(childSignature);
             if(childSaved){
               setTimeout(() => {
-                applyLayerSplitWithKey(f, tbody, childSaved.count, childSaved.thicknesses, childSaved.layerKey, true, childSaved.sharedLayerKeys || null, childSaved.layerNames || []);
+                applyLayerSplitWithKey(f, tbody, childSaved.count, childSaved.thicknesses, childSaved.layerKey, true, childSaved.sharedLayerKeys || null, childSaved.layerNames || [], childSaved.mixedLayerConfigs || [], childSaved.climateResources || [], childSaved.climateTypes || [], childSaved.climateFactors || []);
               }, 0);
             }
           }
         }
       });
+
+      // IMPORTANT: Handle mixed layer configs - create Material 2 rows for mixed layers
+      if(mixedLayerConfigs && mixedLayerConfigs.length > 0){
+        console.log('🔧 [applyLayerSplitWithKey] Processing mixed layer configs:', mixedLayerConfigs);
+
+        mixedLayerConfigs.forEach((mixedLayerConfig) => {
+          const targetLayerIndex = mixedLayerConfig.layerIndex - 1; // Convert from 1-based to 0-based
+          const targetLayer = fragments[targetLayerIndex];
+
+          if(!targetLayer){
+            console.log('⚠️ [applyLayerSplitWithKey] No target layer found for mixed layer config:', mixedLayerConfig);
+            return;
+          }
+
+          // Clone the target layer to create Material 2
+          const material2Row = targetLayer.cloneNode(true);
+          material2Row.classList.remove('layer-parent');
+
+          // Set unique data-layer-key for Material 2
+          const material1LayerKey = targetLayer.getAttribute('data-layer-key');
+          if(material1LayerKey){
+            const material2LayerKey = material1LayerKey + '_mat2';
+            material2Row.setAttribute('data-layer-key', material2LayerKey);
+            console.log('🔑 [applyLayerSplitWithKey] Set Material 2 key:', material2LayerKey);
+          }
+
+          // Mark both as mixed layers
+          targetLayer.setAttribute('data-mixed-layer', 'true');
+          material2Row.setAttribute('data-mixed-layer', 'true');
+
+          // Preserve _originalRowData for Material 2
+          if(targetLayer._originalRowData){
+            material2Row._originalRowData = targetLayer._originalRowData;
+          }
+
+          // Clear climate data cells from Material 2
+          const climateCellsToReset = [
+            material2Row.querySelector('td[data-climate-cell="true"]'),
+            material2Row.querySelector('td[data-factor-cell="true"]'),
+            material2Row.querySelector('td[data-unit-cell="true"]'),
+            material2Row.querySelector('td[data-waste-cell="true"]'),
+            material2Row.querySelector('td[data-A1_A3-cell="true"]'),
+            material2Row.querySelector('td[data-A4-cell="true"]'),
+            material2Row.querySelector('td[data-A5-cell="true"]'),
+            material2Row.querySelector('td[data-inbyggd-vikt-cell="true"]'),
+            material2Row.querySelector('td[data-inkopt-vikt-cell="true"]'),
+            material2Row.querySelector('td[data-A1_A3-impact-cell="true"]'),
+            material2Row.querySelector('td[data-A4-impact-cell="true"]'),
+            material2Row.querySelector('td[data-A5-impact-cell="true"]')
+          ];
+
+          climateCellsToReset.forEach(cell => {
+            if(cell) cell.textContent = '';
+          });
+
+          // Update layer names for both materials
+          const table = tbody.closest('table');
+          const headerTexts = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
+          const layerNameColumnIndex = headerTexts.findIndex(h => h === 'Skiktnamn');
+
+          if(layerNameColumnIndex >= 0){
+            // Update Material 1 name
+            const mat1Cells = Array.from(targetLayer.children);
+            if(mat1Cells[layerNameColumnIndex]){
+              const material1Name = mixedLayerConfig.material1.name + ' (' + mixedLayerConfig.material1.percent + '%)';
+              mat1Cells[layerNameColumnIndex].textContent = material1Name;
+            }
+
+            // Update Material 2 name
+            const mat2Cells = Array.from(material2Row.children);
+            if(mat2Cells[layerNameColumnIndex]){
+              const material2Name = mixedLayerConfig.material2.name + ' (' + mixedLayerConfig.material2.percent + '%)';
+              mat2Cells[layerNameColumnIndex].textContent = material2Name;
+            }
+
+            // IMPORTANT: Update _originalRowData for Material 1 now (it's already in tbody)
+            if(targetLayer._originalRowData){
+              const updatedMat1Data = getRowDataFromTr(targetLayer);
+              if(updatedMat1Data){
+                targetLayer._originalRowData = updatedMat1Data;
+                console.log('🔄 [applyLayerSplitWithKey] Updated Material 1 _originalRowData');
+              }
+            }
+          }
+
+          // Clear action buttons for Material 2
+          const mat2ActionTd = material2Row.querySelector('td:first-child');
+          if(mat2ActionTd){
+            mat2ActionTd.innerHTML = '';
+          }
+
+          // Insert Material 2 right after Material 1
+          tbody.insertBefore(material2Row, targetLayer.nextSibling);
+          console.log('✅ [applyLayerSplitWithKey] Created Material 2 row for mixed layer:', mixedLayerConfig.layerIndex);
+
+          // IMPORTANT: Update Material 2's _originalRowData AFTER it's been inserted into DOM
+          // This ensures getRowDataFromTr can find the table headers
+          if(material2Row._originalRowData){
+            const updatedMat2Data = getRowDataFromTr(material2Row);
+            if(updatedMat2Data){
+              material2Row._originalRowData = updatedMat2Data;
+              console.log('🔄 [applyLayerSplitWithKey] Updated Material 2 _originalRowData with unique name');
+            } else {
+              console.log('❌ [applyLayerSplitWithKey] Failed to get Material 2 rowData from TR');
+            }
+          } else {
+            console.log('⚠️ [applyLayerSplitWithKey] Material 2 has no _originalRowData to update');
+          }
+
+          // IMPORTANT: Apply saved climate to Material 2 first (in case it was restored)
+          // This ensures Material 2's climate data is loaded from climateData Map
+          const material2RowData = material2Row._originalRowData;
+          if(material2RowData){
+            applySavedClimate(material2Row, material2RowData);
+            console.log('🔄 [applyLayerSplitWithKey] Applied saved climate to Material 2');
+          }
+
+          // Apply climate resources to both materials
+          if(climateResources && climateResources.length > targetLayerIndex){
+            const material1ClimateResource = climateResources[targetLayerIndex];
+            if(material1ClimateResource && material1ClimateResource !== ''){
+              // Material 1 should already have climate applied by applySavedClimate
+              console.log('🌍 [applyLayerSplitWithKey] Material 1 climate handled by applySavedClimate');
+            }
+          }
+
+          // Apply Material 2 climate resource (if specified in mixedLayerConfig)
+          // This only applies if we're restoring from a fresh layer split, not from saved state
+          const material2ClimateResource = mixedLayerConfig.material2.climateResource;
+          if(material2ClimateResource && material2ClimateResource !== ''){
+            let resourceIndex2;
+            if(material2ClimateResource.includes(':')){
+              resourceIndex2 = parseInt(material2ClimateResource.split(':')[1]);
+            } else {
+              resourceIndex2 = parseInt(material2ClimateResource);
+            }
+
+            if(!isNaN(resourceIndex2) && window.climateResources && window.climateResources[resourceIndex2]){
+              const resource2 = window.climateResources[resourceIndex2];
+              console.log('🌍 [applyLayerSplitWithKey] Applying climate resource to Material 2:', resource2.Name);
+
+              // Apply climate to Material 2
+              const savedClimateTarget = climateTarget;
+              climateTarget = { type: 'row', rowEl: material2Row };
+              applyClimateResource(resource2);
+              climateTarget = savedClimateTarget;
+            }
+          }
+        });
+      }
     }
 
-    // Save layer data to Map BEFORE calling splitRowWithKey
-    // This ensures that when children are created, they can reference parent's layer data
-    const rowData = tr._originalRowData;
-    if(rowData){
-      const baseSignature = getRowSignature(rowData, null);
-      layerData.set(baseSignature, { count, thicknesses, layerKey });
-    }
-
+    // Call splitRowWithKey to create the layer children
     splitRowWithKey(tr, layerKey);
   }
 
@@ -3342,7 +3513,7 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
       
       // Get layer names and climate resources
       const { layerNames, climateResources, climateTypes, climateFactors } = getLayerNamesAndClimateResources();
-      
+
       applyLayerSplit(count, thicknesses, mixedLayerConfigs, layerNames, climateResources, climateTypes, climateFactors);
       closeLayerModal();
     });
@@ -3376,14 +3547,26 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
       }
     });
     
-    // Extract layer numbers from keys (e.g., "Wall_Layer_1" -> 1)
+    // Extract layer numbers from keys (e.g., "Wall_Layer_1" -> 1, "Wall_Layer_1_mat2" -> "1_mat2")
+    // For mixed layers, we need to keep track of both material 1 and material 2
     const uniqueLayers = Array.from(layerKeySet)
       .map(key => {
-        const match = key.match(/_Layer_(\d+)$/);
-        return match ? parseInt(match[1], 10) : null;
+        // Match both regular layers and mixed layers with _mat2 suffix
+        const match = key.match(/_Layer_(\d+)(?:_mat2)?$/);
+        if(match){
+          const layerNum = parseInt(match[1], 10);
+          const isMat2 = key.endsWith('_mat2');
+          // Return an object with layer number and material identifier
+          return { layerNum, key, isMat2 };
+        }
+        return null;
       })
-      .filter(num => num !== null)
-      .sort((a, b) => a - b);
+      .filter(item => item !== null)
+      .sort((a, b) => {
+        // Sort by layer number, then by material (mat1 before mat2)
+        if(a.layerNum !== b.layerNum) return a.layerNum - b.layerNum;
+        return a.isMat2 ? 1 : -1;
+      });
     
     // console.log('🔍 [openMultiLayerClimate] Unique layers:', uniqueLayers);
     
@@ -3393,14 +3576,14 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
     }
     
     // Get thickness information for each layer
-    const layerInfo = uniqueLayers.map(layerNum => {
-      const layerKeyPattern = groupKey + '_Layer_' + layerNum;
+    const layerInfo = uniqueLayers.map(layerItem => {
+      const { layerNum, key: layerKeyPattern, isMat2 } = layerItem;
       const layerRow = layerRows.find(row => row.dataset.layerKey === layerKeyPattern);
-      
+
       let thickness = null;
       let existingResource = null;
       let existingLayerName = null;
-      
+
       if(layerRow){
         // Try to read thickness from the row
         const table = getTable();
@@ -3418,16 +3601,28 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
             }
           }
         }
-        
+
         // Check for existing climate resource
         const climateCell = layerRow.querySelector('td[data-climate-cell="true"]');
         if(climateCell && climateCell.textContent){
           existingResource = climateCell.textContent;
         }
-        
-        // Check for existing layer name in badge
+
+        // Check for existing layer name in badge or Skiktnamn column
         const firstDataCell = layerRow.querySelector('td:nth-child(2)');
-        if(firstDataCell){
+        const skiktNameIdx = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent).findIndex(h => h === 'Skiktnamn');
+
+        // First try to get name from Skiktnamn column (for mixed layers)
+        if(skiktNameIdx >= 0){
+          const cells = Array.from(layerRow.children);
+          const skiktNameCell = cells[skiktNameIdx + 1]; // +1 for action column
+          if(skiktNameCell && skiktNameCell.textContent.trim()){
+            existingLayerName = skiktNameCell.textContent.trim();
+          }
+        }
+
+        // Fall back to badge if no Skiktnamn found
+        if(!existingLayerName && firstDataCell){
           const badge = firstDataCell.querySelector('.badge-new');
           if(badge && badge.textContent){
             // Extract name from badge text like "Puts" or "Skikt 1/3"
@@ -3439,13 +3634,15 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
           }
         }
       }
-      
+
       return {
         layerNum,
+        layerKey: layerKeyPattern,
         layerKeyPattern,
         thickness,
         existingResource,
-        existingLayerName
+        existingLayerName,
+        isMat2
       };
     });
     
@@ -3479,27 +3676,33 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
       
       const layerTitle = document.createElement('h3');
       layerTitle.style.cssText = 'margin:0; color:#1565c0; font-size:16px;';
-      layerTitle.textContent = `Skikt ${info.layerNum}`;
-      
+      // Show "Skikt X - Material 2" for mat2, otherwise just "Skikt X"
+      layerTitle.textContent = info.isMat2 ? `Skikt ${info.layerNum} - Material 2` : `Skikt ${info.layerNum}`;
+
       const thicknessLabel = document.createElement('span');
       thicknessLabel.style.cssText = 'background:#2196f3; color:white; padding:4px 12px; border-radius:12px; font-size:13px; font-weight:600;';
       thicknessLabel.textContent = info.thickness ? `${info.thickness.toFixed(1)} mm` : 'Okänd tjocklek';
-      
+
       header.appendChild(layerTitle);
       header.appendChild(thicknessLabel);
       card.appendChild(header);
-      
-      // Layer name input
+
+      // Layer name input (read-only for mixed layers since name is set during layer creation)
       const nameLabel = document.createElement('label');
       nameLabel.style.cssText = 'display:block; margin-bottom:12px;';
       nameLabel.innerHTML = '<span style="font-weight:600; font-size:13px; color:#555; display:block; margin-bottom:6px;">Skiktnamn:</span>';
-      
+
       const nameInput = document.createElement('input');
       nameInput.type = 'text';
-      nameInput.placeholder = `t.ex. Puts, Betong, Isolering...`;
+      nameInput.placeholder = info.isMat2 ? 'Material 2 namn (satt vid skapande)' : `t.ex. Puts, Betong, Isolering...`;
       nameInput.style.cssText = 'width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:14px; box-sizing:border-box;';
-      nameInput.dataset.layerNum = info.layerNum;
+      nameInput.dataset.layerKey = info.layerKey; // Use layerKey instead of layerNum for unique identification
       nameInput.dataset.nameInput = 'true';
+      // Make read-only for mixed layers
+      if(info.isMat2){
+        nameInput.readOnly = true;
+        nameInput.style.cssText += 'background:#e8e8e8; cursor:not-allowed;';
+      }
       
       // Try to get existing layer name from badge
       if(info.existingLayerName){
@@ -3521,19 +3724,23 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
       searchInput.type = 'text';
       searchInput.placeholder = 'Sök klimatresurs...';
       searchInput.style.cssText = 'width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px; box-sizing:border-box;';
-      searchInput.dataset.layerNum = info.layerNum;
-      
+      searchInput.dataset.layerKey = info.layerKey; // Use layerKey instead of layerNum for unique identification
+      searchInput.dataset.layerNum = info.layerNum; // Keep layerNum for backward compatibility
+
+      console.log(`🏗️ [Modal Build] Creating climate input for ${info.isMat2 ? 'Material 2' : 'Material 1'}, layerKey:`, info.layerKey);
+
       // Pre-fill with existing resource if any
       if(info.existingResource){
         searchInput.value = info.existingResource;
       }
-      
+
       searchWrapper.appendChild(searchInput);
-      
+
       // Dropdown for search results
       const dropdown = document.createElement('div');
       dropdown.style.cssText = 'position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #ddd; border-top:none; max-height:200px; overflow-y:auto; display:none; z-index:1000; box-shadow:0 4px 8px rgba(0,0,0,0.1);';
-      dropdown.dataset.layerNum = info.layerNum;
+      dropdown.dataset.layerKey = info.layerKey; // Use layerKey instead of layerNum
+      dropdown.dataset.layerNum = info.layerNum; // Keep layerNum for backward compatibility
       
       searchWrapper.appendChild(dropdown);
       climateLabel.appendChild(searchWrapper);
@@ -3726,37 +3933,39 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
     
     const { layerRows, groupKey, selectedResources, selectedNames, uniqueLayers } = multiLayerClimateTarget;
     
-    // Build a map from layer number to the layer key pattern
-    const layerKeyPatterns = new Map();
-    uniqueLayers.forEach(layerNum => {
-      layerKeyPatterns.set(layerNum, groupKey + '_Layer_' + layerNum);
-    });
-    
-    // console.log('🔍 [applyAllLayerResources] Layer key patterns:', Array.from(layerKeyPatterns.entries()));
-    
+    // Now using layerKey directly instead of layer numbers
+    console.log('🔍 [applyAllLayerResources] selectedResources keys:', Array.from(selectedResources.keys()));
+    console.log('🔍 [applyAllLayerResources] selectedNames keys:', Array.from(selectedNames.keys()));
+    console.log('🔍 [applyAllLayerResources] Processing', layerRows.length, 'layer rows');
+
     // Apply the appropriate resource and name to each layer row based on its layer key
-    layerRows.forEach(row => {
+    layerRows.forEach((row, idx) => {
       const layerKey = row.dataset.layerKey || '';
+      const isMat2 = layerKey.endsWith('_mat2');
+      console.log(`\n🔍 [applyAllLayerResources] Row ${idx + 1}/${layerRows.length} ${isMat2 ? '(Material 2)' : '(Material 1/Regular)'}`);
+      console.log('  Full layerKey:', layerKey);
+
       if(layerKey){
-        // Find which layer number this key corresponds to
-        const match = layerKey.match(/_Layer_(\d+)$/);
-        if(match){
-          const layerNumber = parseInt(match[1], 10);
-          
-          // Apply layer name if provided
-          if(selectedNames && selectedNames.has(layerNumber)){
-            const layerName = selectedNames.get(layerNumber);
-            updateLayerBadge(row, layerName);
-          }
-          
-          // Apply climate resource if provided
-          const resource = selectedResources.get(layerNumber);
-          if(resource){
-            // console.log('🔍 [applyAllLayerResources] Applying resource to layerKey:', layerKey, 'layerNum:', layerNumber, 'resource:', resource.Name);
-            climateTarget = { type: 'row', rowEl: row };
-            applyClimateResource(resource);
-          }
+        // Apply layer name if provided (using exact layerKey match)
+        if(selectedNames && selectedNames.has(layerKey)){
+          const layerName = selectedNames.get(layerKey);
+          console.log('  📝 Applying layer name:', layerName);
+          updateLayerBadge(row, layerName);
+        } else {
+          console.log('  📝 No layer name in selectedNames for this key');
         }
+
+        // Apply climate resource if provided (using exact layerKey match)
+        const resource = selectedResources.get(layerKey);
+        if(resource){
+          console.log('  ✅ FOUND resource:', resource.Name, '- calling applyClimateResource()');
+          climateTarget = { type: 'row', rowEl: row };
+          applyClimateResource(resource);
+        } else {
+          console.log('  ❌ NO resource found in selectedResources Map for this key');
+        }
+      } else {
+        console.log('  ⚠️ Row has no layerKey attribute!');
       }
     });
     
@@ -3806,55 +4015,87 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
       let hasError = false;
       
       layerInfo.forEach(info => {
-        // Get layer name input
-        const nameInput = multiLayerClimateContent.querySelector(`input[data-name-input="true"][data-layer-num="${info.layerNum}"]`);
-        if(nameInput){
+        const isMat2 = info.isMat2;
+        console.log(`\n🔍 [Collect] Processing ${isMat2 ? 'Material 2' : 'Material 1/Regular'}, layerKey:`, info.layerKey);
+
+        // Get layer name input using layerKey for unique identification
+        const nameInput = multiLayerClimateContent.querySelector(`input[data-name-input="true"][data-layer-key="${CSS.escape(info.layerKey)}"]`);
+        console.log(`  📝 Name input found:`, !!nameInput, nameInput ? `value="${nameInput.value}"` : '');
+        if(nameInput && !info.isMat2){ // Only allow name changes for non-mat2 layers
           const layerName = nameInput.value.trim();
           if(layerName){
-            selectedNames.set(info.layerNum, layerName);
+            selectedNames.set(info.layerKey, layerName);
+            console.log(`  ✅ Added to selectedNames:`, layerName);
           }
         }
-        
-        // Get climate resource input
-        const searchInput = multiLayerClimateContent.querySelector(`input[data-layer-num="${info.layerNum}"]:not([data-name-input])`);
-        if(!searchInput) return;
-        
-        const resourceName = searchInput.value.trim();
-        if(!resourceName){
-          // Skip empty selections
+
+        // Get climate resource input using layerKey
+        const selector = `input[data-layer-key="${CSS.escape(info.layerKey)}"]:not([data-name-input])`;
+        console.log(`  🔍 Climate input selector:`, selector);
+        const searchInput = multiLayerClimateContent.querySelector(selector);
+        console.log(`  🌍 Climate input found:`, !!searchInput, searchInput ? `value="${searchInput.value}"` : '');
+        if(!searchInput){
+          console.log(`  ❌ No climate input found - RETURNING EARLY`);
           return;
         }
-        
+
+        const resourceName = searchInput.value.trim();
+        if(!resourceName){
+          console.log(`  ⏭️ Skipping - no resource name entered`);
+          return;
+        }
+
+        console.log(`  🔍 Resource name entered: "${resourceName}"`);
+
         // Find the resource by name or index
         let resourceIndex = searchInput.dataset.selectedIndex;
+        console.log(`  🔢 selectedIndex attribute:`, resourceIndex);
         if(resourceIndex !== undefined){
           const resource = window.climateResources[resourceIndex];
           if(resource){
-            selectedResources.set(info.layerNum, resource);
+            selectedResources.set(info.layerKey, resource);
+            console.log(`  ✅ Added resource to Map by INDEX: "${resource.Name}" for key:`, info.layerKey);
+          } else {
+            console.log(`  ⚠️ No resource found at index ${resourceIndex}`);
           }
         } else {
           // Try to find exact match by name
           const resource = window.climateResources.find(r => r.Name === resourceName);
           if(resource){
-            selectedResources.set(info.layerNum, resource);
+            selectedResources.set(info.layerKey, resource);
+            console.log(`  ✅ Added resource to Map by NAME: "${resource.Name}" for key:`, info.layerKey);
           } else {
-            alert(`Kunde inte hitta klimatresurs för Skikt ${info.layerNum}: "${resourceName}"\nVälj från sökresultaten.`);
+            const layerLabel = info.isMat2 ? `Skikt ${info.layerNum} - Material 2` : `Skikt ${info.layerNum}`;
+            alert(`Kunde inte hitta klimatresurs för ${layerLabel}: "${resourceName}"\nVälj från sökresultaten.`);
             hasError = true;
+            console.log(`  ❌ Resource not found by name: "${resourceName}"`);
           }
         }
       });
       
       if(hasError) return;
-      
+
       if(selectedResources.size === 0 && selectedNames.size === 0){
         alert('Välj minst en klimatresurs eller namnge minst ett skikt');
         return;
       }
-      
+
+      // DEBUG: Log what was collected
+      console.log('🗺️ [Apply] selectedResources Map contents:', selectedResources.size, 'entries');
+      selectedResources.forEach((resource, key) => {
+        const isMat2 = key.endsWith('_mat2');
+        console.log(`  ${isMat2 ? '🔵 Material 2' : '🔴 Material 1/Regular'} - Key: ${key}, Resource: ${resource.Name}`);
+      });
+      console.log('📝 [Apply] selectedNames Map contents:', selectedNames.size, 'entries');
+      selectedNames.forEach((name, key) => {
+        const isMat2 = key.endsWith('_mat2');
+        console.log(`  ${isMat2 ? '🔵 Material 2' : '🔴 Material 1/Regular'} - Key: ${key}, Name: ${name}`);
+      });
+
       // Update the target with selections
       multiLayerClimateTarget.selectedResources = selectedResources;
       multiLayerClimateTarget.selectedNames = selectedNames;
-      
+
       // Apply all resources and names
       applyAllLayerResources();
     });
@@ -4757,14 +4998,54 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
         // Clone the target layer to create the second material row
         // This adds an extra row - mixed layers expand the total count
         const material2Row = targetLayer.cloneNode(true);
-        
+
         // Ensure cloned row doesn't have layer-parent class
         material2Row.classList.remove('layer-parent');
-        material2Row.removeAttribute('data-layer-key'); // Only the parent should have this as a unique key
-        
+
+        // IMPORTANT: Give material 2 a UNIQUE data-layer-key so it gets its own climate data
+        // Material 1 keeps the original key, material 2 gets a "_mat2" suffix
+        const material1LayerKey = targetLayer.getAttribute('data-layer-key');
+        if(material1LayerKey){
+          const material2LayerKey = material1LayerKey + '_mat2';
+          material2Row.setAttribute('data-layer-key', material2LayerKey);
+          console.log('🔑 [MixedLayer] Set unique keys:');
+          console.log('  Mat1 (full):', material1LayerKey);
+          console.log('  Mat2 (full):', material2LayerKey);
+          console.log('  Mat2 has _mat2 suffix:', material2LayerKey.endsWith('_mat2'));
+        }
+
         // Mark both rows as mixed layers to prevent re-processing
         targetLayer.setAttribute('data-mixed-layer', 'true');
         material2Row.setAttribute('data-mixed-layer', 'true');
+
+        // Preserve _originalRowData for material 2
+        if(targetLayer._originalRowData){
+          material2Row._originalRowData = targetLayer._originalRowData;
+        }
+
+        // IMPORTANT: Clear climate data cells from material 2 (they were cloned from material 1)
+        // This ensures material 2 can receive its own climate mapping
+        const climateCellsToReset = [
+          material2Row.querySelector('td[data-climate-cell="true"]'),
+          material2Row.querySelector('td[data-factor-cell="true"]'),
+          material2Row.querySelector('td[data-unit-cell="true"]'),
+          material2Row.querySelector('td[data-waste-cell="true"]'),
+          material2Row.querySelector('td[data-A1_A3-cell="true"]'),
+          material2Row.querySelector('td[data-A4-cell="true"]'),
+          material2Row.querySelector('td[data-A5-cell="true"]'),
+          material2Row.querySelector('td[data-inbyggd-vikt-cell="true"]'),
+          material2Row.querySelector('td[data-inkopt-vikt-cell="true"]'),
+          material2Row.querySelector('td[data-A1_A3-impact-cell="true"]'),
+          material2Row.querySelector('td[data-A4-impact-cell="true"]'),
+          material2Row.querySelector('td[data-A5-impact-cell="true"]')
+        ];
+
+        climateCellsToReset.forEach(cell => {
+          if(cell){
+            cell.textContent = '';
+          }
+        });
+        console.log('🧹 [MixedLayer] Cleared climate cells from Material 2');
 
         // Update layer names in the dedicated column for both materials
         const headerTexts = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
@@ -4789,6 +5070,23 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
             mat2Cells[layerNameColumnIndex].textContent = material2Name;
             // console.log('🔧 [MixedLayer] Set material 2 name to:', material2Name);
             // console.log('🔧 [MixedLayer] Material 2 cell content after setting:', mat2Cells[layerNameColumnIndex].textContent);
+          }
+
+          // IMPORTANT: Update _originalRowData for both materials to reflect the new layer names
+          // This ensures they generate different signatures for climate data persistence
+          if(targetLayer._originalRowData){
+            const updatedMat1Data = getRowDataFromTr(targetLayer);
+            if(updatedMat1Data){
+              targetLayer._originalRowData = updatedMat1Data;
+              console.log('🔄 [MixedLayer] Updated Material 1 _originalRowData with new layer name');
+            }
+          }
+          if(material2Row._originalRowData){
+            const updatedMat2Data = getRowDataFromTr(material2Row);
+            if(updatedMat2Data){
+              material2Row._originalRowData = updatedMat2Data;
+              console.log('🔄 [MixedLayer] Updated Material 2 _originalRowData with new layer name');
+            }
           }
         }
         
@@ -4883,37 +5181,11 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
           }
         }
         
-        // Reset action buttons for material2Row with fresh event listeners
+        // Clear action buttons for Material 2 - mixed layer materials are managed together
         const mat2ActionTd = material2Row.querySelector('td:first-child');
         if(mat2ActionTd){
           mat2ActionTd.innerHTML = '';
-          
-          const layerBtn = document.createElement('button');
-          layerBtn.type = 'button';
-          layerBtn.textContent = 'Skikta';
-          layerBtn.addEventListener('click', function(ev){
-            ev.stopPropagation();
-            openLayerModal({ type: 'row', rowEl: material2Row });
-          });
-          mat2ActionTd.appendChild(layerBtn);
-          
-          const climateBtn = document.createElement('button');
-          climateBtn.type = 'button';
-          climateBtn.textContent = 'Mappa klimatresurs';
-          climateBtn.addEventListener('click', function(ev){
-            ev.stopPropagation();
-            openClimateModal({ type: 'row', rowEl: material2Row });
-          });
-          mat2ActionTd.appendChild(climateBtn);
-
-          const altClimateBtn = document.createElement('button');
-          altClimateBtn.type = 'button';
-          altClimateBtn.textContent = 'Mappa till EPD';
-          altClimateBtn.addEventListener('click', function(ev){
-            ev.stopPropagation();
-            openAltClimateModal({ type: 'row', rowEl: material2Row });
-          });
-          mat2ActionTd.appendChild(altClimateBtn);
+          console.log('🧹 [MixedLayer] Cleared action buttons from Material 2 (no event listeners needed)');
         }
         
         // Apply climate resources to each material separately
@@ -4937,21 +5209,34 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
           }
         }
         
+        console.log('🔍 [MixedLayer] Material 2 climate resource value:', material2ClimateResource);
         if(material2ClimateResource && material2ClimateResource !== ''){
-          const resourceIndex2 = parseInt(material2ClimateResource);
-          // console.log('🔍 [MixedLayer] Material 2 climate resource:', resourceIndex2);
-          
+          // Handle both "boverket:123" and "123" formats
+          let resourceIndex2;
+          if(material2ClimateResource.includes(':')){
+            // Format is "boverket:123" or "epd:123"
+            resourceIndex2 = parseInt(material2ClimateResource.split(':')[1]);
+          } else {
+            // Format is just "123"
+            resourceIndex2 = parseInt(material2ClimateResource);
+          }
+          console.log('🔍 [MixedLayer] Parsed resource index:', resourceIndex2);
+
           if(!isNaN(resourceIndex2) && window.climateResources && window.climateResources[resourceIndex2]){
             const resource2 = window.climateResources[resourceIndex2];
-            // console.log('🌍 [MixedLayer] Applying climate resource to material 2:', resource2.Name);
-            
+            console.log('🌍 [MixedLayer] Applying climate resource to material 2:', resource2.Name);
+
             const originalClimateTarget = climateTarget;
             climateTarget = { type: 'row', rowEl: material2Row };
             applyClimateResource(resource2);
             climateTarget = originalClimateTarget;
-            
-            // console.log('✅ [MixedLayer] Climate resource applied to material 2');
+
+            console.log('✅ [MixedLayer] Climate resource applied to material 2');
+          } else {
+            console.log('❌ [MixedLayer] Invalid resource index or resource not found');
           }
+        } else {
+          console.log('⚠️ [MixedLayer] No climate resource specified for Material 2');
         }
         
         // Insert material2Row right after targetLayer
