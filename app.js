@@ -1,4 +1,4 @@
-// Import utility functions
+﻿// Import utility functions
 import { getRowSignature, getRowDataFromTr } from './src/utils/signatures.js';
 import { parseNumberLike } from './src/utils/calculations.js';
 import { getTable as getTableHelper } from './src/utils/domHelpers.js';
@@ -543,20 +543,34 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
         const volumeTd = tds[idxVolume + 1]; // +1 offset for action column
         // console.log('🔍 volumeTd found:', !!volumeTd);
         if(volumeTd){
-          // Thickness is always in mm, convert to meters
-          const thicknessInMeters = layerThickness / 1000;
-          // console.log('🔍 Converting from mm:', layerThickness, '→', thicknessInMeters, 'm');
+          // Check if this is a mixed layer - if so, skip volume recalculation
+          // as it will be calculated with proportions later
+          const isMixedLayer = clone.hasAttribute('data-mixed-layer');
           
-          const newVolume = originalNetArea * thicknessInMeters;
-          // console.log('✅ Calculated volume:', originalNetArea, '×', thicknessInMeters, '=', newVolume);
-          volumeTd.textContent = String(newVolume);
-          // console.log('📝 Set volumeTd.textContent to:', volumeTd.textContent, '(cell:', volumeTd, ')');
+          if(!isMixedLayer){
+            // Thickness is always in mm, convert to meters
+            const thicknessInMeters = layerThickness / 1000;
+            // console.log('🔍 Converting from mm:', layerThickness, '→', thicknessInMeters, 'm');
+            
+            const newVolume = originalNetArea * thicknessInMeters;
+            // console.log('✅ Calculated volume:', originalNetArea, '×', thicknessInMeters, '=', newVolume);
+            volumeTd.textContent = String(newVolume);
+            // console.log('📝 Set volumeTd.textContent to:', volumeTd.textContent, '(cell:', volumeTd, ')');
+          } else {
+            // console.log('⏭️ Skipping volume recalculation for mixed layer - will be calculated with proportions');
+          }
         }
       } else {
         // console.log('❌ Falling back to multiplier. layerThickness:', layerThickness, 'idxVolume:', idxVolume, 'originalNetArea:', originalNetArea);
         if(idxVolume >= 0){
-          // No thickness specified, use multiplier
-          scaleCell(idxVolume);
+          // Check if this is a mixed layer - if so, skip volume scaling
+          const isMixedLayer = clone.hasAttribute('data-mixed-layer');
+          if(!isMixedLayer){
+            // No thickness specified, use multiplier
+            scaleCell(idxVolume);
+          } else {
+            // console.log('⏭️ Skipping volume scaling for mixed layer - preserving proportioned volume');
+          }
         }
       }
       
@@ -942,14 +956,25 @@ function applySavedClimate(tr, rowData){
       
       if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
         // Inbyggd vikt = Omräkningsfaktor × Volume
-        const volumeCell = cells[volumeColIndex];
-        // console.log('🔍 Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
+        // Note: volumeColIndex is 0-based from headers, but cells array includes action column
+        // So we need to add 1 to account for the action column
+        const volumeCell = cells[volumeColIndex + 1];
+        // console.log('🔍 Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex + 1);
         if(volumeCell){
           const volume = parseNumberLike(volumeCell.textContent);
           // console.log('🔍 Parsed volume:', volume);
           if(Number.isFinite(volume)){
-            inbyggdVikt = factor * volume;
-            // console.log('✅ Inbyggd vikt calculated:', inbyggdVikt);
+            // Check if this is a mixed layer - if so, the volume is already proportioned
+            const isMixedLayer = tr.hasAttribute('data-mixed-layer');
+            if(isMixedLayer){
+              // For mixed layers, volume is already proportioned, so use it directly
+              inbyggdVikt = factor * volume;
+              // console.log('✅ Mixed layer inbyggd vikt calculated:', inbyggdVikt);
+            } else {
+              // For regular layers, use normal calculation
+              inbyggdVikt = factor * volume;
+              // console.log('✅ Regular layer inbyggd vikt calculated:', inbyggdVikt);
+            }
           }
         }
       } else if(normalizedUnit === 'kg/m2' && netAreaColIndex !== -1){
@@ -4231,16 +4256,13 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
       
       // Calculate and update Volume
       if(idxVolume >= 0 && tds[idxVolume]){
-        // Check if this row already has a volume that looks like a mixed layer volume
-        // Mixed layer volumes are typically smaller than Net Area × Thickness
-        const currentVolume = parseNumberLike(tds[idxVolume].textContent);
-        const expectedVolume = originalNetArea * (layerThickness / 1000);
-        const isMixedLayerVolume = currentVolume < expectedVolume * 0.9; // 90% threshold
+        // Check if this is a mixed layer - if so, skip volume recalculation
+        const isMixedLayer = clone.hasAttribute('data-mixed-layer');
         
-        // console.log('🔧 [cloneRowWithMultiplier] Volume check - current:', currentVolume, 'expected:', expectedVolume, 'isMixedLayer:', isMixedLayerVolume);
+        // console.log('🔧 [cloneRowWithMultiplier] Volume check - isMixedLayer:', isMixedLayer);
         
-        if(isMixedLayerVolume){
-          // console.log('🔧 [cloneRowWithMultiplier] Skipping volume update - appears to be mixed layer volume');
+        if(isMixedLayer){
+          // console.log('🔧 [cloneRowWithMultiplier] Skipping volume update - mixed layer will calculate with proportions');
         } else {
           // Thickness is in mm, convert to meters for volume calculation
           const thicknessInMeters = layerThickness / 1000;
@@ -4259,7 +4281,15 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
         if(Number.isFinite(n)){ td.textContent = String(n * multiplier); }
       }
       if(idxNetArea >= 0) scaleCell(idxNetArea);
-      if(idxVolume >= 0) scaleCell(idxVolume);
+      if(idxVolume >= 0) {
+        // Check if this is a mixed layer - if so, skip volume scaling
+        const isMixedLayer = clone.hasAttribute('data-mixed-layer');
+        if(!isMixedLayer){
+          scaleCell(idxVolume);
+        } else {
+          // console.log('⏭️ Skipping volume scaling for mixed layer - preserving proportioned volume');
+        }
+      }
       // Find count column index
       const idxCount = currentHeaderTexts.findIndex(h => String(h).toLowerCase() === 'count');
       if(idxCount >= 0) scaleCell(idxCount);
@@ -5710,14 +5740,26 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
       
       if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
         // Inbyggd vikt = Omräkningsfaktor × Volume
-        const volumeCell = cells[volumeColIndex];
-        // console.log('🔍 [applyClimate] Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
+        // Note: volumeColIndex is 0-based from headers, but cells array includes action column
+        // So we need to add 1 to account for the action column
+        const volumeCell = cells[volumeColIndex + 1];
+        // console.log('🔍 [applyClimate] Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex + 1);
         if(volumeCell){
           const volume = parseNumberLike(volumeCell.textContent);
           // console.log('🔍 [applyClimate] Parsed volume:', volume);
           if(Number.isFinite(volume)){
-            inbyggdVikt = factor * volume;
-            // console.log('✅ [applyClimate] Inbyggd vikt calculated:', inbyggdVikt);
+            // Check if this is a mixed layer - if so, the volume is already proportioned
+            // so we can use it directly with the conversion factor
+            const isMixedLayer = tr.hasAttribute('data-mixed-layer');
+            if(isMixedLayer){
+              // For mixed layers, volume is already proportioned, so use it directly
+              inbyggdVikt = factor * volume;
+              // console.log('✅ [applyClimate] Mixed layer inbyggd vikt calculated:', inbyggdVikt);
+            } else {
+              // For regular layers, use normal calculation
+              inbyggdVikt = factor * volume;
+              // console.log('✅ [applyClimate] Regular layer inbyggd vikt calculated:', inbyggdVikt);
+            }
           }
         }
       } else if(normalizedUnit === 'kg/m2' && netAreaColIndex !== -1){
@@ -6178,11 +6220,21 @@ function calculateCustomClimateImpact(tr, customResource, headerRow){
     
     if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
       // Inbyggd vikt = Omräkningsfaktor × Volume
-      const volumeCell = cells[volumeColIndex];
+      // Note: volumeColIndex is 0-based from headers, but cells array includes action column
+      // So we need to add 1 to account for the action column
+      const volumeCell = cells[volumeColIndex + 1];
       if(volumeCell){
         const volume = parseNumberLike(volumeCell.textContent);
         if(Number.isFinite(volume)){
-          const inbyggdVikt = volume * factor;
+          // Check if this is a mixed layer - if so, the volume is already proportioned
+          const isMixedLayer = tr.hasAttribute('data-mixed-layer');
+          if(isMixedLayer){
+            // For mixed layers, volume is already proportioned, so use it directly
+            const inbyggdVikt = volume * factor;
+          } else {
+            // For regular layers, use normal calculation
+            const inbyggdVikt = volume * factor;
+          }
           
           // Update Inbyggd vikt column
           const inbyggdViktIndex = headerTexts.findIndex(h => h === 'Inbyggd vikt');

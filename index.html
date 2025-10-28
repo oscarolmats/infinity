@@ -13,8 +13,20 @@
     th { background: #f6f6f6; position: sticky; top: 0; }
     .filter { flex: 1; max-width: 320px; }
     .muted { color: #666; font-size: 0.9rem; }
-    .group-parent { background: #eef6ff; font-weight: 600; cursor: pointer; }
-    .layer-parent { background: #fff4e6; font-weight: 600; cursor: pointer; }
+    .group-parent {
+      background: #e3f2fd;
+      font-weight: 700;
+      cursor: pointer;
+      border-left: 5px solid #2196f3 !important;
+      box-shadow: inset 0 0 0 1px rgba(33, 150, 243, 0.1);
+    }
+    .layer-parent {
+      background: #fff3e0;
+      font-weight: 700;
+      cursor: pointer;
+      border-left: 5px solid #ff9800 !important;
+      box-shadow: inset 0 0 0 1px rgba(255, 152, 0, 0.1);
+    }
     .group-toggle { display: inline-inline; margin-right: .25rem; vertical-align: middle; }
     .group-toggle svg { width: 12px; height: 12px; display: inline-block; transition: transform .2s ease; }
     /* Right chevron rotates down when open */
@@ -58,7 +70,39 @@
       border-left: 4px solid #4caf50 !important; 
       border-right: 4px solid #ff9800 !important; 
     }
-    
+
+    /* Icon buttons */
+    .icon-btn {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 2px;
+      transition: all 0.2s ease;
+      vertical-align: middle;
+    }
+    .icon-btn:hover {
+      background: #f5f5f5;
+      border-color: #999;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .icon-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+    .icon-btn.layer-btn { border-color: #2196f3; color: #2196f3; }
+    .icon-btn.layer-btn:hover { background: #e3f2fd; border-color: #2196f3; }
+    .icon-btn.climate-btn { border-color: #4caf50; color: #4caf50; }
+    .icon-btn.climate-btn:hover { background: #e8f5e9; border-color: #4caf50; }
+    .icon-btn.epd-btn { border-color: #ff9800; color: #ff9800; }
+    .icon-btn.epd-btn:hover { background: #fff3e0; border-color: #ff9800; }
+
     .hidden { display: none; }
     /* Editable cells */
     td.editable { 
@@ -97,22 +141,26 @@
       background: #e3f2fd;
     }
     .status-indicators {
-      position: fixed; 
-      top: 16px; 
-      right: 16px; 
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       z-index: 1000;
     }
-    
+
     /* Make action buttons display horizontally */
     td:first-child {
-      display: flex;
-      flex-direction: row;
-      gap: 4px;
-      flex-wrap: wrap;
-      align-items: flex-start;
+      white-space: nowrap;
+      padding: 4px !important;
+      text-align: center;
+    }
+
+    td:first-child > * {
+      display: inline-flex;
+      margin: 0 2px;
+      vertical-align: middle;
     }
     
     /* Progress Bar Styles */
@@ -155,80 +203,94 @@
       50% { opacity: 0.7; }
     }
     
-    .api-indicator { 
-      background: white; 
-      border: 2px solid #ddd; 
-      border-radius: 8px; 
-      padding: 12px 16px; 
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      font-size: 0.85rem;
-      max-width: 300px;
-      width: 300px;
+    .api-indicator {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      font-size: 0.75rem;
+      max-width: 180px;
     }
     .api-indicator.connected { border-color: #4caf50; }
     .api-indicator.error { border-color: #f44336; }
-    .api-status { 
-      display: flex; 
-      align-items: center; 
-      gap: 8px; 
-      font-weight: 600; 
-      margin-bottom: 6px;
+    .api-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
     }
-    .api-status-dot { 
-      width: 10px; 
-      height: 10px; 
-      border-radius: 50%; 
+    .api-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
       background: #ddd;
     }
     .api-status-dot.connected { background: #4caf50; }
     .api-status-dot.error { background: #f44336; }
-    .api-details { color: #666; font-size: 0.8rem; line-height: 1.4; }
+    .api-details {
+      color: #666;
+      font-size: 0.7rem;
+      line-height: 1.3;
+      margin-top: 2px;
+    }
     .climate-summary {
       position: fixed;
-      top: 500px;
-      right: 16px;
-      background: white;
-      border: 2px solid #2196f3;
-      border-radius: 8px;
-      padding: 16px;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
+      border-bottom: 2px solid #2196f3;
+      padding: 12px 20px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      font-size: 0.9rem;
-      width: 300px;
-    }
-    .climate-summary h3 {
-      margin: 0 0 12px 0;
-      font-size: 1rem;
-      color: #1976d2;
+      font-size: 0.85rem;
+      z-index: 999;
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: center;
+      gap: 32px;
+    }
+    .climate-summary h3 {
+      margin: 0;
+      font-size: 0.9rem;
+      color: #1976d2;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .climate-summary-items {
+      display: flex;
+      gap: 24px;
+      align-items: center;
     }
     .climate-summary-item {
       display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid #eee;
-      align-items: baseline;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
     }
     .climate-summary-item:last-child {
-      border-bottom: none;
-      font-weight: 600;
-      font-size: 1.05em;
-      padding-top: 12px;
-      margin-top: 4px;
-      border-top: 2px solid #2196f3;
+      padding-left: 24px;
+      margin-left: 8px;
+      border-left: 2px solid #2196f3;
     }
     .climate-summary-label {
       color: #555;
+      font-size: 0.85rem;
     }
     .climate-summary-value {
-      font-weight: 600;
+      font-weight: 700;
       color: #1976d2;
       font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
     }
     .climate-summary-total {
       color: #1565c0 !important;
-      font-size: 1.1em;
+      font-size: 1rem;
+    }
+
+    /* Add padding to body to account for fixed summary */
+    body {
+      padding-top: 60px;
     }
     
     /* Responsive design for smaller screens */
@@ -271,24 +333,32 @@
 
   <!-- Climate Impact Summary -->
   <div id="climateSummary" class="climate-summary" style="display: none;">
-    <h3>
-      Klimatpåverkan
-    </h3>
-    <div class="climate-summary-item">
-      <span class="climate-summary-label">A1-A3 (produkt):</span>
-      <span class="climate-summary-value" id="summaryA1A3">0.00 kg CO₂e</span>
-    </div>
-    <div class="climate-summary-item">
-      <span class="climate-summary-label">A4 (transport):</span>
-      <span class="climate-summary-value" id="summaryA4">0.00 kg CO₂e</span>
-    </div>
-    <div class="climate-summary-item">
-      <span class="climate-summary-label">A5 (byggproduktion):</span>
-      <span class="climate-summary-value" id="summaryA5">0.00 kg CO₂e</span>
-    </div>
-    <div class="climate-summary-item">
-      <span class="climate-summary-label">Totalt:</span>
-      <span class="climate-summary-value climate-summary-total" id="summaryTotal">0.00 kg CO₂e</span>
+    <h3>Klimatpåverkan</h3>
+    <div class="climate-summary-items">
+      <div class="climate-summary-item">
+        <span class="climate-summary-label">A1-A3:</span>
+        <span class="climate-summary-value" id="summaryA1A3">0.00 kg CO₂e</span>
+      </div>
+      <div class="climate-summary-item">
+        <span class="climate-summary-label">A4:</span>
+        <span class="climate-summary-value" id="summaryA4">0.00 kg CO₂e</span>
+      </div>
+      <div class="climate-summary-item">
+        <span class="climate-summary-label">A5:</span>
+        <span class="climate-summary-value" id="summaryA5">0.00 kg CO₂e</span>
+      </div>
+      <div class="climate-summary-item">
+        <span class="climate-summary-label">Totalt:</span>
+        <span class="climate-summary-value climate-summary-total" id="summaryTotal">0.00 kg CO₂e</span>
+      </div>
+      <div class="climate-summary-item" id="summaryReduction" style="display: none;">
+        <span class="climate-summary-label">Reduktion:</span>
+        <span class="climate-summary-value" style="color: #2e7d32;">0.00 kg CO₂e (0.0%)</span>
+      </div>
+      <div class="climate-summary-item" id="summaryEpdPercent" style="display: none;">
+        <span class="climate-summary-label">EPD-andel:</span>
+        <span class="climate-summary-value">0.0%</span>
+      </div>
     </div>
   </div>
 
@@ -373,23 +443,75 @@
   </div>
 
   <!-- Climate Resource Mapping modal -->
-  <div id="climateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
-    <div style="background:#fff; padding:16px; border-radius:8px; width: min(600px, 92vw); max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
-      <h2 style="margin-top:0;">Mappa klimatresurs</h2>
-      
-      <div style="margin-bottom: 16px;">
-        <label style="display:block; margin-bottom:8px; font-weight:600;">
-          Klimatresurs från Boverket
-        </label>
-        <select id="climateResourceSelect" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
-          <option value="">Laddar resurser...</option>
-        </select>
+  <div id="climateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:1000;">
+    <div style="background:#fff; padding:0; border-radius:8px; width: min(900px, 95vw); box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 90vh; overflow:hidden; display:flex; flex-direction:column;">
+
+      <!-- Header -->
+      <div style="padding:20px 24px; background:#fff; border-bottom:2px solid #e0e0e0;">
+        <h2 style="margin:0; font-size:1.3rem; font-weight:600; color:#333;">
+          Mappa klimatresurs
+        </h2>
       </div>
 
-      <p class="muted">Fyra nya kolumner läggs till: "Klimatresurs" med den valda resursen, "Omräkningsfaktor" med resursens omräkningsfaktor, "Omräkningsfaktor enhet" med enheten och "Avfallsfaktor" med resursens avfallsfaktor.</p>
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
-        <button id="climateCancel" type="button">Avbryt</button>
-        <button id="climateApply" type="button">Mappa</button>
+      <!-- Content -->
+      <div style="padding:24px; overflow-y:auto; flex:1; display:flex; gap:20px;">
+
+        <!-- Left Column: Search and List -->
+        <div style="flex:1; min-width:350px;">
+          <!-- Search Box -->
+          <div style="margin-bottom:16px;">
+            <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
+              Sök klimatresurs
+            </label>
+            <input
+              id="climateSearchInput"
+              type="text"
+              placeholder="Filtrera på namn eller kategori..."
+              style="width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:4px; font-size:0.95rem; box-sizing:border-box;"
+            />
+          </div>
+
+          <!-- Resource List -->
+          <div>
+            <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
+              Tillgängliga resurser
+            </label>
+            <select
+              id="climateResourceSelect"
+              size="20"
+              style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:0.9rem; background:white; font-family:monospace;"
+            >
+              <option value="">Laddar resurser...</option>
+            </select>
+            <p style="margin:8px 0 0 0; color:#666; font-size:0.85rem;">
+              Resurser grupperade efter kategori
+            </p>
+          </div>
+        </div>
+
+        <!-- Right Column: Resource Details -->
+        <div style="flex:1; min-width:350px; background:#f9f9f9; padding:20px; border-radius:4px; border:1px solid #e0e0e0;">
+          <h3 style="margin:0 0 16px 0; font-size:1rem; font-weight:600; color:#333;">Resursdetaljer</h3>
+          <div id="climateResourceDetails" style="font-size:0.9rem; color:#555; line-height:1.6;">
+            <p style="color:#999; font-style:italic;">Välj en resurs för att se detaljer</p>
+          </div>
+
+          <div style="margin-top:20px; padding:12px; background:white; border-radius:4px; border:1px solid #ddd;">
+            <p style="margin:0; color:#666; font-size:0.85rem; line-height:1.5;">
+              <strong>Info:</strong> Fyra nya kolumner läggs till när du mappar en resurs: Klimatresurs, Omräkningsfaktor, Omräkningsfaktor enhet och Avfallsfaktor.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:16px 24px; background:#f5f5f5; border-top:1px solid #e0e0e0; display:flex; gap:12px; justify-content:flex-end;">
+        <button id="climateCancel" type="button" style="padding:8px 20px; border:1px solid #999; background:white; border-radius:4px; font-size:0.95rem; cursor:pointer;">
+          Avbryt
+        </button>
+        <button id="climateApply" type="button" style="padding:8px 20px; border:1px solid #555; background:#555; color:white; border-radius:4px; font-size:0.95rem; cursor:pointer;">
+          Mappa resurs
+        </button>
       </div>
     </div>
   </div>
@@ -592,10 +714,202 @@
     const apiIndicator = document.getElementById('apiIndicator');
     const epdIndicator = document.getElementById('epdIndicator');
     const climateResourceSelect = document.getElementById('climateResourceSelect');
-    
+    const climateSearchInput = document.getElementById('climateSearchInput');
+
     // Store climate resources globally so they can be accessed when numbering
     window.climateResources = [];
-    
+
+    // Function to populate climate resources with categories
+    function populateClimateResourcesWithCategories(resources) {
+      // Group resources by category
+      const categorizedResources = {};
+
+      resources.forEach((resource, index) => {
+        const category = resource.Categories && resource.Categories.length > 0
+          ? resource.Categories[0].Text
+          : 'Övrigt';
+
+        if (!categorizedResources[category]) {
+          categorizedResources[category] = [];
+        }
+
+        categorizedResources[category].push({
+          index: index,
+          name: resource.Name || 'Namnlös resurs',
+          resource: resource
+        });
+      });
+
+      // Sort categories alphabetically
+      const sortedCategories = Object.keys(categorizedResources).sort();
+
+      // Populate select with optgroups
+      climateResourceSelect.innerHTML = '<option value="">Välj en resurs...</option>';
+
+      sortedCategories.forEach(category => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = category;
+
+        // Sort resources within category
+        categorizedResources[category]
+          .sort((a, b) => a.name.localeCompare(b.name, 'sv'))
+          .forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.index;
+            option.textContent = item.name;
+            option.dataset.category = category;
+            option.dataset.searchText = `${category} ${item.name}`.toLowerCase();
+            optgroup.appendChild(option);
+          });
+
+        climateResourceSelect.appendChild(optgroup);
+      });
+    }
+
+    // Search function for climate resources
+    if (climateSearchInput) {
+      climateSearchInput.addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase().trim();
+        const options = climateResourceSelect.querySelectorAll('option');
+        const optgroups = climateResourceSelect.querySelectorAll('optgroup');
+
+        if (!searchTerm) {
+          // Show all
+          options.forEach(opt => opt.style.display = '');
+          optgroups.forEach(grp => grp.style.display = '');
+          return;
+        }
+
+        // Hide all optgroups initially
+        optgroups.forEach(grp => grp.style.display = 'none');
+
+        // Filter options
+        options.forEach(opt => {
+          if (opt.value === '') {
+            opt.style.display = '';
+            return;
+          }
+
+          const searchText = opt.dataset.searchText || opt.textContent.toLowerCase();
+          if (searchText.includes(searchTerm)) {
+            opt.style.display = '';
+            // Show parent optgroup
+            const parentOptgroup = opt.parentElement;
+            if (parentOptgroup && parentOptgroup.tagName === 'OPTGROUP') {
+              parentOptgroup.style.display = '';
+            }
+          } else {
+            opt.style.display = 'none';
+          }
+        });
+      });
+    }
+
+    // Show resource details when selected
+    if (climateResourceSelect) {
+      climateResourceSelect.addEventListener('change', function(e) {
+        const detailsDiv = document.getElementById('climateResourceDetails');
+        if (!detailsDiv) return;
+
+        const selectedIndex = parseInt(e.target.value);
+        if (isNaN(selectedIndex) || !window.climateResources || !window.climateResources[selectedIndex]) {
+          detailsDiv.innerHTML = '<p style="color:#999; font-style:italic;">Välj en resurs för att se detaljer</p>';
+          return;
+        }
+
+        const resource = window.climateResources[selectedIndex];
+        console.log('Selected resource for details:', resource);
+
+        const category = resource.Categories && resource.Categories.length > 0 ? resource.Categories[0].Text : 'Ej kategoriserad';
+
+        // Extract conversion factor and unit - same logic as applyClimateResource in app.js
+        let conversionFactor = (resource.Conversions && resource.Conversions[0] && resource.Conversions[0].Value) ||
+                                resource.ConservativeDataConversionFactor ||
+                                resource.ConversionFactor ||
+                                resource.Factor ||
+                                resource.Omräkningsfaktor ||
+                                null;
+        let conversionUnit = (resource.Conversions && resource.Conversions[0] && resource.Conversions[0].Unit) || null;
+        let wasteFactor = resource.WasteFactor || null;
+
+        let conversionFactorDisplay = '<span style="color:#999;">Ej angiven</span>';
+        if (conversionFactor !== null && conversionFactor !== undefined) {
+          conversionFactorDisplay = `${conversionFactor}${conversionUnit ? ' ' + conversionUnit : ''}`;
+        }
+
+        let wasteFactorDisplay = '<span style="color:#999;">Ej angiven</span>';
+        if (wasteFactor !== null && wasteFactor !== undefined) {
+          wasteFactorDisplay = wasteFactor;
+        }
+
+        let detailsHTML = `
+          <div style="margin-bottom:12px;">
+            <strong style="color:#333;">Namn:</strong>
+            <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd;">${resource.Name || 'Okänt'}</div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <strong style="color:#333;">Kategori:</strong>
+            <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd;">${category}</div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <strong style="color:#333;">Omräkningsfaktor:</strong>
+            <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd;">
+              ${conversionFactorDisplay}
+            </div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <strong style="color:#333;">Avfallsfaktor:</strong>
+            <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd;">
+              ${wasteFactorDisplay}
+            </div>
+          </div>
+        `;
+
+        if (resource.Description) {
+          detailsHTML += `
+            <div style="margin-bottom:12px;">
+              <strong style="color:#333;">Beskrivning:</strong>
+              <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd; font-size:0.85rem;">${resource.Description}</div>
+            </div>
+          `;
+        }
+
+        // Show additional conversion factors if available (same field check as app.js)
+        if (resource.Conversions && Array.isArray(resource.Conversions) && resource.Conversions.length > 1) {
+          detailsHTML += `
+            <div style="margin-bottom:12px;">
+              <strong style="color:#333;">Ytterligare omräkningsfaktorer:</strong>
+              <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd; font-size:0.85rem;">
+          `;
+          resource.Conversions.forEach((conv, idx) => {
+            if (idx > 0) {
+              detailsHTML += `<div style="margin-top:4px;">${conv.Type || 'Typ ' + (idx+1)}: ${conv.Value}${conv.Unit ? ' ' + conv.Unit : ''}</div>`;
+            }
+          });
+          detailsHTML += `</div></div>`;
+        }
+
+        detailsDiv.innerHTML = detailsHTML;
+      });
+
+      // Add double-click to quickly apply selected resource
+      climateResourceSelect.addEventListener('dblclick', function(e) {
+        const selectedIndex = parseInt(this.value);
+        if (isNaN(selectedIndex) || selectedIndex < 0) {
+          return;
+        }
+
+        // Trigger the apply button click
+        const applyBtn = document.getElementById('climateApply');
+        if (applyBtn) {
+          applyBtn.click();
+        }
+      });
+    }
+
     fetch('https://api.boverket.se/klimatdatabas/v2/get-all-resources/senaste/sv/json')
       .then(res =>{
         return res.json();
@@ -620,16 +934,9 @@
             </div>
           `;
           
-          // Store resources and populate dropdown
+          // Store resources and populate dropdown with categories
           window.climateResources = data.Resources;
-          climateResourceSelect.innerHTML = '<option value="">Välj en resurs...</option>';
-          data.Resources.forEach((resource, index) =>{
-            const name = resource.Name || 'Namnlös resurs';
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = name;
-            climateResourceSelect.appendChild(option);
-          });
+          populateClimateResourcesWithCategories(data.Resources);
         } else if(Array.isArray(data)){
           // Fallback: if data is directly an array
           apiIndicator.className = 'api-indicator connected';
@@ -641,14 +948,7 @@
           `;
           
           window.climateResources = data;
-          climateResourceSelect.innerHTML = '<option value="">Välj en resurs...</option>';
-          data.forEach((resource, index) =>{
-            const name = resource.Name || 'Namnlös resurs';
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = name;
-            climateResourceSelect.appendChild(option);
-          });
+          populateClimateResourcesWithCategories(data);
         } else {
           apiIndicator.className = 'api-indicator error';
           apiIndicator.innerHTML = `
