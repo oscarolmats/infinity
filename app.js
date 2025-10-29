@@ -7,6 +7,30 @@ import { getTable as getTableHelper } from './src/utils/domHelpers.js';
 import { layerData, climateData, setRestoringState, undoStack, redoStack, maxUndoSteps, isRestoringState } from './src/state/dataStore.js';
 import { createStateManagement } from './src/state/stateManagement.js';
 
+// Helper function to create icon buttons
+function createIconButton(type, title) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'icon-btn';
+  btn.title = title;
+
+  // Define SVG icons for each button type
+  const icons = {
+    layer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="10" width="18" height="5" rx="1"/><rect x="3" y="17" width="18" height="5" rx="1"/></svg>',
+    climate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    epd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="18" x2="15" y2="18"/></svg>'
+  };
+
+  btn.innerHTML = icons[type] || '';
+
+  // Add specific classes for styling
+  if(type === 'layer') btn.classList.add('layer-btn');
+  if(type === 'climate') btn.classList.add('climate-btn');
+  if(type === 'epd') btn.classList.add('epd-btn');
+
+  return btn;
+}
+
 // DOM element references
 const fileInput = document.getElementById('fileInput');
 const filterInput = document.getElementById('filterInput');
@@ -421,19 +445,14 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       });
       actionTd.appendChild(parentLayerBtn);
       
-      const parentClimateBtn = document.createElement('button');
-      parentClimateBtn.type = 'button';
-      parentClimateBtn.textContent = 'Mappa klimatresurs';
+      const parentClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
       parentClimateBtn.addEventListener('click', function(ev){
         ev.stopPropagation();
         openClimateModal({ type: 'group', key: savedLayerKey });
       });
       actionTd.appendChild(parentClimateBtn);
 
-      const parentAltClimateBtn = document.createElement('button');
-      parentAltClimateBtn.type = 'button';
-      parentAltClimateBtn.textContent = 'Mappa till EPD';
-      parentAltClimateBtn.style.marginLeft = '5px'; // Add some spacing
+      const parentAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
       parentAltClimateBtn.addEventListener('click', function(ev){
         ev.stopPropagation();
         openAltClimateModal({ type: 'group', key: savedLayerKey });
@@ -475,32 +494,26 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
         actionTd.innerHTML = ''; // Clear old buttons
         
         // Add "Skikta" button
-        const layerBtn = document.createElement('button');
-        layerBtn.type = 'button';
-        layerBtn.textContent = 'Skikta';
-        layerBtn.addEventListener('click', function(ev){ 
-          ev.stopPropagation(); 
-          openLayerModal({ type: 'row', rowEl: clone }); 
+        const layerBtn = createIconButton('layer', 'Skikta');
+        layerBtn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          openLayerModal({ type: 'row', rowEl: clone });
         });
         actionTd.appendChild(layerBtn);
-        
+
         // Add "Mappa klimatresurs" button
-        const climateBtn = document.createElement('button');
-        climateBtn.type = 'button';
-        climateBtn.textContent = 'Mappa klimatresurs';
-        climateBtn.addEventListener('click', function(ev){ 
-          ev.stopPropagation(); 
-          openClimateModal({ type: 'row', rowEl: clone }); 
+        const climateBtn = createIconButton('climate', 'Mappa klimatresurs');
+        climateBtn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          openClimateModal({ type: 'row', rowEl: clone });
         });
         actionTd.appendChild(climateBtn);
 
-                  // Add "Mappa till EPD" button
-        const altClimateBtn = document.createElement('button');
-        altClimateBtn.type = 'button';
-        altClimateBtn.textContent = 'Mappa till EPD';
-        altClimateBtn.addEventListener('click', function(ev){ 
-          ev.stopPropagation(); 
-          openAltClimateModal({ type: 'row', rowEl: clone }); 
+        // Add "Mappa till EPD" button
+        const altClimateBtn = createIconButton('epd', 'Mappa till EPD');
+        altClimateBtn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          openAltClimateModal({ type: 'row', rowEl: clone });
         });
         actionTd.appendChild(altClimateBtn);
       }
@@ -915,6 +928,11 @@ function applySavedClimate(tr, rowData){
     
     // If this is custom climate data, use the custom climate function
     if(isCustom){
+      // Restore original Boverket data if it exists
+      if(climateInfo.originalBoverket){
+        tr._originalBoverketClimate = climateInfo.originalBoverket;
+      }
+
       const customResource = {
         name: resourceName,
         factor: conversionFactor,
@@ -938,43 +956,41 @@ function applySavedClimate(tr, rowData){
     const volumeColIndex = allHeaders.findIndex(h => String(h).toLowerCase() === 'volume');
     const netAreaColIndex = allHeaders.findIndex(h => String(h).toLowerCase() === 'net area');
     
-    // console.log('🔍 Beräknar vikt - Unit:', conversionUnit, 'Factor:', conversionFactor, 'Waste:', wasteFactor);
-    // console.log('🔍 Column indices - Volume:', volumeColIndex, 'NetArea:', netAreaColIndex);
-    // console.log('🔍 Headers:', allHeaders);
-    
+    console.log('🔍 Beräknar vikt - Unit:', conversionUnit, 'Factor:', conversionFactor, 'Waste:', wasteFactor);
+    console.log('🔍 Column indices - Volume:', volumeColIndex, 'NetArea:', netAreaColIndex);
+    console.log('🔍 Headers:', allHeaders);
+
     if(conversionFactor !== 'N/A' && Number.isFinite(parseFloat(conversionFactor))){
       const factor = parseFloat(conversionFactor);
       const cells = Array.from(tr.children);
-      
-      // console.log('🔍 Factor is valid:', factor);
-      
+
+      console.log('🔍 Factor is valid:', factor);
+      console.log('🔍 Cells count:', cells.length);
+
       // Normalize unit to handle both kg/m3 and kg/m³ (with superscript)
       const normalizedUnit = String(conversionUnit).replace(/[²³]/g, function(match){
         return match === '²' ? '2' : '3';
       });
-      // console.log('🔍 Normalized unit:', normalizedUnit);
-      
+      console.log('🔍 Normalized unit:', normalizedUnit);
+
       if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
         // Inbyggd vikt = Omräkningsfaktor × Volume
-        // Note: volumeColIndex is 0-based from headers, but cells array includes action column
-        // So we need to add 1 to account for the action column
-        const volumeCell = cells[volumeColIndex + 1];
-        // console.log('🔍 Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex + 1);
+        const volumeCell = cells[volumeColIndex];
+        console.log('🔍 Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
         if(volumeCell){
           const volume = parseNumberLike(volumeCell.textContent);
-          // console.log('🔍 Parsed volume:', volume);
+          console.log('🔍 Parsed volume:', volume);
           if(Number.isFinite(volume)){
-            // Check if this is a mixed layer - if so, the volume is already proportioned
+            // Volume from cell is already the correct volume (after layering if applicable)
             const isMixedLayer = tr.hasAttribute('data-mixed-layer');
-            if(isMixedLayer){
-              // For mixed layers, volume is already proportioned, so use it directly
-              inbyggdVikt = factor * volume;
-              // console.log('✅ Mixed layer inbyggd vikt calculated:', inbyggdVikt);
-            } else {
-              // For regular layers, use normal calculation
-              inbyggdVikt = factor * volume;
-              // console.log('✅ Regular layer inbyggd vikt calculated:', inbyggdVikt);
-            }
+            inbyggdVikt = factor * volume;
+            console.log('✅ Inbyggd vikt calculated:', {
+              isMixedLayer,
+              factor,
+              volume,
+              inbyggdVikt,
+              rowName: tr.querySelector('td:nth-child(2)')?.textContent?.substring(0, 50)
+            });
           }
         }
       } else if(normalizedUnit === 'kg/m2' && netAreaColIndex !== -1){
@@ -1404,13 +1420,13 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
     // Create one cell per column so sums align under headers
     // Parent action cell (group layer)
     const actionTd = document.createElement('td');
-    const groupBtn = document.createElement('button'); groupBtn.type = 'button'; groupBtn.textContent = 'Skikta grupp';
+    const groupBtn = createIconButton('layer', 'Skikta grupp');
     groupBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openLayerModal({ type: 'group', key: String(key) }); });
     actionTd.appendChild(groupBtn);
-    
-    const groupClimateBtn = document.createElement('button'); groupClimateBtn.type = 'button'; groupClimateBtn.textContent = 'Mappa klimatresurs';
-    groupClimateBtn.addEventListener('click', function(ev){ 
-      ev.stopPropagation(); 
+
+    const groupClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
+    groupClimateBtn.addEventListener('click', function(ev){
+      ev.stopPropagation();
       // Check if this group has been layered (has layer children with layer keys)
       const table = groupBtn.closest('table');
       if(table){
@@ -1427,11 +1443,11 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
         }
       }
       // Group is not layered, open regular climate modal
-      openClimateModal({ type: 'group', key: String(key) }); 
+      openClimateModal({ type: 'group', key: String(key) });
     });
     actionTd.appendChild(groupClimateBtn);
     
-    const groupAltClimateBtn = document.createElement('button'); groupAltClimateBtn.type = 'button'; groupAltClimateBtn.textContent = 'Mappa till EPD';
+    const groupAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
     groupAltClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'group', key: key }); });
     actionTd.appendChild(groupAltClimateBtn);
 
@@ -1489,15 +1505,15 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       
       // Row action cell
       const actionTd = document.createElement('td');
-      const rowBtn = document.createElement('button'); rowBtn.type = 'button'; rowBtn.textContent = 'Skikta';
+      const rowBtn = createIconButton('layer', 'Skikta');
       rowBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openLayerModal({ type: 'row', rowEl: tr }); });
       actionTd.appendChild(rowBtn);
-      
-      const rowClimateBtn = document.createElement('button'); rowClimateBtn.type = 'button'; rowClimateBtn.textContent = 'Mappa klimatresurs';
+
+      const rowClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
       rowClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openClimateModal({ type: 'row', rowEl: tr }); });
       actionTd.appendChild(rowClimateBtn);
 
-      const rowAltClimateBtn = document.createElement('button'); rowAltClimateBtn.type = 'button'; rowAltClimateBtn.textContent = 'Mappa till EPD';
+      const rowAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
       rowAltClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'row', rowEl: tr }); });
       actionTd.appendChild(rowAltClimateBtn);
       
@@ -1622,13 +1638,19 @@ function populateGroupBy(headers){
     groupBySelect.appendChild(opt);
   });
   
-  // Preserve previous selection if still valid; otherwise default to no grouping
+  // Preserve previous selection if still valid; otherwise default to Type grouping
   const hasPrev = Array.from(groupBySelect.options).some(o => o.value === previous);
   if(previous && hasPrev){
     groupBySelect.value = previous;
   } else {
-    // Default to no grouping (empty value)
-    groupBySelect.value = '';
+    // Default to "Type" column grouping if it exists
+    const typeOption = Array.from(groupBySelect.options).find(o => o.textContent === 'Type');
+    if(typeOption){
+      groupBySelect.value = typeOption.value;
+    } else {
+      // Fallback to no grouping if Type column doesn't exist
+      groupBySelect.value = '';
+    }
   }
 }
 
@@ -1727,15 +1749,15 @@ function renderTableWithOptionalGrouping(rows){
       tr._originalRowData = r;
       
       const actionTd = document.createElement('td');
-      const rowBtn = document.createElement('button'); rowBtn.type = 'button'; rowBtn.textContent = 'Skikta';
+      const rowBtn = createIconButton('layer', 'Skikta');
       rowBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openLayerModal({ type: 'row', rowEl: tr }); });
       actionTd.appendChild(rowBtn);
-      
-      const rowClimateBtn = document.createElement('button'); rowClimateBtn.type = 'button'; rowClimateBtn.textContent = 'Mappa klimatresurs';
+
+      const rowClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
       rowClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openClimateModal({ type: 'row', rowEl: tr }); });
       actionTd.appendChild(rowClimateBtn);
 
-      const rowAltClimateBtn = document.createElement('button'); rowAltClimateBtn.type = 'button'; rowAltClimateBtn.textContent = 'Mappa till EPD';
+      const rowAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
       rowAltClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'row', rowEl: tr }); });
       actionTd.appendChild(rowAltClimateBtn);
       
@@ -1796,11 +1818,19 @@ function renderTableWithOptionalGrouping(rows){
     });
     
     // Populate group by options after table is created
-    if(groupBySelect){ populateGroupBy(headers); }
+    if(groupBySelect){
+      const previousValue = groupBySelect.value;
+      populateGroupBy(headers);
+      // If populateGroupBy changed the value to default "Type", re-render with grouping
+      if(groupBySelect.value !== previousValue && groupBySelect.value !== ''){
+        renderTableWithOptionalGrouping(rows);
+        return;
+      }
+    }
   } else {
     const table = buildGroupedTable(headers, bodyRows, groupIdx);
     output.innerHTML = ''; output.appendChild(table);
-    
+
     // Populate group by options after table is created
     if(groupBySelect){ populateGroupBy(headers); }
   }
@@ -2152,23 +2182,26 @@ function finalizeNewRow(tr){
   if(actionTd){
     actionTd.innerHTML = '';
     
-    const layerBtn = document.createElement('button');
-    layerBtn.type = 'button';
-    layerBtn.textContent = 'Skikta';
-    layerBtn.addEventListener('click', function(ev){ 
-      ev.stopPropagation(); 
-      openLayerModal({ type: 'row', rowEl: tr }); 
+    const layerBtn = createIconButton('layer', 'Skikta');
+    layerBtn.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      openLayerModal({ type: 'row', rowEl: tr });
     });
     actionTd.appendChild(layerBtn);
-    
-    const climateBtn = document.createElement('button');
-    climateBtn.type = 'button';
-    climateBtn.textContent = 'Mappa klimatresurs';
-    climateBtn.addEventListener('click', function(ev){ 
-      ev.stopPropagation(); 
-      openClimateModal({ type: 'row', rowEl: tr }); 
+
+    const climateBtn = createIconButton('climate', 'Mappa klimatresurs');
+    climateBtn.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      openClimateModal({ type: 'row', rowEl: tr });
     });
     actionTd.appendChild(climateBtn);
+
+    const altClimateBtn = createIconButton('epd', 'Mappa till EPD');
+    altClimateBtn.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      openAltClimateModal({ type: 'row', rowEl: tr });
+    });
+    actionTd.appendChild(altClimateBtn);
   }
   
   // Remove editable class from cells
@@ -5112,9 +5145,68 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
             
             mat1VolumeCell.textContent = String(mat1Volume);
             mat2VolumeCell.textContent = String(mat2Volume);
-            
-            // console.log('🔧 [MixedLayer] Set material 1 volume to:', mat1Volume, 'm³');
-            // console.log('🔧 [MixedLayer] Set material 2 volume to:', mat2Volume, 'm³');
+
+            console.log('🔧 [MixedLayer] Set material 1 volume to:', mat1Volume, 'm³');
+            console.log('🔧 [MixedLayer] Set material 2 volume to:', mat2Volume, 'm³');
+
+            // IMPORTANT: Material 1 already had climate applied with the FULL volume
+            // Now we need to recalculate inbyggd vikt with the PROPORTIONED volume
+            // Find Material 1's climate data and recalculate
+
+            // Define column indices needed for recalculation
+            const inbyggdViktIndex = headerTexts.findIndex(h => h === 'Inbyggd vikt');
+            const inkoptViktIndex = headerTexts.findIndex(h => h === 'Inköpt vikt');
+            const factorIndex = headerTexts.findIndex(h => h === 'Omräkningsfaktor');
+            const wasteIndex = headerTexts.findIndex(h => h === 'Spillfaktor');
+            const a1a3Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A1-A3');
+            const a4Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A4');
+            const a5Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A5');
+            const a1a3ImpactIndex = headerTexts.findIndex(h => h === 'Klimatpåverkan A1-A3');
+            const a4ImpactIndex = headerTexts.findIndex(h => h === 'Klimatpåverkan A4');
+            const a5ImpactIndex = headerTexts.findIndex(h => h === 'Klimatpåverkan A5');
+
+            const mat1Cells = Array.from(targetLayer.children);
+            const mat1InbyggdViktCell = mat1Cells[inbyggdViktIndex];
+            const mat1InkoptViktCell = mat1Cells[inkoptViktIndex];
+            const mat1A1A3ImpactCell = mat1Cells[a1a3ImpactIndex];
+            const mat1A4ImpactCell = mat1Cells[a4ImpactIndex];
+            const mat1A5ImpactCell = mat1Cells[a5ImpactIndex];
+
+            // Get Material 1's climate factors from cells
+            const mat1FactorCell = mat1Cells[factorIndex];
+            const mat1WasteCell = mat1Cells[wasteIndex];
+            const mat1A1A3FactorCell = mat1Cells[a1a3Index];
+            const mat1A4FactorCell = mat1Cells[a4Index];
+            const mat1A5FactorCell = mat1Cells[a5Index];
+
+            if(mat1FactorCell && mat1InbyggdViktCell){
+              const mat1Factor = parseNumberLike(mat1FactorCell.textContent);
+              const mat1Waste = parseNumberLike(mat1WasteCell?.textContent) || 1;
+              const mat1A1A3Factor = parseNumberLike(mat1A1A3FactorCell?.textContent) || 0;
+              const mat1A4Factor = parseNumberLike(mat1A4FactorCell?.textContent) || 0;
+              const mat1A5Factor = parseNumberLike(mat1A5FactorCell?.textContent) || 0;
+
+              if(Number.isFinite(mat1Factor)){
+                // Recalculate inbyggd vikt with proportioned volume
+                const newMat1InbyggdVikt = mat1Factor * mat1Volume;
+                const newMat1InkoptVikt = newMat1InbyggdVikt * mat1Waste;
+
+                mat1InbyggdViktCell.textContent = String(newMat1InbyggdVikt);
+                if(mat1InkoptViktCell) mat1InkoptViktCell.textContent = String(newMat1InkoptVikt);
+
+                // Recalculate climate impact
+                if(mat1A1A3ImpactCell) mat1A1A3ImpactCell.textContent = String(newMat1InbyggdVikt * mat1A1A3Factor);
+                if(mat1A4ImpactCell) mat1A4ImpactCell.textContent = String(newMat1InbyggdVikt * mat1A4Factor);
+                if(mat1A5ImpactCell) mat1A5ImpactCell.textContent = String(newMat1InbyggdVikt * mat1A5Factor);
+
+                console.log('🔄 [MixedLayer] Recalculated Material 1 inbyggd vikt:', {
+                  factor: mat1Factor,
+                  oldVolume: 71.232, // approximate full volume
+                  newVolume: mat1Volume,
+                  newInbyggdVikt: newMat1InbyggdVikt
+                });
+              }
+            }
             
             // Add a watcher to detect if volume changes
             const originalMat1Volume = mat1Volume;
@@ -5740,26 +5832,22 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
       
       if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
         // Inbyggd vikt = Omräkningsfaktor × Volume
-        // Note: volumeColIndex is 0-based from headers, but cells array includes action column
-        // So we need to add 1 to account for the action column
-        const volumeCell = cells[volumeColIndex + 1];
-        // console.log('🔍 [applyClimate] Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex + 1);
+        const volumeCell = cells[volumeColIndex];
+        console.log('🔍 [applyClimate] Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
         if(volumeCell){
           const volume = parseNumberLike(volumeCell.textContent);
-          // console.log('🔍 [applyClimate] Parsed volume:', volume);
+          console.log('🔍 [applyClimate] Parsed volume:', volume);
           if(Number.isFinite(volume)){
-            // Check if this is a mixed layer - if so, the volume is already proportioned
-            // so we can use it directly with the conversion factor
+            // Volume from cell is already the correct volume (after layering if applicable)
             const isMixedLayer = tr.hasAttribute('data-mixed-layer');
-            if(isMixedLayer){
-              // For mixed layers, volume is already proportioned, so use it directly
-              inbyggdVikt = factor * volume;
-              // console.log('✅ [applyClimate] Mixed layer inbyggd vikt calculated:', inbyggdVikt);
-            } else {
-              // For regular layers, use normal calculation
-              inbyggdVikt = factor * volume;
-              // console.log('✅ [applyClimate] Regular layer inbyggd vikt calculated:', inbyggdVikt);
-            }
+            inbyggdVikt = factor * volume;
+            console.log('✅ [applyClimate] Inbyggd vikt calculated:', {
+              isMixedLayer,
+              factor,
+              volume,
+              inbyggdVikt,
+              rowName: tr.querySelector('td:nth-child(2)')?.textContent?.substring(0, 50)
+            });
           }
         }
       } else if(normalizedUnit === 'kg/m2' && netAreaColIndex !== -1){
@@ -6059,7 +6147,9 @@ function applyCustomClimateResource(customResource){
       a1a3: customResource.a1a3,
       a4: customResource.a4,
       a5: customResource.a5,
-      isCustom: true
+      isCustom: true,
+      // Store original Boverket data for reduction calculation
+      originalBoverket: tr._originalBoverketClimate
     });
     console.log('✅ [climateData.set] Saved! Map size now:', climateData.size);
     
@@ -6087,15 +6177,17 @@ function applyCustomClimateResource(customResource){
       const layerChildOf = childRow.getAttribute('data-layer-child-of');
       const signatureKey = layerKey || layerChildOf;
       const signature = getRowSignature(rowData, signatureKey);
-      climateData.set(signature, { 
-        name: customResource.name, 
-        factor: customResource.factor, 
-        unit: customResource.factorUnit, 
+      climateData.set(signature, {
+        name: customResource.name,
+        factor: customResource.factor,
+        unit: customResource.factorUnit,
         waste: customResource.waste,
-        a1a3: customResource.a1a3, 
-        a4: customResource.a4, 
+        a1a3: customResource.a1a3,
+        a4: customResource.a4,
         a5: customResource.a5,
-        isCustom: true 
+        isCustom: true,
+        // Store original Boverket data for reduction calculation
+        originalBoverket: childRow._originalBoverketClimate
       });
     });
     
@@ -6128,7 +6220,7 @@ function applyCustomClimateResource(customResource){
 // Helper function to apply custom climate to a single row
 function applyCustomClimateToRow(tr, customResource, headerRow){
   const headerTexts = Array.from(headerRow.children).map(th => th.textContent);
-  
+
   const climateIndex = headerTexts.findIndex(h => h === 'Klimatresurs');
   const factorIndex = headerTexts.findIndex(h => h === 'Omräkningsfaktor');
   const factorUnitIndex = headerTexts.findIndex(h => h === 'Omräkningsfaktor enhet');
@@ -6136,19 +6228,48 @@ function applyCustomClimateToRow(tr, customResource, headerRow){
   const a1a3Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A1-A3');
   const a4Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A4');
   const a5Index = headerTexts.findIndex(h => h === 'Emissionsfaktor A5');
-  
-  
+  const a1a3ImpactIndex = headerTexts.findIndex(h => h === 'Klimatpåverkan A1-A3');
+  const a4ImpactIndex = headerTexts.findIndex(h => h === 'Klimatpåverkan A4');
+  const a5ImpactIndex = headerTexts.findIndex(h => h === 'Klimatpåverkan A5');
+
+
+  // SAVE ORIGINAL BOVERKET DATA BEFORE REPLACING
+  // This allows us to calculate reduction when EPD is mapped
+  const originalBoverketData = {
+    name: climateIndex >= 0 && tr.children[climateIndex] ? tr.children[climateIndex].textContent : null,
+    factor: factorIndex >= 0 && tr.children[factorIndex] ? parseNumberLike(tr.children[factorIndex].textContent) : null,
+    unit: factorUnitIndex >= 0 && tr.children[factorUnitIndex] ? tr.children[factorUnitIndex].textContent : null,
+    waste: wasteIndex >= 0 && tr.children[wasteIndex] ? parseNumberLike(tr.children[wasteIndex].textContent) : null,
+    a1a3: a1a3Index >= 0 && tr.children[a1a3Index] ? parseNumberLike(tr.children[a1a3Index].textContent) : null,
+    a4: a4Index >= 0 && tr.children[a4Index] ? parseNumberLike(tr.children[a4Index].textContent) : null,
+    a5: a5Index >= 0 && tr.children[a5Index] ? parseNumberLike(tr.children[a5Index].textContent) : null,
+    a1a3Impact: a1a3ImpactIndex >= 0 && tr.children[a1a3ImpactIndex] ? parseNumberLike(tr.children[a1a3ImpactIndex].textContent) : null,
+    a4Impact: a4ImpactIndex >= 0 && tr.children[a4ImpactIndex] ? parseNumberLike(tr.children[a4ImpactIndex].textContent) : null,
+    a5Impact: a5ImpactIndex >= 0 && tr.children[a5ImpactIndex] ? parseNumberLike(tr.children[a5ImpactIndex].textContent) : null
+  };
+
+  // Store original data on the row element for later retrieval
+  tr._originalBoverketClimate = originalBoverketData;
+
+  console.log('💾 [applyCustomClimateToRow] Saved original Boverket data:', {
+    name: originalBoverketData.name,
+    hasImpactData: !!(originalBoverketData.a1a3Impact || originalBoverketData.a4Impact || originalBoverketData.a5Impact),
+    a1a3Impact: originalBoverketData.a1a3Impact,
+    a4Impact: originalBoverketData.a4Impact,
+    a5Impact: originalBoverketData.a5Impact
+  });
+
   // Ensure row has enough cells to match header
   const currentCells = Array.from(tr.children);
   const neededCells = headerTexts.length;
-  
+
   // Add missing cells
   while(tr.children.length < neededCells){
     const newCell = document.createElement('td');
     newCell.textContent = '';
     tr.appendChild(newCell);
   }
-  
+
   // Update climate resource name (just the name)
   if(climateIndex >= 0 && tr.children[climateIndex]){
     const climateCell = tr.children[climateIndex];
@@ -6218,24 +6339,17 @@ function calculateCustomClimateImpact(tr, customResource, headerRow){
       return match === '²' ? '2' : '3';
     });
     
+    let inbyggdVikt = 0;
+
     if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
       // Inbyggd vikt = Omräkningsfaktor × Volume
-      // Note: volumeColIndex is 0-based from headers, but cells array includes action column
-      // So we need to add 1 to account for the action column
-      const volumeCell = cells[volumeColIndex + 1];
+      const volumeCell = cells[volumeColIndex];
       if(volumeCell){
         const volume = parseNumberLike(volumeCell.textContent);
         if(Number.isFinite(volume)){
-          // Check if this is a mixed layer - if so, the volume is already proportioned
-          const isMixedLayer = tr.hasAttribute('data-mixed-layer');
-          if(isMixedLayer){
-            // For mixed layers, volume is already proportioned, so use it directly
-            const inbyggdVikt = volume * factor;
-          } else {
-            // For regular layers, use normal calculation
-            const inbyggdVikt = volume * factor;
-          }
-          
+          // Volume from cell is already the correct volume (after layering if applicable)
+          inbyggdVikt = volume * factor;
+
           // Update Inbyggd vikt column
           const inbyggdViktIndex = headerTexts.findIndex(h => h === 'Inbyggd vikt');
           if(inbyggdViktIndex >= 0){
@@ -6305,8 +6419,8 @@ function calculateCustomClimateImpact(tr, customResource, headerRow){
       if(netAreaCell){
         const netArea = parseNumberLike(netAreaCell.textContent);
         if(Number.isFinite(netArea)){
-          const inbyggdVikt = netArea * factor;
-          
+          inbyggdVikt = netArea * factor;
+
           // Update weight and impact columns (same logic as above)
           const inbyggdViktIndex = headerTexts.findIndex(h => h === 'Inbyggd vikt');
           if(inbyggdViktIndex >= 0){
@@ -6885,21 +6999,30 @@ function updateClimateSummary(){
   if(!tbody) return;
   
   // Cache DOM queries to avoid repeated expensive operations
-  const allRows = Array.from(tbody.querySelectorAll('tr:not([style*="display: none"])'));
-  
+  const visibleRows = Array.from(tbody.querySelectorAll('tr:not([style*="display: none"])'));
+
+  // Get ALL rows (including hidden) for building parent-child maps
+  const allRows = Array.from(tbody.querySelectorAll('tr'));
+
   // Keep track of which rows we've already counted (via their parent's sum)
   const countedViaParent = new Set();
-  
+
   let totalA1A3 = 0;
   let totalA4 = 0;
   let totalA5 = 0;
   let hasAnyData = false;
-  
+
+  // Track original Boverket data for reduction calculation
+  let totalBoverketA1A3 = 0;
+  let totalBoverketA4 = 0;
+  let totalBoverketA5 = 0;
+  let hasReductionData = false;
+
   // Cache parent-child relationships to avoid repeated DOM queries
   const parentChildMap = new Map();
   const groupChildMap = new Map();
-  
-  // Build parent-child maps once
+
+  // Build parent-child maps once (using ALL rows, not just visible)
   allRows.forEach(tr => {
     const layerKey = tr.getAttribute('data-layer-key');
     const groupKey = tr.getAttribute('data-group-key');
@@ -6922,7 +7045,8 @@ function updateClimateSummary(){
   });
   
   // First pass: identify all parent rows with visible children and mark their children as counted
-  allRows.forEach(tr => {
+  // Use visibleRows here since we only count visible rows for the summary
+  visibleRows.forEach(tr => {
     const isParent = tr.classList.contains('group-parent') || tr.classList.contains('layer-parent');
     if(!isParent) return;
     
@@ -6955,7 +7079,8 @@ function updateClimateSummary(){
   });
   
   // Second pass: count climate data
-  allRows.forEach(tr => {
+  // Use visibleRows here since we only count visible rows for the summary
+  visibleRows.forEach(tr => {
     // Skip rows that are already counted via their parent's sum
     if(countedViaParent.has(tr)) return;
     
@@ -6974,12 +7099,20 @@ function updateClimateSummary(){
         hasVisibleChildren = groupChildMap.get(groupKey).filter(child => !child.getAttribute('data-parent-key')).some(child => child.style.display !== 'none');
       }
       
+      // Get children list (regardless of visibility, for reduction calculation)
+      let childrenList = [];
+      if(layerKey && parentChildMap.has(layerKey)){
+        childrenList = parentChildMap.get(layerKey);
+      } else if(groupKey && groupChildMap.has(groupKey)){
+        childrenList = groupChildMap.get(groupKey).filter(child => !child.getAttribute('data-parent-key'));
+      }
+
       if(hasVisibleChildren){
         // Use sum cells if they exist
         const a1a3SumCell = tr.querySelector('td[data-sum-klimat-a1a3="true"]');
         const a4SumCell = tr.querySelector('td[data-sum-klimat-a4="true"]');
         const a5SumCell = tr.querySelector('td[data-sum-klimat-a5="true"]');
-        
+
         if(a1a3SumCell){
           const val = parseNumberLike(a1a3SumCell.textContent);
           if(Number.isFinite(val)){
@@ -6987,7 +7120,7 @@ function updateClimateSummary(){
             hasAnyData = true;
           }
         }
-        
+
         if(a4SumCell){
           const val = parseNumberLike(a4SumCell.textContent);
           if(Number.isFinite(val)){
@@ -6995,7 +7128,7 @@ function updateClimateSummary(){
             hasAnyData = true;
           }
         }
-        
+
         if(a5SumCell){
           const val = parseNumberLike(a5SumCell.textContent);
           if(Number.isFinite(val)){
@@ -7040,6 +7173,42 @@ function updateClimateSummary(){
           }
         }
       }
+
+      // ALWAYS check children for original Boverket data (regardless of visibility)
+      // This ensures reduction is calculated even when groups are collapsed
+      console.log('🔍 [updateClimateSummary] Checking children for parent:', {
+        layerKey: layerKey?.substring(0, 30),
+        groupKey: groupKey?.substring(0, 30),
+        childrenCount: childrenList.length,
+        hasVisibleChildren: hasVisibleChildren
+      });
+
+      childrenList.forEach(child => {
+        if(child._originalBoverketClimate){
+          const orig = child._originalBoverketClimate;
+          console.log('🔍 [updateClimateSummary] Found originalBoverket in child:', {
+            childName: child._originalRowData?.[1]?.substring(0, 30) || 'unknown',
+            a1a3Impact: orig.a1a3Impact,
+            a4Impact: orig.a4Impact,
+            a5Impact: orig.a5Impact,
+            isFiniteA1A3: Number.isFinite(orig.a1a3Impact),
+            isFiniteA4: Number.isFinite(orig.a4Impact),
+            isFiniteA5: Number.isFinite(orig.a5Impact)
+          });
+          if(orig.a1a3Impact && Number.isFinite(orig.a1a3Impact)){
+            totalBoverketA1A3 += orig.a1a3Impact;
+            hasReductionData = true;
+          }
+          if(orig.a4Impact && Number.isFinite(orig.a4Impact)){
+            totalBoverketA4 += orig.a4Impact;
+            hasReductionData = true;
+          }
+          if(orig.a5Impact && Number.isFinite(orig.a5Impact)){
+            totalBoverketA5 += orig.a5Impact;
+            hasReductionData = true;
+          }
+        }
+      });
     } else {
       // For non-parent rows that weren't counted via parent, count them directly
       const a1a3Cell = tr.querySelector('td[data-klimat-a1a3-cell="true"]');
@@ -7070,10 +7239,67 @@ function updateClimateSummary(){
           hasAnyData = true;
         }
       }
+
+      // Check if this row has original Boverket data (meaning EPD was mapped)
+      if(tr._originalBoverketClimate){
+        const orig = tr._originalBoverketClimate;
+        if(orig.a1a3Impact && Number.isFinite(orig.a1a3Impact)){
+          totalBoverketA1A3 += orig.a1a3Impact;
+          hasReductionData = true;
+        }
+        if(orig.a4Impact && Number.isFinite(orig.a4Impact)){
+          totalBoverketA4 += orig.a4Impact;
+          hasReductionData = true;
+        }
+        if(orig.a5Impact && Number.isFinite(orig.a5Impact)){
+          totalBoverketA5 += orig.a5Impact;
+          hasReductionData = true;
+        }
+      }
     }
   });
-  
+
   const total = totalA1A3 + totalA4 + totalA5;
+
+  // Calculate reduction if we have both Boverket and EPD data
+  const totalBoverket = totalBoverketA1A3 + totalBoverketA4 + totalBoverketA5;
+  const reductionKg = hasReductionData ? (totalBoverket - total) : 0;
+  const reductionPercent = (hasReductionData && totalBoverket > 0) ? ((reductionKg / totalBoverket) * 100) : 0;
+
+  // Calculate percentage of climate impact from EPD
+  // (Count rows with EPD vs total rows with climate data)
+  // Need to count ALL rows, including hidden children in groups
+  let epdCount = 0;
+  let totalClimateCount = 0;
+
+  // Get ALL rows from tbody, not just visible ones
+  const allRowsIncludingHidden = Array.from(tbody.querySelectorAll('tr'));
+
+  allRowsIncludingHidden.forEach(tr => {
+    // Skip parent rows - we only count actual data rows
+    const isParent = tr.classList.contains('group-parent') || tr.classList.contains('layer-parent');
+    if(isParent) return;
+
+    const hasClimateData = tr.querySelector('td[data-klimat-a1a3-cell="true"]');
+    if(hasClimateData){
+      totalClimateCount++;
+      if(tr._originalBoverketClimate){
+        epdCount++;
+      }
+    }
+  });
+  const epdPercent = totalClimateCount > 0 ? ((epdCount / totalClimateCount) * 100) : 0;
+
+  console.log('🔍 [updateClimateSummary] Reduction data:', {
+    hasReductionData,
+    totalBoverket: totalBoverket.toFixed(2),
+    totalEPD: total.toFixed(2),
+    reductionKg: reductionKg.toFixed(2),
+    reductionPercent: reductionPercent.toFixed(1) + '%',
+    epdCount,
+    totalClimateCount,
+    epdPercent: epdPercent.toFixed(1) + '%'
+  });
   
   
   // Update summary display
@@ -7082,14 +7308,37 @@ function updateClimateSummary(){
   const summaryA4 = document.getElementById('summaryA4');
   const summaryA5 = document.getElementById('summaryA5');
   const summaryTotal = document.getElementById('summaryTotal');
-  
+  const summaryReduction = document.getElementById('summaryReduction');
+  const summaryEpdPercent = document.getElementById('summaryEpdPercent');
+
   if(hasAnyData){
     // Show and update summary
-    if(climateSummary) climateSummary.style.display = 'block';
+    if(climateSummary) climateSummary.style.display = 'flex';
     if(summaryA1A3) summaryA1A3.textContent = totalA1A3.toFixed(2) + ' kg CO₂e';
     if(summaryA4) summaryA4.textContent = totalA4.toFixed(2) + ' kg CO₂e';
     if(summaryA5) summaryA5.textContent = totalA5.toFixed(2) + ' kg CO₂e';
     if(summaryTotal) summaryTotal.textContent = total.toFixed(2) + ' kg CO₂e';
+
+    // Update reduction display (only show if we have reduction data)
+    if(summaryReduction){
+      if(hasReductionData && reductionKg > 0){
+        summaryReduction.style.display = 'flex';
+        summaryReduction.querySelector('.climate-summary-value').textContent =
+          `${reductionKg.toFixed(2)} kg CO₂e (${reductionPercent.toFixed(1)}%)`;
+      } else {
+        summaryReduction.style.display = 'none';
+      }
+    }
+
+    // Update EPD percentage display
+    if(summaryEpdPercent){
+      if(epdCount > 0){
+        summaryEpdPercent.style.display = 'flex';
+        summaryEpdPercent.querySelector('.climate-summary-value').textContent = `${epdPercent.toFixed(1)}%`;
+      } else {
+        summaryEpdPercent.style.display = 'none';
+      }
+    }
   } else {
     // Hide summary if no data
     if(climateSummary) climateSummary.style.display = 'none';
@@ -7206,7 +7455,8 @@ function getProjectData(){
       a1a3: typeof value === 'object' ? value.a1a3 : undefined,
       a4: typeof value === 'object' ? value.a4 : undefined,
       a5: typeof value === 'object' ? value.a5 : undefined,
-      isCustom: typeof value === 'object' ? value.isCustom : false
+      isCustom: typeof value === 'object' ? value.isCustom : false,
+      originalBoverket: typeof value === 'object' ? value.originalBoverket : undefined
     })),
     // Include undo/redo state
     undoStack: undoStack.slice(-10), // Save last 10 undo steps
@@ -7390,7 +7640,8 @@ function loadProject(file){
               a1a3: item.a1a3,
               a4: item.a4,
               a5: item.a5,
-              isCustom: item.isCustom || false
+              isCustom: item.isCustom || false,
+              originalBoverket: item.originalBoverket || undefined
             });
           }
         });
