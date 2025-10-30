@@ -362,7 +362,7 @@
   </div>
 
   <!-- Climate Impact Summary -->
-  <div id="climateSummary" class="climate-summary" style="display: flex;">
+  <div id="climateSummary" class="climate-summary" style="display: none;">
     <h3>Klimatpåverkan</h3>
     <div class="climate-summary-items">
       <div class="climate-summary-item">
@@ -414,7 +414,6 @@
       <button id="saveAsProjectBtn" type="button" style="background:#607d8b; color:white;">Spara som...</button>
       <button id="loadProjectBtn" type="button" style="background:#607d8b; color:white;">Öppna projekt</button>
       <button id="testProgressBtn" type="button" style="background:#ff9800; color:white;">Testa Progress Bar</button>
-      <button id="logoutBtn" type="button" style="border-radius:9999px; padding:8px 14px; border:1px solid #ef4444; background:#ef4444; color:#fff;">Logga ut</button>
       <input id="projectFileInput" type="file" accept=".json,application/json" style="display:none;" />
     </div>
     <div id="output"></div>
@@ -469,23 +468,6 @@
           <button id="layerCancel" type="button">Avbryt</button>
           <button id="layerApply" type="button">Dela</button>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Auth modal -->
-  <div id="authModal" style="position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:4000;">
-    <div style="background:#fff; padding:24px; border-radius:16px; width:min(420px,95vw); box-shadow:0 10px 30px rgba(0,0,0,.25);">
-      <h2 style="margin:0 0 12px 0; font-size:1.2rem;">Logga in</h2>
-      <p class="muted" style="margin:0 0 12px 0;">Ange e-post och lösenord för att fortsätta.</p>
-      <div style="display:grid; gap:10px;">
-        <input id="authEmail" type="email" placeholder="E-post" style="padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px;" />
-        <input id="authPassword" type="password" placeholder="Lösenord" style="padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px;" />
-        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:4px;">
-          <button id="authRegisterBtn" type="button" style="border-radius:9999px; padding:8px 14px; border:1px solid #e5e7eb;">Registrera</button>
-          <button id="authLoginBtn" type="button" style="border-radius:9999px; padding:8px 14px; border:1px solid #1f2937; background:#1f2937; color:#fff;">Logga in</button>
-        </div>
-        <div id="authError" style="color:#b91c1c; font-size:0.9rem; display:none;"></div>
       </div>
     </div>
   </div>
@@ -759,21 +741,9 @@
   <script type="module" src="app.js"></script>
 
   <script>
-    // Simple production gate: require login if not on localhost
-    const IS_PROD = location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
-    function getToken(){ try { return localStorage.getItem('auth_token') || ''; } catch(_) { return ''; } }
-    function setToken(t){ try { t ? localStorage.setItem('auth_token', t) : localStorage.removeItem('auth_token'); } catch(_){} }
-    async function authFetch(url, opts = {}){
-      const token = getToken();
-      const headers = Object.assign({}, opts.headers || {}, token ? { Authorization: 'Bearer ' + token } : {});
-      const res = await fetch(url, Object.assign({}, opts, { headers }));
-      if(res.status === 401 && IS_PROD){ showAuthModal(); throw new Error('Unauthorized'); }
-      return res;
-    }
     const apiIndicator = document.getElementById('apiIndicator');
     const epdIndicator = document.getElementById('epdIndicator');
     const climateResourceSelect = document.getElementById('climateResourceSelect');
-    const logoutBtn = document.getElementById('logoutBtn');
     const climateSearchInput = document.getElementById('climateSearchInput');
 
     // Store climate resources globally so they can be accessed when numbering
@@ -1037,48 +1007,7 @@
       });
     
     // EPD files will be loaded by app.js after it initializes
-
-    // Auth helpers
-    function showAuthModal(){ const el = document.getElementById('authModal'); if(el) el.style.display = 'flex'; }
-    function hideAuthModal(){ const el = document.getElementById('authModal'); if(el) el.style.display = 'none'; }
-    async function performLogin(email, password){
-      const res = await fetch('/api/login', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
-      const data = await res.json();
-      if(!res.ok){ throw new Error(data.error || 'Login failed'); }
-      setToken(data.token); hideAuthModal();
-    }
-    async function performRegister(email, password){
-      const res = await fetch('/api/register', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
-      const data = await res.json();
-      if(!res.ok){ throw new Error(data.error || 'Register failed'); }
-      setToken(data.token); hideAuthModal();
-    }
-    function setupAuthUI(){
-      const loginBtn = document.getElementById('authLoginBtn');
-      const registerBtn = document.getElementById('authRegisterBtn');
-      const emailEl = document.getElementById('authEmail');
-      const passEl = document.getElementById('authPassword');
-      const errEl = document.getElementById('authError');
-      if(loginBtn){
-        loginBtn.addEventListener('click', async () => {
-          errEl.style.display = 'none';
-          try { await performLogin(emailEl.value.trim(), passEl.value); } catch(e){ errEl.textContent = e.message; errEl.style.display = 'block'; }
-        });
-      }
-      if(registerBtn){
-        registerBtn.addEventListener('click', async () => {
-          errEl.style.display = 'none';
-          try { await performRegister(emailEl.value.trim(), passEl.value); } catch(e){ errEl.textContent = e.message; errEl.style.display = 'block'; }
-        });
-      }
-    }
-
-    // Gate UI in production
-    setupAuthUI();
-    if(IS_PROD && !getToken()){
-      showAuthModal();
-    }
-    if(logoutBtn){ logoutBtn.addEventListener('click', () => { setToken(''); if(IS_PROD) showAuthModal(); }); }
+    
   </script>
 </body>
 </html>
