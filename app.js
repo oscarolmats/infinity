@@ -342,13 +342,38 @@ function applySavedLayers(tr, rowData){
 
   const layerChildOf = tr.getAttribute('data-layer-child-of');
   const signature = getRowSignature(rowData, layerChildOf);
-  const saved = layerData.get(signature);
+  let saved = layerData.get(signature);
+
+  // If not found with current layerChildOf, try with null (for rows that were layered in a different grouping)
+  if(!saved && layerChildOf !== null){
+    const signatureWithoutGroup = getRowSignature(rowData, null);
+    saved = layerData.get(signatureWithoutGroup);
+    if(saved){
+      console.log('✅ [applySavedLayers] Found layer data with null signature (grouping changed)');
+    }
+  }
+
+  // Debug: Log all keys in layerData to see what's actually stored
+  if(layerData.size > 0 && !saved){
+    console.log('🔍 [applySavedLayers] Map has', layerData.size, 'entries but signature not found!');
+    console.log('🔍 [applySavedLayers] Looking for signature (FULL):', signature);
+    console.log('🔍 [applySavedLayers] Row data being used:', rowData);
+    console.log('🔍 [applySavedLayers] Available signatures in Map (FULL - first 2):');
+    let count = 0;
+    for(const key of layerData.keys()){
+      if(count < 2){  // Show first 2 full signatures
+        console.log('  - Signature #' + (count + 1) + ':', key);
+        count++;
+      }
+    }
+  }
 
   console.log('🔄 [applySavedLayers] Checking row:', {
     signature: signature.substring(0, 60),
     hasSaved: !!saved,
     layerChildOf: layerChildOf?.substring(0, 20) || 'none',
-    rowName: rowData[1]?.substring(0, 30)
+    rowName: rowData[1]?.substring(0, 30),
+    savedThicknesses: saved?.thicknesses
   });
 
   if(saved){
@@ -390,6 +415,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
 
   console.log('🔧 [applyLayerSplitWithKey] Called with:', {
     count,
+    thicknesses,
     layerKey: layerKey?.substring(0, 30),
     isNested,
     hasSharedKeys: !!sharedLayerKeys,
@@ -403,10 +429,12 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
   // IMPORTANT: Save layer data to Map BEFORE modifying anything
   // This uses the ORIGINAL _originalRowData (before names are changed for mixed layers)
   // This ensures the signature matches when the table is rebuilt from CSV data
+  // IMPORTANT: Save with BOTH signatures - one with layerChildOf and one without (null)
+  // This allows the data to be found regardless of grouping state
   const originalRowData = tr._originalRowData;
   if(originalRowData){
-    const baseSignature = getRowSignature(originalRowData, null);
-    layerData.set(baseSignature, {
+    const layerChildOf = tr.getAttribute('data-layer-child-of');
+    const layerDataToSave = {
       count,
       thicknesses,
       layerKey,
@@ -416,8 +444,20 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       climateResources: climateResources.length > 0 ? climateResources : undefined,
       climateTypes: climateTypes.length > 0 ? climateTypes : undefined,
       climateFactors: climateFactors.length > 0 ? climateFactors : undefined
-    });
-    console.log('💾 [applyLayerSplitWithKey] Saved layer data EARLY with original signature, mixedLayerConfigs:', mixedLayerConfigs.length > 0);
+    };
+
+    // Save with the current layerChildOf (for current grouping state)
+    const signatureWithGroup = getRowSignature(originalRowData, layerChildOf);
+    layerData.set(signatureWithGroup, layerDataToSave);
+
+    // Also save with null layerChildOf (for when grouping changes or is removed)
+    if(layerChildOf !== null){
+      const signatureWithoutGroup = getRowSignature(originalRowData, null);
+      layerData.set(signatureWithoutGroup, layerDataToSave);
+      console.log('💾 [applyLayerSplitWithKey] Saved layer data with BOTH signatures - with group (' + layerChildOf + ') and without (null), thicknesses:', thicknesses);
+    } else {
+      console.log('💾 [applyLayerSplitWithKey] Saved layer data with signature (layerChildOf=null), thicknesses:', thicknesses);
+    }
   }
 
   function splitRowWithKey(tr, savedLayerKey){
@@ -529,42 +569,66 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       // Read Net Area BEFORE scaling it (for volume calculation)
       let originalNetArea = null;
       if(idxNetArea >= 0){
-        const netAreaTd = tds[idxNetArea + 1];
+        // No +1 offset - headerTexts already includes action column at index 0
+        const netAreaTd = tds[idxNetArea];
         if(netAreaTd){
           originalNetArea = parseNumberLike(netAreaTd.textContent);
         }
       }
-      
+
 
       function scaleCell(idx){
         if(idx < 0) return;
-        const td = tds[idx + 1] || null; // +1 offset for action column
+        // No +1 offset - headerTexts already includes action column at index 0
+        const td = tds[idx] || null;
         if(!td) return;
         const n = parseNumberLike(td.textContent);
         if(Number.isFinite(n)){ td.textContent = String(n * m); }
       }
-      
-      // Scale Net Area and Count with multiplier
-      scaleCell(idxNetArea); 
+
+      // IMPORTANT: Only scale Count with multiplier
+      // Net Area should NOT be scaled - it represents the total area which is the same for each layer
       scaleCell(idxCount);
       
-      // For Volume: if we have thickness specified, calculate Volume = Net Area × thickness (in meters)
+      // For Volume and Thickness: if we have thickness specified, update both columns
       const layerThickness = thicknesses.length > 0 ? thicknesses[i] : undefined;
       // console.log('🔍 Saved layer', i + 1, '- layerThickness:', layerThickness, 'idxVolume:', idxVolume, 'originalNetArea:', originalNetArea);
-      
+
+      // IMPORTANT: Update Thickness column with the saved thickness value
+      if(layerThickness){
+        const idxThickness = headerTexts.findIndex(h => String(h).toLowerCase() === 'thickness');
+        console.log('📏 [applyLayerSplitWithKey] Layer', i + 1, 'of', count, '- layerThickness:', layerThickness, 'mm, idxThickness:', idxThickness);
+        if(idxThickness >= 0){
+          // IMPORTANT: No +1 offset needed because headerTexts already includes the action column at index 0
+          // So idxThickness directly corresponds to the correct TD index
+          const thicknessTd = tds[idxThickness];
+          if(thicknessTd){
+            const oldValue = thicknessTd.textContent;
+            const thicknessInMeters = layerThickness / 1000;
+            thicknessTd.textContent = String(thicknessInMeters);
+            console.log('📏 [applyLayerSplitWithKey] Updated Thickness cell for layer', i + 1, '- OLD:', oldValue, '→ NEW:', thicknessInMeters, 'm (from', layerThickness, 'mm)');
+          } else {
+            console.log('⚠️ [applyLayerSplitWithKey] thicknessTd not found!');
+          }
+        }
+      } else {
+        console.log('⚠️ [applyLayerSplitWithKey] No layerThickness for layer', i + 1);
+      }
+
       if(layerThickness && idxVolume >= 0 && originalNetArea !== null && Number.isFinite(originalNetArea)){
-        const volumeTd = tds[idxVolume + 1]; // +1 offset for action column
+        // No +1 offset - headerTexts already includes action column at index 0
+        const volumeTd = tds[idxVolume];
         // console.log('🔍 volumeTd found:', !!volumeTd);
         if(volumeTd){
           // Check if this is a mixed layer - if so, skip volume recalculation
           // as it will be calculated with proportions later
           const isMixedLayer = clone.hasAttribute('data-mixed-layer');
-          
+
           if(!isMixedLayer){
             // Thickness is always in mm, convert to meters
             const thicknessInMeters = layerThickness / 1000;
             // console.log('🔍 Converting from mm:', layerThickness, '→', thicknessInMeters, 'm');
-            
+
             const newVolume = originalNetArea * thicknessInMeters;
             // console.log('✅ Calculated volume:', originalNetArea, '×', thicknessInMeters, '=', newVolume);
             volumeTd.textContent = String(newVolume);
@@ -1952,7 +2016,12 @@ if(toggleAllBtn){
 if(groupBySelect){
   groupBySelect.addEventListener('change', function(){
     if(!lastRows){ return; }
+    console.log('🔄 [groupBySelect.change] BEFORE renderTable - layerData.size:', layerData.size);
+    console.log('🔄 [groupBySelect.change] layerData keys:', Array.from(layerData.keys()).map(k => k.substring(0, 80)));
+    console.log('🔄 [groupBySelect.change] lastRows sample (first 3 data rows):', lastRows.slice(1, 4).map(r => r.slice(0, 4)));
+    console.log('🔄 [groupBySelect.change] lastRows total count:', lastRows.length - 1, 'data rows');
     renderTableWithOptionalGrouping(lastRows);
+    console.log('🔄 [groupBySelect.change] AFTER renderTable - layerData.size:', layerData.size);
   });
 }
 
@@ -4722,10 +4791,10 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
       const rowData = row._originalRowData || getRowDataFromTr(row);
       if(rowData && Array.isArray(rowData)){
         const layerChildOf = row.getAttribute('data-layer-child-of');
-        const signature = getRowSignature(rowData, layerChildOf);
         const beforeSize = layerData.size;
+
         // IMPORTANT: Save shared layer keys, layer names, AND mixed layer configs so they can be restored later
-        layerData.set(signature, {
+        const layerDataToSave = {
           count,
           thicknesses,
           layerKey: rowLayerKey,
@@ -4735,10 +4804,26 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
           climateTypes: climateTypes.length > 0 ? climateTypes : undefined,
           climateFactors: climateFactors.length > 0 ? climateFactors : undefined,
           mixedLayerConfigs: mixedLayerConfigs && mixedLayerConfigs.length > 0 ? mixedLayerConfigs : undefined
-        });
+        };
+
+        // Save with the current layerChildOf (for current grouping state)
+        const signatureWithGroup = getRowSignature(rowData, layerChildOf);
+        layerData.set(signatureWithGroup, layerDataToSave);
+
+        // Also save with null layerChildOf (for when grouping changes or is removed)
+        if(layerChildOf !== null){
+          const signatureWithoutGroup = getRowSignature(rowData, null);
+          layerData.set(signatureWithoutGroup, layerDataToSave);
+          console.log('💾 [applyLayerSplit] GROUP SAVED with BOTH signatures - with group (' + layerChildOf + ') and without (null), thicknesses:', thicknesses);
+        } else {
+          console.log('💾 [applyLayerSplit] GROUP SAVED with signature (layerChildOf=null), thicknesses:', thicknesses);
+        }
+
         const afterSize = layerData.size;
-        console.log('💾 [applyLayerSplit] GROUP SAVED layerData:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize, '- Signature:', signature.substring(0, 60));
+        console.log('💾 [applyLayerSplit] GROUP SAVED layerData:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize);
         console.log('💾 [applyLayerSplit] Group layer data:', { count, thicknesses, layerKey: rowLayerKey, sharedLayerKeys: rowLayerKeys, layerNames });
+        console.log('💾 [applyLayerSplit] FULL rowData being saved:', rowData);
+        console.log('💾 [applyLayerSplit] FULL signature:', signatureWithGroup);
       }
       
       // Even split if no thicknesses provided
@@ -7010,7 +7095,6 @@ function updateClimateSummary(){
   let totalA1A3 = 0;
   let totalA4 = 0;
   let totalA5 = 0;
-  let hasAnyData = false;
 
   // Track original Boverket data for reduction calculation
   let totalBoverketA1A3 = 0;
@@ -7117,7 +7201,6 @@ function updateClimateSummary(){
           const val = parseNumberLike(a1a3SumCell.textContent);
           if(Number.isFinite(val)){
             totalA1A3 += val;
-            hasAnyData = true;
           }
         }
 
@@ -7125,7 +7208,6 @@ function updateClimateSummary(){
           const val = parseNumberLike(a4SumCell.textContent);
           if(Number.isFinite(val)){
             totalA4 += val;
-            hasAnyData = true;
           }
         }
 
@@ -7133,7 +7215,6 @@ function updateClimateSummary(){
           const val = parseNumberLike(a5SumCell.textContent);
           if(Number.isFinite(val)){
             totalA5 += val;
-            hasAnyData = true;
           }
         }
       } else {
@@ -7153,7 +7234,6 @@ function updateClimateSummary(){
           const val = parseNumberLike(a1a3Cell.textContent);
           if(Number.isFinite(val)){
             totalA1A3 += val;
-            hasAnyData = true;
           }
         }
         
@@ -7161,7 +7241,6 @@ function updateClimateSummary(){
           const val = parseNumberLike(a4Cell.textContent);
           if(Number.isFinite(val)){
             totalA4 += val;
-            hasAnyData = true;
           }
         }
         
@@ -7169,7 +7248,6 @@ function updateClimateSummary(){
           const val = parseNumberLike(a5Cell.textContent);
           if(Number.isFinite(val)){
             totalA5 += val;
-            hasAnyData = true;
           }
         }
       }
@@ -7220,7 +7298,6 @@ function updateClimateSummary(){
         const val = parseNumberLike(a1a3Cell.textContent);
         if(Number.isFinite(val)){
           totalA1A3 += val;
-          hasAnyData = true;
         }
       }
       
@@ -7228,7 +7305,6 @@ function updateClimateSummary(){
         const val = parseNumberLike(a4Cell.textContent);
         if(Number.isFinite(val)){
           totalA4 += val;
-          hasAnyData = true;
         }
       }
       
@@ -7236,7 +7312,6 @@ function updateClimateSummary(){
         const val = parseNumberLike(a5Cell.textContent);
         if(Number.isFinite(val)){
           totalA5 += val;
-          hasAnyData = true;
         }
       }
 
@@ -7311,37 +7386,33 @@ function updateClimateSummary(){
   const summaryReduction = document.getElementById('summaryReduction');
   const summaryEpdPercent = document.getElementById('summaryEpdPercent');
 
-  if(hasAnyData){
-    // Show and update summary
-    if(climateSummary) climateSummary.style.display = 'flex';
-    if(summaryA1A3) summaryA1A3.textContent = totalA1A3.toFixed(2) + ' kg CO₂e';
-    if(summaryA4) summaryA4.textContent = totalA4.toFixed(2) + ' kg CO₂e';
-    if(summaryA5) summaryA5.textContent = totalA5.toFixed(2) + ' kg CO₂e';
-    if(summaryTotal) summaryTotal.textContent = total.toFixed(2) + ' kg CO₂e';
+  // IMPORTANT: Always show summary (even if data is 0.00)
+  // This makes it visible from the start and after layering
+  if(climateSummary) climateSummary.style.display = 'flex';
+  if(summaryA1A3) summaryA1A3.textContent = totalA1A3.toFixed(2) + ' kg CO₂e';
+  if(summaryA4) summaryA4.textContent = totalA4.toFixed(2) + ' kg CO₂e';
+  if(summaryA5) summaryA5.textContent = totalA5.toFixed(2) + ' kg CO₂e';
+  if(summaryTotal) summaryTotal.textContent = total.toFixed(2) + ' kg CO₂e';
 
-    // Update reduction display (only show if we have reduction data)
-    if(summaryReduction){
-      if(hasReductionData && reductionKg > 0){
-        summaryReduction.style.display = 'flex';
-        summaryReduction.querySelector('.climate-summary-value').textContent =
-          `${reductionKg.toFixed(2)} kg CO₂e (${reductionPercent.toFixed(1)}%)`;
-      } else {
-        summaryReduction.style.display = 'none';
-      }
+  // Update reduction display (only show if we have reduction data)
+  if(summaryReduction){
+    if(hasReductionData && reductionKg > 0){
+      summaryReduction.style.display = 'flex';
+      summaryReduction.querySelector('.climate-summary-value').textContent =
+        `${reductionKg.toFixed(2)} kg CO₂e (${reductionPercent.toFixed(1)}%)`;
+    } else {
+      summaryReduction.style.display = 'none';
     }
+  }
 
-    // Update EPD percentage display
-    if(summaryEpdPercent){
-      if(epdCount > 0){
-        summaryEpdPercent.style.display = 'flex';
-        summaryEpdPercent.querySelector('.climate-summary-value').textContent = `${epdPercent.toFixed(1)}%`;
-      } else {
-        summaryEpdPercent.style.display = 'none';
-      }
+  // Update EPD percentage display
+  if(summaryEpdPercent){
+    if(epdCount > 0){
+      summaryEpdPercent.style.display = 'flex';
+      summaryEpdPercent.querySelector('.climate-summary-value').textContent = `${epdPercent.toFixed(1)}%`;
+    } else {
+      summaryEpdPercent.style.display = 'none';
     }
-  } else {
-    // Hide summary if no data
-    if(climateSummary) climateSummary.style.display = 'none';
   }
 }
 
