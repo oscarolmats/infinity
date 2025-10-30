@@ -4,13 +4,59 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>INFINITY</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 1rem; }
-    .container { max-width: calc(95vw - 340px); margin: 0 auto; margin-right: 360px; }
+    body { font-family: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif; margin: 1rem; background: #f7f9fc; color: #111827; }
+    button, input, select, textarea { font-family: inherit; }
+    .container { max-width: calc(95vw - 340px); margin: 0 auto; margin-right: 360px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.06); padding: 16px; }
     .picker { margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    th { background: #f6f6f6; position: sticky; top: 0; }
+    /* Toolbar controls styled like modern rounded buttons */
+    .picker button {
+      border-radius: 9999px;
+      padding: 8px 14px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      transition: background-color .15s ease, box-shadow .15s ease, transform .05s ease;
+    }
+    .picker button:hover {
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      transform: translateY(-1px);
+    }
+    .picker button:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .picker select,
+    .picker input[type="search"] {
+      border-radius: 9999px;
+      padding: 8px 12px;
+      border: 1px solid #e5e7eb;
+    }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
+    th, td { border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 6px 8px; font-size: 0.85rem; }
+    th { position: sticky; top: 0; background: #ffffff; z-index: 2; text-align: left; font-weight: 600; color: #374151; }
+    thead tr { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    thead th { border-top: 1px solid #e5e7eb; }
+    thead th:first-child { border-top-left-radius: 12px; }
+    thead th:last-child { border-top-right-radius: 12px; }
+    thead th:hover { background: #f8fafc; }
+    thead th:first-child, tbody td:first-child { position: sticky; left: 0; background: #fff; z-index: 3; width: 1%; white-space: nowrap; }
+    thead th:first-child { z-index: 4; }
+    /* Zebra rows via classes for correct alternation with hidden rows */
+    tbody tr.zebra-even td { background: #f8fafc; }
+    tbody tr.zebra-odd td { background: #eef2f7; }
+    /* Allow text to wrap to reduce horizontal width */
+    td, th { white-space: normal; word-break: break-word; }
+    /* Keep action cell content tight */
+    td:first-child > * { gap: 2px; }
+    table tbody tr:hover td { background: #e8eef7; }
+    table { box-shadow: 0 0 0 1px #e5e7eb; border-radius: 6px; overflow: hidden; }
+    .ag-resize-handle { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; user-select: none; }
+    th { position: sticky; top: 0; }
+    thead th.ag-sort-asc::after { content: '▲'; font-size: 10px; margin-left: 6px; color: #6b7280; }
+    thead th.ag-sort-desc::after { content: '▼'; font-size: 10px; margin-left: 6px; color: #6b7280; }
     .filter { flex: 1; max-width: 320px; }
     .muted { color: #666; font-size: 0.9rem; }
     .group-parent {
@@ -21,11 +67,11 @@
       box-shadow: inset 0 0 0 1px rgba(33, 150, 243, 0.1);
     }
     .layer-parent {
-      background: #fff3e0;
+      background: #e8eaf6;
       font-weight: 700;
       cursor: pointer;
-      border-left: 5px solid #ff9800 !important;
-      box-shadow: inset 0 0 0 1px rgba(255, 152, 0, 0.1);
+      border-left: 5px solid #3f51b5 !important;
+      box-shadow: inset 0 0 0 1px rgba(63, 81, 181, 0.12);
     }
     .group-toggle { display: inline-inline; margin-right: .25rem; vertical-align: middle; }
     .group-toggle svg { width: 12px; height: 12px; display: inline-block; transition: transform .2s ease; }
@@ -38,38 +84,24 @@
     tr.is-new td { background: #fff7cc; }
     .badge-new { display:inline-block; background:#ffec99; color:#5c4400; border:1px solid #e6c466; border-radius:10px; padding:0 6px; font-size:11px; margin-right:6px; }
     
-    /* Climate mapping indicators */
-    tr.climate-mapped { 
-      background-color: #e8f5e9 !important; 
-      border-left: 4px solid #4caf50 !important; 
-    }
-    tr.climate-mapped-alt { 
-      background-color: #fff3e0 !important; 
-      border-left: 4px solid #ff9800 !important; 
-    }
-    tr.climate-mapped-both { 
-      background: linear-gradient(90deg, #e8f5e9 50%, #fff3e0 50%) !important; 
-      border-left: 4px solid #4caf50 !important; 
-      border-right: 4px solid #ff9800 !important; 
-    }
+    /* Climate mapping indicators - stronger */
+    tr.climate-mapped td { background-color: #dff7e4 !important; }
+    tr.climate-mapped { border-left: 5px solid #2e7d32 !important; }
+    tr.climate-mapped-alt td { background-color: #ffefdb !important; }
+    tr.climate-mapped-alt { border-left: 5px solid #e67e22 !important; }
+    tr.climate-mapped-both td { background: linear-gradient(90deg, #dff7e4 50%, #ffefdb 50%) !important; }
+    tr.climate-mapped-both { border-left: 5px solid #2e7d32 !important; border-right: 5px solid #e67e22 !important; }
     
     /* Parent row indicators */
     tr.group-parent.climate-mapped,
-    tr.layer-parent.climate-mapped { 
-      background-color: #e8f5e9 !important; 
-      border-left: 4px solid #4caf50 !important; 
-    }
+    tr.layer-parent.climate-mapped { background-color: #dff7e4 !important; border-left: 5px solid #2e7d32 !important; }
     tr.group-parent.climate-mapped-alt,
-    tr.layer-parent.climate-mapped-alt { 
-      background-color: #fff3e0 !important; 
-      border-left: 4px solid #ff9800 !important; 
-    }
+    tr.layer-parent.climate-mapped-alt { background-color: #ffefdb !important; border-left: 5px solid #e67e22 !important; }
     tr.group-parent.climate-mapped-both,
-    tr.layer-parent.climate-mapped-both { 
-      background: linear-gradient(90deg, #e8f5e9 50%, #fff3e0 50%) !important; 
-      border-left: 4px solid #4caf50 !important; 
-      border-right: 4px solid #ff9800 !important; 
-    }
+    tr.layer-parent.climate-mapped-both { background: linear-gradient(90deg, #dff7e4 50%, #ffefdb 50%) !important; border-left: 5px solid #2e7d32 !important; border-right: 5px solid #e67e22 !important; }
+
+    /* Layered parent emphasis only (children keep zebra coloring) */
+    tbody tr[data-layer-key] td { background-color: #eef1fb; }
 
     /* Icon buttons */
     .icon-btn {
@@ -236,19 +268,20 @@
     }
     .climate-summary {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
-      border-bottom: 2px solid #2196f3;
-      padding: 12px 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      padding: 10px 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
       font-size: 0.85rem;
       z-index: 999;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 32px;
+      gap: 24px;
+      border-radius: 9999px;
     }
     .climate-summary h3 {
       margin: 0;
@@ -280,7 +313,6 @@
     .climate-summary-value {
       font-weight: 700;
       color: #1976d2;
-      font-family: 'Courier New', monospace;
       font-size: 0.9rem;
     }
     .climate-summary-total {
@@ -289,9 +321,7 @@
     }
 
     /* Add padding to body to account for fixed summary */
-    body {
-      padding-top: 60px;
-    }
+    body { padding-top: 100px; }
     
     /* Responsive design for smaller screens */
     @media (max-width: 1200px) {
@@ -384,13 +414,14 @@
       <button id="saveAsProjectBtn" type="button" style="background:#607d8b; color:white;">Spara som...</button>
       <button id="loadProjectBtn" type="button" style="background:#607d8b; color:white;">Öppna projekt</button>
       <button id="testProgressBtn" type="button" style="background:#ff9800; color:white;">Testa Progress Bar</button>
+      <button id="logoutBtn" type="button" style="border-radius:9999px; padding:8px 14px; border:1px solid #ef4444; background:#ef4444; color:#fff;">Logga ut</button>
       <input id="projectFileInput" type="file" accept=".json,application/json" style="display:none;" />
     </div>
     <div id="output"></div>
   </div>
 
   <!-- Layer modal -->
-  <div id="layerModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
+  <div id="layerModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 2000;">
     <div style="background:#fff; padding:16px; border-radius:8px; width: min(600px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto;">
       <h2 style="margin-top:0;">Dela i skikt</h2>
       <div style="display:flex; gap:12px;">
@@ -442,8 +473,25 @@
     </div>
   </div>
 
+  <!-- Auth modal -->
+  <div id="authModal" style="position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:4000;">
+    <div style="background:#fff; padding:24px; border-radius:16px; width:min(420px,95vw); box-shadow:0 10px 30px rgba(0,0,0,.25);">
+      <h2 style="margin:0 0 12px 0; font-size:1.2rem;">Logga in</h2>
+      <p class="muted" style="margin:0 0 12px 0;">Ange e-post och lösenord för att fortsätta.</p>
+      <div style="display:grid; gap:10px;">
+        <input id="authEmail" type="email" placeholder="E-post" style="padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px;" />
+        <input id="authPassword" type="password" placeholder="Lösenord" style="padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px;" />
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:4px;">
+          <button id="authRegisterBtn" type="button" style="border-radius:9999px; padding:8px 14px; border:1px solid #e5e7eb;">Registrera</button>
+          <button id="authLoginBtn" type="button" style="border-radius:9999px; padding:8px 14px; border:1px solid #1f2937; background:#1f2937; color:#fff;">Logga in</button>
+        </div>
+        <div id="authError" style="color:#b91c1c; font-size:0.9rem; display:none;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Climate Resource Mapping modal -->
-  <div id="climateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:1000;">
+  <div id="climateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:3000;">
     <div style="background:#fff; padding:0; border-radius:8px; width: min(900px, 95vw); box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 90vh; overflow:hidden; display:flex; flex-direction:column;">
 
       <!-- Header -->
@@ -479,7 +527,7 @@
             <select
               id="climateResourceSelect"
               size="20"
-              style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:0.9rem; background:white; font-family:monospace;"
+              style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:0.9rem; background:white;"
             >
               <option value="">Laddar resurser...</option>
             </select>
@@ -517,7 +565,7 @@
   </div>
 
   <!-- Alternative Climate Resource modal -->
-  <div id="altClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:100;">
+  <div id="altClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:2500;">
     <div style="background:#fff; padding:20px; border-radius:8px; width: min(700px, 95vw); max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
       <h2 style="margin-top:0; color:#2196f3;">Alternativ klimatresurs</h2>
       
@@ -651,7 +699,7 @@
   </div>
 
   <!-- Multi-layer Climate Resource Mapping modal -->
-  <div id="multiLayerClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:100;">
+  <div id="multiLayerClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:2400;">
     <div style="background:#fff; padding:20px; border-radius:8px; width: min(900px, 95vw); max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
       <h2 style="margin-top:0;">Mappa klimatresurser till skikt</h2>
       
@@ -669,7 +717,7 @@
   </div>
 
   <!-- Manual Conversion Factor modal -->
-  <div id="manualFactorModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 1000;">
+  <div id="manualFactorModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 2600;">
     <div style="background:#fff; padding:20px; border-radius:8px; width: min(500px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2);">
       <h2 style="margin-top:0; color: #ff9800;">⚠️ Saknad omräkningsfaktor</h2>
       
@@ -711,9 +759,21 @@
   <script type="module" src="app.js"></script>
 
   <script>
+    // Simple production gate: require login if not on localhost
+    const IS_PROD = location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+    function getToken(){ try { return localStorage.getItem('auth_token') || ''; } catch(_) { return ''; } }
+    function setToken(t){ try { t ? localStorage.setItem('auth_token', t) : localStorage.removeItem('auth_token'); } catch(_){} }
+    async function authFetch(url, opts = {}){
+      const token = getToken();
+      const headers = Object.assign({}, opts.headers || {}, token ? { Authorization: 'Bearer ' + token } : {});
+      const res = await fetch(url, Object.assign({}, opts, { headers }));
+      if(res.status === 401 && IS_PROD){ showAuthModal(); throw new Error('Unauthorized'); }
+      return res;
+    }
     const apiIndicator = document.getElementById('apiIndicator');
     const epdIndicator = document.getElementById('epdIndicator');
     const climateResourceSelect = document.getElementById('climateResourceSelect');
+    const logoutBtn = document.getElementById('logoutBtn');
     const climateSearchInput = document.getElementById('climateSearchInput');
 
     // Store climate resources globally so they can be accessed when numbering
@@ -977,7 +1037,48 @@
       });
     
     // EPD files will be loaded by app.js after it initializes
-    
+
+    // Auth helpers
+    function showAuthModal(){ const el = document.getElementById('authModal'); if(el) el.style.display = 'flex'; }
+    function hideAuthModal(){ const el = document.getElementById('authModal'); if(el) el.style.display = 'none'; }
+    async function performLogin(email, password){
+      const res = await fetch('/api/login', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
+      const data = await res.json();
+      if(!res.ok){ throw new Error(data.error || 'Login failed'); }
+      setToken(data.token); hideAuthModal();
+    }
+    async function performRegister(email, password){
+      const res = await fetch('/api/register', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ email, password }) });
+      const data = await res.json();
+      if(!res.ok){ throw new Error(data.error || 'Register failed'); }
+      setToken(data.token); hideAuthModal();
+    }
+    function setupAuthUI(){
+      const loginBtn = document.getElementById('authLoginBtn');
+      const registerBtn = document.getElementById('authRegisterBtn');
+      const emailEl = document.getElementById('authEmail');
+      const passEl = document.getElementById('authPassword');
+      const errEl = document.getElementById('authError');
+      if(loginBtn){
+        loginBtn.addEventListener('click', async () => {
+          errEl.style.display = 'none';
+          try { await performLogin(emailEl.value.trim(), passEl.value); } catch(e){ errEl.textContent = e.message; errEl.style.display = 'block'; }
+        });
+      }
+      if(registerBtn){
+        registerBtn.addEventListener('click', async () => {
+          errEl.style.display = 'none';
+          try { await performRegister(emailEl.value.trim(), passEl.value); } catch(e){ errEl.textContent = e.message; errEl.style.display = 'block'; }
+        });
+      }
+    }
+
+    // Gate UI in production
+    setupAuthUI();
+    if(IS_PROD && !getToken()){
+      showAuthModal();
+    }
+    if(logoutBtn){ logoutBtn.addEventListener('click', () => { setToken(''); if(IS_PROD) showAuthModal(); }); }
   </script>
 </body>
 </html>
