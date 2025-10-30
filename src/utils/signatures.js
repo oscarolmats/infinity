@@ -10,7 +10,12 @@
  * @returns {string} Unique signature
  */
 export function getRowSignature(rowData, layerChildOf = null) {
-  const baseSignature = JSON.stringify(rowData);
+  // IMPORTANT: Only use the first 6 columns for the signature to exclude calculated values
+  // Columns 0-5 are typically: Project, Type, Category, Description, and other identifying fields
+  // Columns 6+ include calculated values (Net Area, Volume, Count, etc.) that change when layering
+  // Using calculated values in signatures causes mismatches when grouping changes
+  const identifyingColumns = rowData.slice(0, 6);
+  const baseSignature = JSON.stringify(identifyingColumns);
   // Include layer hierarchy in signature to differentiate nested layers
   return layerChildOf ? `${baseSignature}::layer::${layerChildOf}` : baseSignature;
 }
