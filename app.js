@@ -5734,6 +5734,17 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
     updateLayerParentSums(parentTr, tbody);
   });
 
+  // IMPORTANT: Also update all GROUP parent sums after layering
+  // This ensures group parents show correct totals that include the new layer children
+  const allGroupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
+  console.log('🔄 [applyLayerSplit] Updating sums for', allGroupParents.length, 'group parents');
+  allGroupParents.forEach(groupParentTr => {
+    const groupKey = groupParentTr.getAttribute('data-group-key');
+    if(groupKey){
+      updateGroupWeightSums(groupKey, tbody);
+    }
+  });
+
     // Update climate summary after layering (debounced)
     debouncedUpdateClimateSummary();
 
@@ -7742,6 +7753,17 @@ function applySavedLayersAndClimate(){
   console.log('🔄 [applySavedLayersAndClimate] Updating sums for', allLayerParents.length, 'layer parents');
   allLayerParents.forEach(parentTr => {
     updateLayerParentSums(parentTr, tbody);
+  });
+
+  // IMPORTANT: Also update all GROUP parent sums after restoring layers
+  // This ensures group parents show correct totals that include all layer children
+  const allGroupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
+  console.log('🔄 [applySavedLayersAndClimate] Updating sums for', allGroupParents.length, 'group parents');
+  allGroupParents.forEach(groupParentTr => {
+    const groupKey = groupParentTr.getAttribute('data-group-key');
+    if(groupKey){
+      updateGroupWeightSums(groupKey, tbody);
+    }
   });
 
   // console.log('✅ Applicerade sparade skikt och klimatdata');
