@@ -471,7 +471,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
     // Don't add 'group-parent' class, only layer-parent
     tr.setAttribute('data-layer-key', savedLayerKey);
     tr.setAttribute('data-open', 'false'); // Start collapsed by default
-    
+
     // Update action buttons on parent row
     const actionTd = tr.querySelector('td:first-child');
     if(actionTd){
@@ -856,12 +856,235 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
             climateTarget = savedClimateTarget;
           }
         }
+
+        // IMPORTANT: Calculate volumes based on proportions for mixed layers
+        // This ensures volumes are correct when restoring after grouping change
+        // Reuse table and headerTexts variables declared above (line 767-768)
+        const idxNetArea = headerTexts.findIndex(h => String(h).toLowerCase() === 'net area');
+        const idxThickness = headerTexts.findIndex(h => String(h).toLowerCase() === 'thickness');
+        const idxVolume = headerTexts.findIndex(h => String(h).toLowerCase() === 'volume');
+
+        if(idxNetArea >= 0 && idxThickness >= 0 && idxVolume >= 0){
+          const mat1Cells = Array.from(targetLayer.children);
+          const mat2Cells = Array.from(material2Row.children);
+
+          const mat1NetAreaCell = mat1Cells[idxNetArea];
+          const mat1ThicknessCell = mat1Cells[idxThickness];
+          const mat1VolumeCell = mat1Cells[idxVolume];
+          const mat2VolumeCell = mat2Cells[idxVolume];
+
+          if(mat1NetAreaCell && mat1ThicknessCell && mat1VolumeCell && mat2VolumeCell){
+            const netArea = parseNumberLike(mat1NetAreaCell.textContent);
+            const thicknessInMeters = parseNumberLike(mat1ThicknessCell.textContent);
+
+            if(Number.isFinite(netArea) && Number.isFinite(thicknessInMeters)){
+              const mat1Percent = mixedLayerConfig.material1.percent / 100;
+              const mat2Percent = mixedLayerConfig.material2.percent / 100;
+
+              // Calculate volume for each material: Net Area × thickness × percent
+              const mat1Volume = netArea * thicknessInMeters * mat1Percent;
+              const mat2Volume = netArea * thicknessInMeters * mat2Percent;
+
+              mat1VolumeCell.textContent = String(mat1Volume);
+              mat2VolumeCell.textContent = String(mat2Volume);
+
+              console.log('📊 [applyLayerSplitWithKey] Mixed layer volumes - Mat1:', mat1Volume, 'm³ (' + mixedLayerConfig.material1.percent + '%), Mat2:', mat2Volume, 'm³ (' + mixedLayerConfig.material2.percent + '%)');
+            }
+          }
+        }
       });
     }
   }
 
   // Call splitRowWithKey to create the layer children
   splitRowWithKey(tr, layerKey);
+
+  // Note: Don't update parent sums here - they will be updated in bulk after all layers are restored
+  // This is because climate data might not be fully applied yet for all children
+}
+
+// Helper function to update weight and climate sums for a layer parent
+function updateLayerParentSums(parentTr, tbody){
+  if(!parentTr.classList.contains('layer-parent')) return;
+
+  const layerKey = parentTr.getAttribute('data-layer-key');
+  if(!layerKey) return;
+
+  // Get all layer children
+  const layerChildren = Array.from(tbody.querySelectorAll(`tr[data-parent-key="${CSS.escape(layerKey)}"]`));
+  console.log('🔍 [updateLayerParentSums] Updating sums for layer parent, children count:', layerChildren.length);
+
+  if(layerChildren.length === 0) return;
+
+  // Sum up values from all children
+  let sumInbyggdVikt = 0;
+  let sumInkoptVikt = 0;
+  let sumKlimatA1A3 = 0;
+  let sumKlimatA4 = 0;
+  let sumKlimatA5 = 0;
+  let countInbyggd = 0;
+  let countInkopt = 0;
+  let countKlimatA1A3 = 0;
+  let countKlimatA4 = 0;
+  let countKlimatA5 = 0;
+
+  layerChildren.forEach((childTr, childIndex) => {
+    const inbyggdCell = childTr.querySelector('td[data-inbyggd-vikt-cell="true"]');
+    const inkoptCell = childTr.querySelector('td[data-inkopt-vikt-cell="true"]');
+    const klimatA1A3Cell = childTr.querySelector('td[data-klimat-a1a3-cell="true"]');
+    const klimatA4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"]');
+    const klimatA5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"]');
+
+    console.log(`🔍 [updateLayerParentSums] Child ${childIndex + 1}:`, {
+      hasInbyggdCell: !!inbyggdCell,
+      hasInkoptCell: !!inkoptCell,
+      hasKlimatA1A3Cell: !!klimatA1A3Cell,
+      hasKlimatA4Cell: !!klimatA4Cell,
+      hasKlimatA5Cell: !!klimatA5Cell,
+      inbyggdValue: inbyggdCell?.textContent,
+      klimatA1A3Value: klimatA1A3Cell?.textContent
+    });
+
+    if(inbyggdCell){
+      const val = parseNumberLike(inbyggdCell.textContent);
+      if(Number.isFinite(val)){
+        sumInbyggdVikt += val;
+        countInbyggd++;
+      }
+    }
+
+    if(inkoptCell){
+      const val = parseNumberLike(inkoptCell.textContent);
+      if(Number.isFinite(val)){
+        sumInkoptVikt += val;
+        countInkopt++;
+      }
+    }
+
+    if(klimatA1A3Cell){
+      const val = parseNumberLike(klimatA1A3Cell.textContent);
+      if(Number.isFinite(val)){
+        sumKlimatA1A3 += val;
+        countKlimatA1A3++;
+      }
+    }
+
+    if(klimatA4Cell){
+      const val = parseNumberLike(klimatA4Cell.textContent);
+      if(Number.isFinite(val)){
+        sumKlimatA4 += val;
+        countKlimatA4++;
+      }
+    }
+
+    if(klimatA5Cell){
+      const val = parseNumberLike(klimatA5Cell.textContent);
+      if(Number.isFinite(val)){
+        sumKlimatA5 += val;
+        countKlimatA5++;
+      }
+    }
+  });
+
+  // Find column indices from headers
+  const table = parentTr.closest('table');
+  const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
+  const inbyggdViktColIndex = headers.findIndex(h => h === 'Inbyggd vikt');
+  const inkoptViktColIndex = headers.findIndex(h => h === 'Inköpt vikt');
+  const klimatA1A3ColIndex = headers.findIndex(h => h === 'Klimatpåverkan A1-A3');
+  const klimatA4ColIndex = headers.findIndex(h => h === 'Klimatpåverkan A4');
+  const klimatA5ColIndex = headers.findIndex(h => h === 'Klimatpåverkan A5');
+
+  const parentCells = Array.from(parentTr.children);
+
+  // IMPORTANT: Ensure parent row has enough cells for all climate columns
+  // Calculate the maximum column index we need to write to
+  const maxColIndex = Math.max(
+    inbyggdViktColIndex !== -1 ? inbyggdViktColIndex : 0,
+    inkoptViktColIndex !== -1 ? inkoptViktColIndex : 0,
+    klimatA1A3ColIndex !== -1 ? klimatA1A3ColIndex : 0,
+    klimatA4ColIndex !== -1 ? klimatA4ColIndex : 0,
+    klimatA5ColIndex !== -1 ? klimatA5ColIndex : 0
+  );
+
+  // Add missing cells if needed
+  const neededCells = maxColIndex + 1;
+  console.log('🔧 [updateLayerParentSums] Cell check:', {
+    currentCells: parentCells.length,
+    neededCells: neededCells,
+    willAddCells: parentCells.length < neededCells
+  });
+
+  while(parentCells.length < neededCells){
+    const td = document.createElement('td');
+    td.textContent = '';
+    parentTr.appendChild(td);
+    parentCells.push(td);
+  }
+
+  if(parentCells.length !== parentTr.children.length){
+    console.log('⚠️ [updateLayerParentSums] Cell count mismatch after adding cells!');
+  }
+
+  // Update parent cells with sums
+  if(inbyggdViktColIndex !== -1 && parentCells[inbyggdViktColIndex]){
+    const cell = parentCells[inbyggdViktColIndex];
+    cell.textContent = countInbyggd > 0 ? sumInbyggdVikt.toFixed(2) : '';
+    cell.setAttribute('data-sum-inbyggd-vikt', 'true');
+  }
+
+  if(inkoptViktColIndex !== -1 && parentCells[inkoptViktColIndex]){
+    const cell = parentCells[inkoptViktColIndex];
+    cell.textContent = countInkopt > 0 ? sumInkoptVikt.toFixed(2) : '';
+    cell.setAttribute('data-sum-inkopt-vikt', 'true');
+  }
+
+  if(klimatA1A3ColIndex !== -1 && parentCells[klimatA1A3ColIndex]){
+    const cell = parentCells[klimatA1A3ColIndex];
+    const oldValue = cell.textContent;
+    const newValue = countKlimatA1A3 > 0 ? sumKlimatA1A3.toFixed(2) : '';
+    cell.textContent = newValue;
+    cell.setAttribute('data-sum-klimat-a1a3', 'true');
+    console.log('🔧 [updateLayerParentSums] A1-A3 cell update:', {
+      colIndex: klimatA1A3ColIndex,
+      oldValue: oldValue,
+      newValue: newValue,
+      cellElement: cell,
+      parentCellsLength: parentCells.length
+    });
+  } else {
+    console.log('⚠️ [updateLayerParentSums] A1-A3 cell NOT found!', {
+      colIndex: klimatA1A3ColIndex,
+      parentCellsLength: parentCells.length,
+      cellExists: !!parentCells[klimatA1A3ColIndex]
+    });
+  }
+
+  if(klimatA4ColIndex !== -1 && parentCells[klimatA4ColIndex]){
+    const cell = parentCells[klimatA4ColIndex];
+    cell.textContent = countKlimatA4 > 0 ? sumKlimatA4.toFixed(2) : '';
+    cell.setAttribute('data-sum-klimat-a4', 'true');
+  }
+
+  if(klimatA5ColIndex !== -1 && parentCells[klimatA5ColIndex]){
+    const cell = parentCells[klimatA5ColIndex];
+    cell.textContent = countKlimatA5 > 0 ? sumKlimatA5.toFixed(2) : '';
+    cell.setAttribute('data-sum-klimat-a5', 'true');
+  }
+
+  console.log('✅ [updateLayerParentSums] Updated parent sums - Inbyggd:', sumInbyggdVikt.toFixed(2), 'Inkopt:', sumInkoptVikt.toFixed(2), 'A1-A3:', sumKlimatA1A3.toFixed(2), 'A4:', sumKlimatA4.toFixed(2), 'A5:', sumKlimatA5.toFixed(2));
+
+  // IMPORTANT: Verify the cell value right after setting it
+  setTimeout(() => {
+    const verifyCell = parentCells[klimatA1A3ColIndex];
+    if(verifyCell){
+      console.log('🔍 [updateLayerParentSums] Verifying A1-A3 cell after 0ms:', {
+        currentValue: verifyCell.textContent,
+        expectedValue: sumKlimatA1A3.toFixed(2),
+        matches: verifyCell.textContent === sumKlimatA1A3.toFixed(2)
+      });
+    }
+  }, 0);
 }
 
 // Apply saved climate resource to a row
@@ -4538,7 +4761,7 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
     // Don't add 'group-parent' class, only layer-parent
     tr.setAttribute('data-layer-key', layerKey);
     tr.setAttribute('data-open', 'false'); // Start collapsed by default
-    
+
     // Update action buttons on parent row
     const actionTd = tr.querySelector('td:first-child');
     if(actionTd){
@@ -4651,8 +4874,21 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
     fragments.forEach((f, idx) => {
       tbody.insertBefore(f, insertAfter.nextSibling);
       insertAfter = f;
+
+      // Debug: Check if this child has climate attributes set
+      const hasInbyggd = !!f.querySelector('td[data-inbyggd-vikt-cell="true"]');
+      const hasKlimatA1A3 = !!f.querySelector('td[data-klimat-a1a3-cell="true"]');
+      const inbyggdValue = f.querySelector('td[data-inbyggd-vikt-cell="true"]')?.textContent;
+      const klimatValue = f.querySelector('td[data-klimat-a1a3-cell="true"]')?.textContent;
+      console.log(`🔍 [splitRow] Child ${idx + 1} AFTER insert:`, {
+        hasInbyggdCell: hasInbyggd,
+        hasKlimatA1A3Cell: hasKlimatA1A3,
+        inbyggdValue: inbyggdValue,
+        klimatA1A3Value: klimatValue,
+        dataParentKey: f.getAttribute('data-parent-key')
+      });
     });
-    
+
     // Update parent row's Volume to show sum of all layers (AFTER creating children)
     if(thicknesses.length > 0){
       const parentTds = Array.from(tr.children);
@@ -4696,6 +4932,7 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
 
   if(layerTarget.type === 'row' && layerTarget.rowEl){
     splitRow(layerTarget.rowEl);
+    // Don't update sums here - wait until after filters are applied
   } else if(layerTarget.type === 'group' && layerTarget.key != null){
     // Check if this group is already layered (has layer children)
     const existingChildren = Array.from(tbody.querySelectorAll(`tr[data-layer-child-of="${CSS.escape(layerTarget.key)}"]`));
@@ -4992,7 +5229,7 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
       }
     });
   }
-  
+
   // Handle mixed layer splitting (after all layers have been created)
   if(mixedLayerConfigs && mixedLayerConfigs.length > 0){
     // console.log('🔧 Processing mixed layer configs:', mixedLayerConfigs);
@@ -5488,10 +5725,18 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
       // console.log(`🔍 [AfterFilters] Row ${index + 1} layer name:`, cells[layerNameColumnIndex].textContent);
     }
   });
-  
+
+  // IMPORTANT: Update all layer parent sums AFTER filters and AFTER climate data has been applied
+  // This ensures all children have their climate data when we sum them up
+  const allLayerParents = Array.from(tbody.querySelectorAll('tr.layer-parent'));
+  console.log('🔄 [applyLayerSplit] Updating sums for', allLayerParents.length, 'layer parents');
+  allLayerParents.forEach(parentTr => {
+    updateLayerParentSums(parentTr, tbody);
+  });
+
     // Update climate summary after layering (debounced)
     debouncedUpdateClimateSummary();
-  
+
   // Hide progress bar
   hideProgressBar();
 }
@@ -7490,7 +7735,15 @@ function applySavedLayersAndClimate(){
       applySavedClimate(tr, rowData);
     }
   });
-  
+
+  // IMPORTANT: Update all layer parent sums AFTER all layers and climate data have been restored
+  // This ensures parent rows show correct summation when grouping changes
+  const allLayerParents = Array.from(tbody.querySelectorAll('tr.layer-parent'));
+  console.log('🔄 [applySavedLayersAndClimate] Updating sums for', allLayerParents.length, 'layer parents');
+  allLayerParents.forEach(parentTr => {
+    updateLayerParentSums(parentTr, tbody);
+  });
+
   // console.log('✅ Applicerade sparade skikt och klimatdata');
 }
 
