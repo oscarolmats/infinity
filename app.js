@@ -320,8 +320,17 @@ function reattachTableEventListeners(){
   // console.log('✅ Re-attached listeners:', buttonCount);
   
   // Re-attach listeners for icon-based buttons (no text content)
+  // IMPORTANT: Skip child rows - they should not have buttons
   const rows = Array.from(tbody.querySelectorAll('tr'));
   rows.forEach(row => {
+    // Skip child rows - they should not have any buttons
+    if(row.hasAttribute('data-layer-child-of') || row.hasAttribute('data-group-child-of')){
+      // Make sure child rows don't have buttons
+      const actionTd = row.querySelector('td:first-child');
+      if(actionTd) actionTd.innerHTML = '';
+      return;
+    }
+    
     const actionTd = row.querySelector('td:first-child');
     if(!actionTd) return;
     const isGroupParent = row.classList.contains('group-parent');
@@ -419,44 +428,44 @@ function applySavedLayers(tr, rowData){
     const signatureWithoutGroup = getRowSignature(rowData, null);
     saved = layerData.get(signatureWithoutGroup);
     if(saved){
-      console.log('✅ [applySavedLayers] Found layer data with null signature (grouping changed)');
+      // console.log('✅ [applySavedLayers] Found layer data with null signature (grouping changed)');
     }
   }
 
   // Debug: Log all keys in layerData to see what's actually stored
   if(layerData.size > 0 && !saved){
-    console.log('🔍 [applySavedLayers] Map has', layerData.size, 'entries but signature not found!');
-    console.log('🔍 [applySavedLayers] Looking for signature (FULL):', signature);
-    console.log('🔍 [applySavedLayers] Row data being used:', rowData);
-    console.log('🔍 [applySavedLayers] Available signatures in Map (FULL - first 2):');
+    // console.log('🔍 [applySavedLayers] Map has', layerData.size, 'entries but signature not found!');
+    // console.log('🔍 [applySavedLayers] Looking for signature (FULL):', signature);
+    // console.log('🔍 [applySavedLayers] Row data being used:', rowData);
+    // console.log('🔍 [applySavedLayers] Available signatures in Map (FULL - first 2):');
     let count = 0;
     for(const key of layerData.keys()){
       if(count < 2){  // Show first 2 full signatures
-        console.log('  - Signature #' + (count + 1) + ':', key);
+        // console.log('  - Signature #' + (count + 1) + ':', key);
         count++;
       }
     }
   }
 
-  console.log('🔄 [applySavedLayers] Checking row:', {
-    signature: signature.substring(0, 60),
-    hasSaved: !!saved,
-    layerChildOf: layerChildOf?.substring(0, 20) || 'none',
-    rowName: rowData[1]?.substring(0, 30),
-    savedThicknesses: saved?.thicknesses
-  });
+  // console.log('🔄 [applySavedLayers] Checking row:', {
+  //   signature: signature.substring(0, 60),
+  //   hasSaved: !!saved,
+  //   layerChildOf: layerChildOf?.substring(0, 20) || 'none',
+  //   rowName: rowData[1]?.substring(0, 30),
+  //   savedThicknesses: saved?.thicknesses
+  // });
 
   if(saved){
-    console.log('✅ [applySavedLayers] Found saved layer data:', {
-      count: saved.count,
-      layerKey: saved.layerKey?.substring(0, 30),
-      hasSharedKeys: !!saved.sharedLayerKeys,
-      sharedKeys: saved.sharedLayerKeys?.map(k => k?.substring(0, 30)),
-      hasLayerNames: !!saved.layerNames,
-      layerNames: saved.layerNames,
-      hasMixedLayerConfigs: !!saved.mixedLayerConfigs,
-      mixedLayerConfigs: saved.mixedLayerConfigs
-    });
+    // console.log('✅ [applySavedLayers] Found saved layer data:', {
+    //   count: saved.count,
+    //   layerKey: saved.layerKey?.substring(0, 30),
+    //   hasSharedKeys: !!saved.sharedLayerKeys,
+    //   sharedKeys: saved.sharedLayerKeys?.map(k => k?.substring(0, 30)),
+    //   hasLayerNames: !!saved.layerNames,
+    //   layerNames: saved.layerNames,
+    //   hasMixedLayerConfigs: !!saved.mixedLayerConfigs,
+    //   mixedLayerConfigs: saved.mixedLayerConfigs
+    // });
 
     // Trigger layer split with saved parameters
     const tempCount = saved.count;
@@ -469,7 +478,7 @@ function applySavedLayers(tr, rowData){
     const tempClimateTypes = saved.climateTypes || [];
     const tempClimateFactors = saved.climateFactors || [];
 
-    console.log('🔄 [applySavedLayers] Calling applyLayerSplitWithKey with mixedLayerConfigs:', tempMixedLayerConfigs);
+    // console.log('🔄 [applySavedLayers] Calling applyLayerSplitWithKey with mixedLayerConfigs:', tempMixedLayerConfigs);
 
     const table = tr.closest('table');
     const tbody = table ? table.querySelector('tbody') : null;
@@ -483,18 +492,18 @@ function applySavedLayers(tr, rowData){
 function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNested = false, sharedLayerKeys = null, layerNames = [], mixedLayerConfigs = [], climateResources = [], climateTypes = [], climateFactors = []){
   const table = tr.closest('table');
 
-  console.log('🔧 [applyLayerSplitWithKey] Called with:', {
-    count,
-    thicknesses,
-    layerKey: layerKey?.substring(0, 30),
-    isNested,
-    hasSharedKeys: !!sharedLayerKeys,
-    sharedKeys: sharedLayerKeys?.map(k => k?.substring(0, 30)),
-    hasLayerNames: layerNames.length > 0,
-    layerNames,
-    hasMixedLayerConfigs: mixedLayerConfigs.length > 0,
-    mixedLayerConfigs
-  });
+  // console.log('🔧 [applyLayerSplitWithKey] Called with:', {
+  //   count,
+  //   thicknesses,
+  //   layerKey: layerKey?.substring(0, 30),
+  //   isNested,
+  //   hasSharedKeys: !!sharedLayerKeys,
+  //   sharedKeys: sharedLayerKeys?.map(k => k?.substring(0, 30)),
+  //   hasLayerNames: layerNames.length > 0,
+  //   layerNames,
+  //   hasMixedLayerConfigs: mixedLayerConfigs.length > 0,
+  //   mixedLayerConfigs
+  // });
 
   // IMPORTANT: Save layer data to Map BEFORE modifying anything
   // This uses the ORIGINAL _originalRowData (before names are changed for mixed layers)
@@ -524,9 +533,9 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
     if(layerChildOf !== null){
       const signatureWithoutGroup = getRowSignature(originalRowData, null);
       layerData.set(signatureWithoutGroup, layerDataToSave);
-      console.log('💾 [applyLayerSplitWithKey] Saved layer data with BOTH signatures - with group (' + layerChildOf + ') and without (null), thicknesses:', thicknesses);
+      // console.log('💾 [applyLayerSplitWithKey] Saved layer data with BOTH signatures - with group (' + layerChildOf + ') and without (null), thicknesses:', thicknesses);
     } else {
-      console.log('💾 [applyLayerSplitWithKey] Saved layer data with signature (layerChildOf=null), thicknesses:', thicknesses);
+      // console.log('💾 [applyLayerSplitWithKey] Saved layer data with signature (layerChildOf=null), thicknesses:', thicknesses);
     }
   }
 
@@ -543,32 +552,37 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
     tr.setAttribute('data-open', 'false'); // Start collapsed by default
 
     // Update action buttons on parent row
+    // IMPORTANT: If this row is also a child row, it should NOT get buttons
+    const isChildRow = tr.hasAttribute('data-layer-child-of') || tr.hasAttribute('data-group-child-of');
     const actionTd = tr.querySelector('td:first-child');
     if(actionTd){
       actionTd.innerHTML = '';
-      const parentLayerBtn = document.createElement('button');
-      parentLayerBtn.type = 'button';
-      parentLayerBtn.textContent = 'Skikta skikt';
-      parentLayerBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        openLayerModal({ type: 'group', key: savedLayerKey });
-      });
-      actionTd.appendChild(parentLayerBtn);
-      
-      const parentClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
-      parentClimateBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        openClimateModal({ type: 'group', key: savedLayerKey });
-      });
-      actionTd.appendChild(parentClimateBtn);
+      // Only add buttons if this is NOT a child row
+      if(!isChildRow){
+        const parentLayerBtn = document.createElement('button');
+        parentLayerBtn.type = 'button';
+        parentLayerBtn.textContent = 'Skikta skikt';
+        parentLayerBtn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          openLayerModal({ type: 'group', key: savedLayerKey });
+        });
+        actionTd.appendChild(parentLayerBtn);
+        
+        const parentClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
+        parentClimateBtn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          openClimateModal({ type: 'group', key: savedLayerKey });
+        });
+        actionTd.appendChild(parentClimateBtn);
 
-      const parentAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
-      parentAltClimateBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        openAltClimateModal({ type: 'group', key: savedLayerKey });
-      });
-      actionTd.appendChild(parentAltClimateBtn);
-      // console.log('🔧 [Debug] parentAltClimateBtn created and appended to actionTd');
+        const parentAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
+        parentAltClimateBtn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          openAltClimateModal({ type: 'group', key: savedLayerKey });
+        });
+        actionTd.appendChild(parentAltClimateBtn);
+        // console.log('🔧 [Debug] parentAltClimateBtn created and appended to actionTd');
+      }
     }
     
     // Add toggle to first data cell
@@ -620,33 +634,11 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
         clone._originalRowData = originalRowData;
       }
       // Replace action buttons with new ones (without old listeners)
+      // IMPORTANT: Child rows under parent rows should NOT get any buttons
       const actionTd = clone.querySelector('td:first-child');
       if(actionTd){
-        actionTd.innerHTML = ''; // Clear old buttons
-        
-        // Add "Skikta" button
-        const layerBtn = createIconButton('layer', 'Skikta');
-        layerBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openLayerModal({ type: 'row', rowEl: clone });
-        });
-        actionTd.appendChild(layerBtn);
-
-        // Add "Mappa klimatresurs" button
-        const climateBtn = createIconButton('climate', 'Mappa klimatresurs');
-        climateBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openClimateModal({ type: 'row', rowEl: clone });
-        });
-        actionTd.appendChild(climateBtn);
-
-        // Add "Mappa till EPD" button
-        const altClimateBtn = createIconButton('epd', 'Mappa till EPD');
-        altClimateBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openAltClimateModal({ type: 'row', rowEl: clone });
-        });
-        actionTd.appendChild(altClimateBtn);
+        actionTd.innerHTML = ''; // Clear old buttons - child rows get no buttons
+        // Do not add any buttons for child rows
       }
       
       clone.classList.add('is-new');
@@ -688,7 +680,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       // IMPORTANT: Update Thickness column with the saved thickness value
       if(layerThickness){
         const idxThickness = headerTexts.findIndex(h => String(h).toLowerCase() === 'thickness');
-        console.log('📏 [applyLayerSplitWithKey] Layer', i + 1, 'of', count, '- layerThickness:', layerThickness, 'mm, idxThickness:', idxThickness);
+        // console.log('📏 [applyLayerSplitWithKey] Layer', i + 1, 'of', count, '- layerThickness:', layerThickness, 'mm, idxThickness:', idxThickness);
         if(idxThickness >= 0){
           // IMPORTANT: No +1 offset needed because headerTexts already includes the action column at index 0
           // So idxThickness directly corresponds to the correct TD index
@@ -697,13 +689,13 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
             const oldValue = thicknessTd.textContent;
             const thicknessInMeters = layerThickness / 1000;
             thicknessTd.textContent = String(thicknessInMeters);
-            console.log('📏 [applyLayerSplitWithKey] Updated Thickness cell for layer', i + 1, '- OLD:', oldValue, '→ NEW:', thicknessInMeters, 'm (from', layerThickness, 'mm)');
+            // console.log('📏 [applyLayerSplitWithKey] Updated Thickness cell for layer', i + 1, '- OLD:', oldValue, '→ NEW:', thicknessInMeters, 'm (from', layerThickness, 'mm)');
           } else {
-            console.log('⚠️ [applyLayerSplitWithKey] thicknessTd not found!');
+            // console.log('⚠️ [applyLayerSplitWithKey] thicknessTd not found!');
           }
         }
       } else {
-        console.log('⚠️ [applyLayerSplitWithKey] No layerThickness for layer', i + 1);
+        // console.log('⚠️ [applyLayerSplitWithKey] No layerThickness for layer', i + 1);
       }
 
       if(layerThickness && idxVolume >= 0 && originalNetArea !== null && Number.isFinite(originalNetArea)){
@@ -753,9 +745,9 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       // IMPORTANT: Set shared layer key if provided (for group layering)
       if(sharedLayerKeys && sharedLayerKeys[i]){
         clone.setAttribute('data-layer-key', sharedLayerKeys[i]);
-        console.log('🔑 [applyLayerSplitWithKey] Set shared layer key on child', i, ':', sharedLayerKeys[i].substring(0, 30));
+        // console.log('🔑 [applyLayerSplitWithKey] Set shared layer key on child', i, ':', sharedLayerKeys[i].substring(0, 30));
       } else {
-        console.log('⚠️ [applyLayerSplitWithKey] No shared key for child', i);
+        // console.log('⚠️ [applyLayerSplitWithKey] No shared key for child', i);
       }
 
       // IMPORTANT: Set layer name if provided
@@ -766,7 +758,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
           const cloneCells = Array.from(clone.children);
           if(cloneCells[layerNameColumnIndex]){
             cloneCells[layerNameColumnIndex].textContent = layerName;
-            console.log('📝 [applyLayerSplitWithKey] Set layer name on child', i, ':', layerName);
+            // console.log('📝 [applyLayerSplitWithKey] Set layer name on child', i, ':', layerName);
           }
         }
       }
@@ -802,14 +794,14 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
 
     // IMPORTANT: Handle mixed layer configs - create Material 2 rows for mixed layers
     if(mixedLayerConfigs && mixedLayerConfigs.length > 0){
-      console.log('🔧 [applyLayerSplitWithKey] Processing mixed layer configs:', mixedLayerConfigs);
+      // console.log('🔧 [applyLayerSplitWithKey] Processing mixed layer configs:', mixedLayerConfigs);
 
       mixedLayerConfigs.forEach((mixedLayerConfig) => {
         const targetLayerIndex = mixedLayerConfig.layerIndex - 1; // Convert from 1-based to 0-based
         const targetLayer = fragments[targetLayerIndex];
 
         if(!targetLayer){
-          console.log('⚠️ [applyLayerSplitWithKey] No target layer found for mixed layer config:', mixedLayerConfig);
+          // console.log('⚠️ [applyLayerSplitWithKey] No target layer found for mixed layer config:', mixedLayerConfig);
           return;
         }
 
@@ -1062,20 +1054,25 @@ function removeLayeringForRow(parentTr, tbody){
   parentTr.classList.remove('layer-parent');
   parentTr.removeAttribute('data-layer-key');
   parentTr.removeAttribute('data-open');
+  // IMPORTANT: If this row is also a child row, it should NOT get buttons
+  const isChildRow = parentTr.hasAttribute('data-layer-child-of') || parentTr.hasAttribute('data-group-child-of');
   const actionTd = parentTr.querySelector('td:first-child');
   if(actionTd){
     actionTd.innerHTML = '';
-    const layerBtn = document.createElement('button');
-    layerBtn.type = 'button';
-    layerBtn.textContent = 'Skikta skikt';
-    layerBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openLayerModal({ type: 'row', rowEl: parentTr }); });
-    actionTd.appendChild(layerBtn);
-    const climateBtn = createIconButton('climate', 'Mappa klimatresurs');
-    climateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openClimateModal({ type: 'row', rowEl: parentTr }); });
-    actionTd.appendChild(climateBtn);
-    const altBtn = createIconButton('epd', 'Mappa till EPD');
-    altBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'row', rowEl: parentTr }); });
-    actionTd.appendChild(altBtn);
+    // Only add buttons if this is NOT a child row
+    if(!isChildRow){
+      const layerBtn = document.createElement('button');
+      layerBtn.type = 'button';
+      layerBtn.textContent = 'Skikta skikt';
+      layerBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openLayerModal({ type: 'row', rowEl: parentTr }); });
+      actionTd.appendChild(layerBtn);
+      const climateBtn = createIconButton('climate', 'Mappa klimatresurs');
+      climateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openClimateModal({ type: 'row', rowEl: parentTr }); });
+      actionTd.appendChild(climateBtn);
+      const altBtn = createIconButton('epd', 'Mappa till EPD');
+      altBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'row', rowEl: parentTr }); });
+      actionTd.appendChild(altBtn);
+    }
   }
   const firstDataTd = parentTr.querySelector('td:nth-child(2)');
   if(firstDataTd){
@@ -2113,19 +2110,9 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       // Store original row data as a custom property for later use
       tr._originalRowData = r;
       
-      // Row action cell
+      // Row action cell - child rows under parent rows should NOT get any buttons
       const actionTd = document.createElement('td');
-      const rowBtn = createIconButton('layer', 'Skikta');
-      rowBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openLayerModal({ type: 'row', rowEl: tr }); });
-      actionTd.appendChild(rowBtn);
-
-      const rowClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
-      rowClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openClimateModal({ type: 'row', rowEl: tr }); });
-      actionTd.appendChild(rowClimateBtn);
-
-      const rowAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
-      rowAltClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'row', rowEl: tr }); });
-      actionTd.appendChild(rowAltClimateBtn);
+      // Do not add any buttons for child rows
       
       tr.appendChild(actionTd);
       // Add cells for original data
@@ -5701,37 +5688,42 @@ function openGroupParentByKey(groupKey, tbody){
       row.setAttribute('data-open', 'false'); // Start collapsed by default
       
       // Update action buttons on parent row
+      // IMPORTANT: If this row is also a child row, it should NOT get buttons
+      const isChildRow = row.hasAttribute('data-layer-child-of') || row.hasAttribute('data-group-child-of');
       const actionTd = row.querySelector('td:first-child');
       if(actionTd){
         actionTd.innerHTML = '';
-        const parentLayerBtn = document.createElement('button');
-        parentLayerBtn.type = 'button';
-        parentLayerBtn.textContent = 'Skikta skikt';
-        parentLayerBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openLayerModal({ type: 'group', key: rowLayerKey });
-        });
-        actionTd.appendChild(parentLayerBtn);
-        
-        const parentClimateBtn = document.createElement('button');
-        parentClimateBtn.type = 'button';
-        parentClimateBtn.textContent = 'Mappa klimatresurs';
-        parentClimateBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openClimateModal({ type: 'group', key: rowLayerKey });
-        });
-        actionTd.appendChild(parentClimateBtn);
+        // Only add buttons if this is NOT a child row
+        if(!isChildRow){
+          const parentLayerBtn = document.createElement('button');
+          parentLayerBtn.type = 'button';
+          parentLayerBtn.textContent = 'Skikta skikt';
+          parentLayerBtn.addEventListener('click', function(ev){
+            ev.stopPropagation();
+            openLayerModal({ type: 'group', key: rowLayerKey });
+          });
+          actionTd.appendChild(parentLayerBtn);
+          
+          const parentClimateBtn = document.createElement('button');
+          parentClimateBtn.type = 'button';
+          parentClimateBtn.textContent = 'Mappa klimatresurs';
+          parentClimateBtn.addEventListener('click', function(ev){
+            ev.stopPropagation();
+            openClimateModal({ type: 'group', key: rowLayerKey });
+          });
+          actionTd.appendChild(parentClimateBtn);
 
-        const parentAltClimateBtn = document.createElement('button');
-        parentAltClimateBtn.type = 'button';
-        parentAltClimateBtn.textContent = 'Mappa till EPD';
-        parentAltClimateBtn.style.marginLeft = '5px'; // Add some spacing
-        parentAltClimateBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openAltClimateModal({ type: 'group', key: rowLayerKey });
-        });
-        actionTd.appendChild(parentAltClimateBtn);
-        // console.log('🔧 [Debug] parentAltClimateBtn created in mixed layer processing');
+          const parentAltClimateBtn = document.createElement('button');
+          parentAltClimateBtn.type = 'button';
+          parentAltClimateBtn.textContent = 'Mappa till EPD';
+          parentAltClimateBtn.style.marginLeft = '5px'; // Add some spacing
+          parentAltClimateBtn.addEventListener('click', function(ev){
+            ev.stopPropagation();
+            openAltClimateModal({ type: 'group', key: rowLayerKey });
+          });
+          actionTd.appendChild(parentAltClimateBtn);
+          // console.log('🔧 [Debug] parentAltClimateBtn created in mixed layer processing');
+        }
       }
       
       // Add toggle to first data cell
@@ -8376,7 +8368,7 @@ function applySavedLayersAndClimate(){
   // IMPORTANT: Update all layer parent sums AFTER all layers and climate data have been restored
   // This ensures parent rows show correct summation when grouping changes
   const allLayerParents = Array.from(tbody.querySelectorAll('tr.layer-parent'));
-  console.log('🔄 [applySavedLayersAndClimate] Updating sums for', allLayerParents.length, 'layer parents');
+  //console.log('🔄 [applySavedLayersAndClimate] Updating sums for', allLayerParents.length, 'layer parents');
   allLayerParents.forEach(parentTr => {
     updateLayerParentSums(parentTr, tbody);
   });
@@ -8384,7 +8376,7 @@ function applySavedLayersAndClimate(){
   // IMPORTANT: Also update all GROUP parent sums after restoring layers
   // This ensures group parents show correct totals that include all layer children
   const allGroupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
-  console.log('🔄 [applySavedLayersAndClimate] Updating sums for', allGroupParents.length, 'group parents');
+  //console.log('🔄 [applySavedLayersAndClimate] Updating sums for', allGroupParents.length, 'group parents');
   allGroupParents.forEach(groupParentTr => {
     const groupKey = groupParentTr.getAttribute('data-group-key');
     if(groupKey){
