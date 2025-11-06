@@ -20,7 +20,8 @@ function createIconButton(type, title) {
     climate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
     epd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="18" x2="15" y2="18"/></svg>',
     restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
-    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
   };
 
   btn.innerHTML = icons[type] || '';
@@ -31,6 +32,7 @@ function createIconButton(type, title) {
   if(type === 'epd') btn.classList.add('epd-btn');
   if(type === 'restore') btn.classList.add('restore-btn');
   if(type === 'edit') btn.classList.add('edit-btn');
+  if(type === 'copy') btn.classList.add('copy-btn');
 
   return btn;
 }
@@ -382,21 +384,78 @@ function reattachTableEventListeners(){
     if(editBtn){
       editBtn.onclick = function(ev){
         ev.stopPropagation();
+        if(isGroupParent && groupKey){ openLayerModal({ type: 'group', key: String(groupKey) }); return; }
+        if(isLayerParent && layerKey){ openLayerModal({ type: 'group', key: String(layerKey) }); return; }
         openLayerModal({ type: 'row', rowEl: row });
+      };
+    }
+
+    const copyBtn = actionTd.querySelector('button.copy-btn');
+    if(copyBtn){
+      copyBtn.onclick = function(ev){
+        ev.stopPropagation();
+        if(isGroupParent && groupKey){ copyLayerSettings({ type: 'group', key: String(groupKey) }); return; }
+        if(isLayerParent && layerKey){ copyLayerSettings({ type: 'group', key: String(layerKey) }); return; }
+        copyLayerSettings({ type: 'row', rowEl: row });
       };
     }
   });
   
   // Re-attach _originalRowData to rows that had it
   // This is needed for layering functionality to work correctly
-  const allRows = Array.from(tbody.querySelectorAll('tr[data-group-child-of]'));
-  allRows.forEach(tr => {
-    // Try to restore original row data by reading it from the DOM
-    const rowData = getRowDataFromTr(tr);
-    if(rowData){
-      tr._originalRowData = rowData;
-    }
-  });
+  // IMPORTANT: Use lastRows data (from project file) instead of reading from DOM
+  // because DOM data has been transformed (volumes, weights etc changed after layering)
+  if(lastRows && lastRows.length > 1){
+    const allRows = Array.from(tbody.querySelectorAll('tr'));
+    const dataRows = lastRows.slice(1); // Skip header row
+
+    console.log('🔄 [reattach] Restoring _originalRowData for', allRows.length, 'rows from', dataRows.length, 'data rows');
+
+    // Create a lookup map: description -> original row data (with trimmed values)
+    const descriptionToRow = new Map();
+    dataRows.forEach(row => {
+      if(row && row.length >= 4){
+        // Use description (column 3) as key, trimmed to handle whitespace differences
+        const desc = String(row[3] || '').trim();
+        if(desc){
+          descriptionToRow.set(desc, row);
+        }
+      }
+    });
+
+    allRows.forEach(tr => {
+      // Skip group parent rows - they don't need _originalRowData
+      if(tr.classList.contains('group-parent')) return;
+
+      // Get the row data from DOM to match against lastRows
+      const currentRowData = getRowDataFromTr(tr);
+      if(!currentRowData || currentRowData.length < 4) return;
+
+      // Try to find matching row by description (column 3), which should be unique
+      const currentDesc = String(currentRowData[3] || '').trim();
+      const matchingRow = descriptionToRow.get(currentDesc);
+
+      if(matchingRow){
+        tr._originalRowData = matchingRow;
+        console.log('🔄 [reattach] Restored _originalRowData for row:', matchingRow[1]?.substring(0, 20), '- desc:', currentDesc.substring(0, 20));
+      } else {
+        // Fallback: use current DOM data if no match found
+        tr._originalRowData = currentRowData;
+        console.log('⚠️ [reattach] No match in lastRows, using DOM data for:', currentRowData[1]?.substring(0, 20), '- desc:', currentDesc.substring(0, 20));
+      }
+    });
+  } else {
+    // Fallback if lastRows is not available
+    console.log('⚠️ [reattach] lastRows not available, using DOM data');
+    const allRows = Array.from(tbody.querySelectorAll('tr'));
+    allRows.forEach(tr => {
+      if(tr.classList.contains('group-parent')) return;
+      const rowData = getRowDataFromTr(tr);
+      if(rowData){
+        tr._originalRowData = rowData;
+      }
+    });
+  }
   
   // Re-apply filters
   // Restore table utilities lost on innerHTML restore
@@ -582,9 +641,27 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
         });
         actionTd.appendChild(parentAltClimateBtn);
         // console.log('🔧 [Debug] parentAltClimateBtn created and appended to actionTd');
+
+        // Add edit button for layering (only for non-child rows)
+        const editBtn = createIconButton('edit', 'Redigera skiktning');
+        editBtn.style.marginLeft = '6px';
+        editBtn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          openLayerModal({ type: 'row', rowEl: tr });
+        });
+        actionTd.appendChild(editBtn);
+
+        // Add copy button for layering (only for non-child rows)
+        const copyBtn = createIconButton('copy', 'Kopiera skiktning');
+        copyBtn.style.marginLeft = '6px';
+        copyBtn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          copyLayerSettings({ type: 'row', rowEl: tr });
+        });
+        actionTd.appendChild(copyBtn);
       }
     }
-    
+
     // Add toggle to first data cell
     const firstDataTd = tr.querySelector('td:nth-child(2)');
     if(firstDataTd){
@@ -592,32 +669,11 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       toggle.className = 'group-toggle';
       toggle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>';
       firstDataTd.insertBefore(toggle, firstDataTd.firstChild);
-      
+
       const layerLabel = document.createElement('span');
       layerLabel.textContent = ' [' + multipliers.length + ' skikt]';
       layerLabel.style.marginLeft = '4px';
       firstDataTd.appendChild(layerLabel);
-    }
-
-    // Add edit/remove buttons for layering
-    if(actionTd){
-      const editBtn = createIconButton('edit', 'Redigera skiktning');
-      editBtn.style.marginLeft = '6px';
-      editBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        openLayerModal({ type: 'row', rowEl: tr });
-      });
-      actionTd.appendChild(editBtn);
-      
-      const removeBtn = createIconButton('restore', 'Återställ skiktning');
-      removeBtn.style.marginLeft = '6px';
-      removeBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        const body = tbody;
-        if(!body) return;
-        removeLayeringForRow(tr, body);
-      });
-      actionTd.appendChild(removeBtn);
     }
     
     // Preserve parent's group membership for children
@@ -2043,7 +2099,27 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
     groupAltClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'group', key: key }); });
     actionTd.appendChild(groupAltClimateBtn);
 
-  // Add restore layering button for group
+  // Add edit and restore layering buttons for group
+  const editBtn = createIconButton('edit', 'Redigera skiktning');
+  editBtn.style.marginLeft = '6px';
+  // Hidden by default; shown when gruppen har skiktade barn
+  editBtn.style.display = 'none';
+  editBtn.addEventListener('click', function(ev){
+    ev.stopPropagation();
+    openLayerModal({ type: 'group', key: String(key) });
+  });
+  actionTd.appendChild(editBtn);
+
+  const copyBtn = createIconButton('copy', 'Kopiera skiktning');
+  copyBtn.style.marginLeft = '6px';
+  // Hidden by default; shown when gruppen har skiktade barn
+  copyBtn.style.display = 'none';
+  copyBtn.addEventListener('click', function(ev){
+    ev.stopPropagation();
+    copyLayerSettings({ type: 'group', key: String(key) });
+  });
+  actionTd.appendChild(copyBtn);
+
   const restoreBtn = createIconButton('restore', 'Återställ skiktning');
   restoreBtn.style.marginLeft = '6px';
   // Hidden by default; shown when gruppen har skiktade barn
@@ -2227,6 +2303,18 @@ function updateGroupActionButtonsVisibility(tbody){
     const hasLayeredChildren = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(String(key))}"][data-layer-key]`)).length > 0;
     const actionTd = parentTr.querySelector('td:first-child');
     if(actionTd){
+      // Find edit button (with edit-btn class)
+      const editBtn = actionTd.querySelector('button.edit-btn');
+      if(editBtn){
+        editBtn.style.display = hasLayeredChildren ? '' : 'none';
+      }
+
+      // Find copy button (with copy-btn class)
+      const copyBtn = actionTd.querySelector('button.copy-btn');
+      if(copyBtn){
+        copyBtn.style.display = hasLayeredChildren ? '' : 'none';
+      }
+
       // Find restore button (with restore-btn class)
       const restoreBtn = actionTd.querySelector('button.restore-btn');
       if(restoreBtn){
@@ -3005,25 +3093,51 @@ function exportTableToExcel(){
 // Layer modal behavior
 function openLayerModal(target){
   layerTarget = target;
-  
+
+  console.log('🔍 [openLayerModal] Called with target:', target);
+
   // Pre-fill with existing values if editing an already layered item
   if(target.type === 'row' && target.rowEl){
     // For a single row, check if it's a layer parent
     const layerKey = target.rowEl.getAttribute('data-layer-key');
+    console.log('🔍 [openLayerModal] Layer key:', layerKey);
+    console.log('🔍 [openLayerModal] Has _originalRowData:', !!target.rowEl._originalRowData);
+    console.log('🔍 [openLayerModal] layerData.size:', layerData.size);
+
     if(layerKey){
       // This row is already layered, get its layer data
       const rowData = target.rowEl._originalRowData || getRowDataFromTr(target.rowEl);
+      console.log('🔍 [openLayerModal] Row data:', rowData ? rowData.slice(0, 3) : 'null');
+
       if(rowData){
         const layerChildOf = target.rowEl.getAttribute('data-layer-child-of');
         const signature = getRowSignature(rowData, layerChildOf);
-        const saved = layerData.get(signature);
+        let saved = layerData.get(signature);
+        console.log('🔍 [openLayerModal] LayerChildOf:', layerChildOf);
+        console.log('🔍 [openLayerModal] Signature:', signature.substring(0, 60));
+        console.log('🔍 [openLayerModal] Saved data found:', !!saved);
+
+        // If not found, try without the layerChildOf suffix (for backwards compatibility)
+        if(!saved && layerChildOf){
+          const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
+          saved = layerData.get(signatureWithoutLayerChildOf);
+          console.log('🔍 [openLayerModal] Trying without layerChildOf suffix');
+          console.log('🔍 [openLayerModal] Saved data found (2nd attempt):', !!saved);
+        }
+
+        if(!saved){
+          console.log('🔍 [openLayerModal] Available signatures in layerData:');
+          layerData.forEach((_value, key) => {
+            console.log('  -', key.substring(0, 60));
+          });
+        }
         if(saved){
+          console.log('🔍 [openLayerModal] Saved data:', saved);
           if(layerCountInput) layerCountInput.value = saved.count;
           if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
-          // Load existing layer names and climate resources
-          if(saved.layerNames && saved.climateResources){
-            loadExistingLayerData(saved.layerNames, saved.climateResources, saved.climateTypes, saved.climateFactors);
-          }
+
+          // Store mixed layer configs and layer data to be loaded after UI is initialized
+          target.rowEl._pendingLayerData = saved;
         }
       }
     } else {
@@ -3039,41 +3153,122 @@ function openLayerModal(target){
     if(table){
       const tbody = table.querySelector('tbody');
       if(tbody){
-        // Find a child row to get the layer data
-        const firstChild = tbody.querySelector(`tr[data-layer-child-of="${CSS.escape(target.key)}"]`);
-        console.log('🔍 [openLayerModal] First child found:', !!firstChild);
-        if(firstChild){
-          const rowData = firstChild._originalRowData || getRowDataFromTr(firstChild);
-          console.log('🔍 [openLayerModal] Row data found:', !!rowData);
+        // First, try to find a layer parent within this group (for already-layered groups)
+        const layerParentInGroup = tbody.querySelector(`tr[data-group-child-of="${CSS.escape(target.key)}"][data-layer-key]`);
+        console.log('🔍 [openLayerModal] Layer parent in group found:', !!layerParentInGroup);
+
+        if(layerParentInGroup){
+          // Group is already layered - get data from one of the layer parents within the group
+          const rowData = layerParentInGroup._originalRowData || getRowDataFromTr(layerParentInGroup);
+          console.log('🔍 [openLayerModal] Row data from layer parent:', !!rowData);
+          console.log('🔍 [openLayerModal] Has _originalRowData:', !!layerParentInGroup._originalRowData);
           if(rowData){
-            const signature = getRowSignature(rowData, target.key);
-            const saved = layerData.get(signature);
-            console.log('🔍 [openLayerModal] Saved layer data found:', !!saved, 'Signature:', signature);
+            // Use the layer parent's data-group-child-of as the signature key
+            const groupChildOf = layerParentInGroup.getAttribute('data-group-child-of');
+            const signature = getRowSignature(rowData, groupChildOf);
+            let saved = layerData.get(signature);
+            console.log('🔍 [openLayerModal] GroupChildOf:', groupChildOf);
+            console.log('🔍 [openLayerModal] Row data (first 6 cols):', rowData.slice(0, 6));
+            console.log('🔍 [openLayerModal] Full signature:', signature);
+            console.log('🔍 [openLayerModal] Saved layer data found:', !!saved);
+
+            // If not found, try without the layerChildOf suffix (for backwards compatibility)
+            if(!saved && groupChildOf){
+              const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
+              saved = layerData.get(signatureWithoutLayerChildOf);
+              console.log('🔍 [openLayerModal] Trying without layerChildOf suffix:', signatureWithoutLayerChildOf);
+              console.log('🔍 [openLayerModal] Saved layer data found (2nd attempt):', !!saved);
+            }
+
+            console.log('🔍 [openLayerModal] layerData.size:', layerData.size);
+            if(!saved){
+              console.log('🔍 [openLayerModal] Available signatures in layerData (first 3):');
+              let count = 0;
+              layerData.forEach((_value, key) => {
+                if(count < 3){
+                  console.log('  Full signature:', key);
+                  count++;
+                }
+              });
+            }
             if(saved){
               if(layerCountInput) layerCountInput.value = saved.count;
               if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
-              // Load existing layer names and climate resources
-              if(saved.layerNames && saved.climateResources){
-                loadExistingLayerData(saved.layerNames, saved.climateResources, saved.climateTypes, saved.climateFactors);
+
+              // Store mixed layer configs and layer data to be loaded after UI is initialized
+              if(!layerTarget._pendingLayerData){
+                layerTarget._pendingLayerData = saved;
               }
             }
           }
         } else {
-          console.log('🔍 [openLayerModal] No existing layer data found, clearing inputs');
-          // Not yet layered, clear the inputs
-          if(layerCountInput) layerCountInput.value = '2';
-          if(layerThicknessesInput) layerThicknessesInput.value = '';
-          updateLayerNamesContainer();
+          // Not yet layered, or try the old method for backwards compatibility
+          const firstChild = tbody.querySelector(`tr[data-layer-child-of="${CSS.escape(target.key)}"]`);
+          console.log('🔍 [openLayerModal] First child found (legacy):', !!firstChild);
+          if(firstChild){
+            const rowData = firstChild._originalRowData || getRowDataFromTr(firstChild);
+            console.log('🔍 [openLayerModal] Row data found:', !!rowData);
+            if(rowData){
+              const signature = getRowSignature(rowData, target.key);
+              const saved = layerData.get(signature);
+              console.log('🔍 [openLayerModal] Saved layer data found:', !!saved, 'Signature:', signature);
+              if(saved){
+                if(layerCountInput) layerCountInput.value = saved.count;
+                if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
+
+                // Store mixed layer configs and layer data to be loaded after UI is initialized
+                if(!layerTarget._pendingLayerData){
+                  layerTarget._pendingLayerData = saved;
+                }
+              }
+            }
+          } else {
+            console.log('🔍 [openLayerModal] No existing layer data found, clearing inputs');
+            // Not yet layered, clear the inputs
+            if(layerCountInput) layerCountInput.value = '2';
+            if(layerThicknessesInput) layerThicknessesInput.value = '';
+            updateLayerNamesContainer();
+          }
         }
       }
     }
   }
-  
-  // Initialize mixed layer checkboxes
+
+  // Initialize mixed layer checkboxes and UI
   updateMixedLayerCheckboxes();
-  updateMixedLayerDetails();
-  updateLayerNamesContainer();
-  
+
+  // Load pending layer data if it exists
+  const pendingData = (target.rowEl && target.rowEl._pendingLayerData) || layerTarget._pendingLayerData;
+  if(pendingData){
+    // Set mixed layer checkboxes
+    if(pendingData.mixedLayerConfigs && pendingData.mixedLayerConfigs.length > 0){
+      pendingData.mixedLayerConfigs.forEach(config => {
+        const checkbox = document.getElementById(`mixedLayer${config.layerIndex}`);
+        if(checkbox){
+          checkbox.checked = true;
+        }
+      });
+    }
+
+    // Update UI with mixed layer inputs
+    updateMixedLayerDetails();
+
+    // Load layer names and climate resources
+    if(pendingData.layerNames && pendingData.climateResources){
+      loadExistingLayerData(pendingData.layerNames, pendingData.climateResources, pendingData.climateTypes, pendingData.climateFactors);
+    } else {
+      updateLayerNamesContainer();
+    }
+
+    // Clean up
+    if(target.rowEl) delete target.rowEl._pendingLayerData;
+    if(layerTarget) delete layerTarget._pendingLayerData;
+  } else {
+    // No pending data, just initialize UI
+    updateMixedLayerDetails();
+    updateLayerNamesContainer();
+  }
+
   if(layerModal){ layerModal.style.display = 'flex'; }
 }
 function closeLayerModal(){
@@ -3086,6 +3281,54 @@ function closeLayerModal(){
   if(layerNamesContainer){ layerNamesContainer.innerHTML = ''; }
   if(layerModal){ layerModal.style.display = 'none'; }
 }
+
+// Global variable to store copied layer settings
+let copiedLayerSettings = null;
+
+// Function to copy layer settings
+function copyLayerSettings(target){
+  console.log('🔍 [copyLayerSettings] Called with target:', target);
+
+  let layerDataToCopy = null;
+
+  if(target.type === 'row' && target.rowEl){
+    const rowData = target.rowEl._originalRowData || getRowDataFromTr(target.rowEl);
+    if(rowData){
+      const layerChildOf = target.rowEl.getAttribute('data-layer-child-of');
+      const signature = getRowSignature(rowData, layerChildOf);
+      layerDataToCopy = layerData.get(signature);
+      console.log('🔍 [copyLayerSettings] Found layer data for row:', !!layerDataToCopy);
+    }
+  } else if(target.type === 'group' && target.key){
+    const table = getTable();
+    if(table){
+      const tbody = table.querySelector('tbody');
+      if(tbody){
+        // Try to find a layer parent within this group
+        const layerParentInGroup = tbody.querySelector(`tr[data-group-child-of="${CSS.escape(target.key)}"][data-layer-key]`);
+        if(layerParentInGroup){
+          const rowData = layerParentInGroup._originalRowData || getRowDataFromTr(layerParentInGroup);
+          if(rowData){
+            const groupChildOf = layerParentInGroup.getAttribute('data-group-child-of');
+            const signature = getRowSignature(rowData, groupChildOf);
+            layerDataToCopy = layerData.get(signature);
+            console.log('🔍 [copyLayerSettings] Found layer data for group:', !!layerDataToCopy);
+          }
+        }
+      }
+    }
+  }
+
+  if(layerDataToCopy){
+    copiedLayerSettings = JSON.parse(JSON.stringify(layerDataToCopy)); // Deep copy
+    console.log('✅ [copyLayerSettings] Copied settings:', copiedLayerSettings);
+    alert('Skiktinställningar kopierade!');
+  } else {
+    console.log('⚠️ [copyLayerSettings] No layer data found to copy');
+    alert('Inga skiktinställningar att kopiera.');
+  }
+}
+
 if(layerCancelBtn){ layerCancelBtn.addEventListener('click', closeLayerModal); }
 if(layerModal){ layerModal.addEventListener('click', function(e){ if(e.target === layerModal) closeLayerModal(); }); }
 
@@ -8408,7 +8651,13 @@ function getProjectData(){
       key,
       count: value.count,
       thicknesses: value.thicknesses,
-      layerKey: value.layerKey
+      layerKey: value.layerKey,
+      sharedLayerKeys: value.sharedLayerKeys,
+      layerNames: value.layerNames,
+      mixedLayerConfigs: value.mixedLayerConfigs,
+      climateResources: value.climateResources,
+      climateTypes: value.climateTypes,
+      climateFactors: value.climateFactors
     })),
     climateData: Array.from(climateData.entries()).map(([key, value]) => ({
       key,
@@ -8578,7 +8827,13 @@ function loadProject(file){
           layerData.set(item.key, {
             count: item.count,
             thicknesses: item.thicknesses,
-            layerKey: item.layerKey
+            layerKey: item.layerKey,
+            sharedLayerKeys: item.sharedLayerKeys || undefined,
+            layerNames: item.layerNames || undefined,
+            mixedLayerConfigs: item.mixedLayerConfigs || undefined,
+            climateResources: item.climateResources || undefined,
+            climateTypes: item.climateTypes || undefined,
+            climateFactors: item.climateFactors || undefined
           });
         });
         console.log('🔍 [loadProject] After layerData restore - size:', layerData.size);
