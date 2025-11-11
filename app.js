@@ -4617,6 +4617,7 @@ function showEpdPreview(epdData) {
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:12px;">
       <div><strong>Namn:</strong> ${epdData.name || 'Okänt'}</div>
       <div><strong>Enhet:</strong> ${displayUnit}</div>
+      ${epdData.refQuantity ? `<div style="grid-column: 1 / -1;"><strong>Ref. kvantitet:</strong> ${epdData.refQuantity}</div>` : ''}
       <div><strong>A1-A3:</strong> ${epdData.a1a3 ? epdData.a1a3.toFixed(3) : '0'} kg CO₂e/${displayUnit}</div>
       <div><strong>A4:</strong> ${epdData.a4 ? epdData.a4.toFixed(3) : '0'} kg CO₂e/${displayUnit}</div>
       <div><strong>A5:</strong> ${epdData.a5 ? epdData.a5.toFixed(3) : '0'} kg CO₂e/${displayUnit}</div>
@@ -4626,7 +4627,7 @@ function showEpdPreview(epdData) {
       <div><strong>Publiceringsdatum:</strong> ${epdData.publicationDate || 'Okänt'}</div>
       <div><strong>Registreringsnummer:</strong> ${epdData.registrationNumber || 'Okänt'}</div>
       <div style="grid-column: 1 / -1; margin-top:8px;">
-        <strong>EPD URL:</strong> 
+        <strong>EPD URL:</strong>
         ${epdData.url ? `<a href="${epdData.url}" target="_blank" style="color:#2196f3; text-decoration:none; word-break:break-all;">${epdData.url}</a>` : 'Ingen URL tillgänglig'}
       </div>
     </div>

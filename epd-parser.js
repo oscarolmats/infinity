@@ -40,6 +40,7 @@ class EpdParser {
     
     // Find relevant columns
     const nameIndex = headers.findIndex(h => h.includes('Name (en)'));
+    const refQuantity = headers.findIndex(h => h.includes('Ref. quantity'));
     const refUnitIndex = headers.findIndex(h => h.includes('Ref. unit'));
     const moduleIndex = headers.findIndex(h => h.includes('Module'));
     const gwpIndex = headers.findIndex(h => h.includes('GWPtotal (A2)'));
@@ -50,6 +51,7 @@ class EpdParser {
     
     this.log('Headers found: ' + JSON.stringify({
       nameIndex,
+      refQuantity,
       refUnitIndex, 
       moduleIndex,
       gwpIndex,
@@ -70,6 +72,7 @@ class EpdParser {
       
       if(module === 'A1-A3') {
         data.name = values[nameIndex] || 'Unknown EPD';
+        data.refQuantity = parseFloat(values[refQuantity]) || 1;
         data.refUnit = values[refUnitIndex] || 'kg';
         data.url = values[urlIndex] || '';
         data.declarationOwner = values[declarationOwnerIndex] || '';
@@ -131,9 +134,10 @@ class EpdParser {
    */
   formatForDisplay(epdData) {
     const displayUnit = epdData.refUnit === 'qm' ? 'm²' : epdData.refUnit;
-    
+
     return {
       name: epdData.name,
+      referenceQuantity: epdData.refQuantity,
       unit: displayUnit,
       a1a3: epdData.a1a3 ? epdData.a1a3.toFixed(3) : '0',
       a4: epdData.a4 ? epdData.a4.toFixed(3) : '0',
