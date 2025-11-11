@@ -21,7 +21,8 @@ function createIconButton(type, title) {
     epd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="18" x2="15" y2="18"/></svg>',
     restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
-    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
   };
 
   btn.innerHTML = icons[type] || '';
@@ -33,6 +34,7 @@ function createIconButton(type, title) {
   if(type === 'restore') btn.classList.add('restore-btn');
   if(type === 'edit') btn.classList.add('edit-btn');
   if(type === 'copy') btn.classList.add('copy-btn');
+  if(type === 'close') btn.classList.add('close-btn');
 
   return btn;
 }
@@ -47,6 +49,8 @@ const saveAsProjectBtn = document.getElementById('saveAsProjectBtn');
 const loadProjectBtn = document.getElementById('loadProjectBtn');
 const projectFileInput = document.getElementById('projectFileInput');
 const groupBySelect = document.getElementById('groupBy');
+const applyLayerToSelectedBtn = document.getElementById('applyLayerToSelectedBtn');
+const selectedCountSpan = document.getElementById('selectedCount');
 
 // Application state
 let lastRows = null; // cache of parsed rows for re-rendering
@@ -60,6 +64,7 @@ const layerCountInput = document.getElementById('layerCount');
 const layerThicknessesInput = document.getElementById('layerThicknesses');
 const layerCancelBtn = document.getElementById('layerCancel');
 const layerApplyBtn = document.getElementById('layerApply');
+const layerPasteBtn = document.getElementById('layerPaste');
 // Mixed layer refs
 const mixedLayerCheckboxes = document.getElementById('mixedLayerCheckboxes');
 const mixedLayerDetails = document.getElementById('mixedLayerDetails');
@@ -824,14 +829,43 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
     
     // Insert layer children right after the parent
     let insertAfter = tr;
-    fragments.forEach(f => {
+    fragments.forEach((f, layerIndex) => {
       tbody.insertBefore(f, insertAfter.nextSibling);
       insertAfter = f;
 
-      // Apply saved climate to this child row using original data
+      // Apply climate to this child row
       const childRowData = f._originalRowData;
       if(childRowData){
-        applySavedClimate(f, childRowData);
+        // First try to apply copied climate settings if provided
+        if(climateResources && climateResources.length > layerIndex){
+          const resourceId = climateResources[layerIndex];
+          const type = climateTypes && climateTypes[layerIndex] ? climateTypes[layerIndex] : 'boverket';
+          const factor = climateFactors && climateFactors[layerIndex] ? climateFactors[layerIndex] : null;
+
+          console.log(`🌍 [applyLayerSplitWithKey] Applying copied climate to layer ${layerIndex}:`, {resourceId, type, factor});
+
+          if(resourceId && window.climateResources){
+            // Look up the resource object from the global climateResources array
+            const resourceIndex = parseInt(resourceId, 10);
+            const resource = window.climateResources[resourceIndex];
+
+            if(resource){
+              console.log(`🌍 [applyLayerSplitWithKey] Found resource at index ${resourceIndex}:`, resource.Name);
+              // Set climateTarget and apply the resource
+              climateTarget = { type: 'row', rowEl: f };
+              applyClimateResource(resource);
+            } else {
+              console.log(`⚠️ [applyLayerSplitWithKey] No resource found at index ${resourceIndex}`);
+              applySavedClimate(f, childRowData);
+            }
+          } else {
+            // If resource is null/undefined, try saved climate as fallback
+            applySavedClimate(f, childRowData);
+          }
+        } else {
+          // No copied climate settings, use saved climate
+          applySavedClimate(f, childRowData);
+        }
 
         // Only check for nested layers if this is NOT already a nested restoration
         // (to prevent infinite recursion when restoring multi-level hierarchies)
@@ -1137,10 +1171,19 @@ function removeLayeringForRow(parentTr, tbody){
     if(toggle) toggle.remove();
     labels.forEach(span => { if(span.textContent && span.textContent.includes('skikt')) span.remove(); });
   }
-  
+
+  // Update group weight sums if this row belongs to a group
+  const groupKey = parentTr.getAttribute('data-group-child-of');
+  if(groupKey){
+    updateGroupWeightSums(groupKey, tbody);
+  }
+
   // Update filters and summaries
   applyFilters();
   updateGroupActionButtonsVisibility(tbody);
+
+  // Update climate summary
+  debouncedUpdateClimateSummary();
 }
 
 // Remove layering for an entire group (all its child rows)
@@ -2120,7 +2163,7 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
   });
   actionTd.appendChild(copyBtn);
 
-  const restoreBtn = createIconButton('restore', 'Återställ skiktning');
+  const restoreBtn = createIconButton('close', 'Återställ skiktning');
   restoreBtn.style.marginLeft = '6px';
   // Hidden by default; shown when gruppen har skiktade barn
   restoreBtn.style.display = 'none';
@@ -2189,7 +2232,7 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       // Row action cell - child rows under parent rows should NOT get any buttons
       const actionTd = document.createElement('td');
       // Do not add any buttons for child rows
-      
+
       tr.appendChild(actionTd);
       // Add cells for original data
       r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
@@ -2315,8 +2358,8 @@ function updateGroupActionButtonsVisibility(tbody){
         copyBtn.style.display = hasLayeredChildren ? '' : 'none';
       }
 
-      // Find restore button (with restore-btn class)
-      const restoreBtn = actionTd.querySelector('button.restore-btn');
+      // Find restore button (with close-btn class)
+      const restoreBtn = actionTd.querySelector('button.close-btn');
       if(restoreBtn){
         restoreBtn.style.display = hasLayeredChildren ? '' : 'none';
       }
@@ -2498,7 +2541,7 @@ function renderTableWithOptionalGrouping(rows){
       const rowAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
       rowAltClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'row', rowEl: tr }); });
       actionTd.appendChild(rowAltClimateBtn);
-      
+
       tr.appendChild(actionTd);
       // Add cells for original data
       r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
@@ -2556,7 +2599,7 @@ function renderTableWithOptionalGrouping(rows){
         applySavedClimate(tr, rowData);
       }
     });
-    
+
     // Populate group by options after table is created
     if(groupBySelect){
       const previousValue = groupBySelect.value;
@@ -3269,6 +3312,13 @@ function openLayerModal(target){
     updateLayerNamesContainer();
   }
 
+  // Show/hide paste button based on whether we have copied settings
+  if(layerPasteBtn){
+    const shouldShow = !!copiedLayerSettings;
+    layerPasteBtn.style.display = shouldShow ? '' : 'none';
+    console.log('🔍 [openLayerModal] Paste button visibility:', shouldShow, 'copiedLayerSettings:', !!copiedLayerSettings);
+  }
+
   if(layerModal){ layerModal.style.display = 'flex'; }
 }
 function closeLayerModal(){
@@ -3284,6 +3334,7 @@ function closeLayerModal(){
 
 // Global variable to store copied layer settings
 let copiedLayerSettings = null;
+let selectedRowsForLayering = new Set(); // Track selected rows for bulk layering
 
 // Function to copy layer settings
 function copyLayerSettings(target){
@@ -3298,6 +3349,13 @@ function copyLayerSettings(target){
       const signature = getRowSignature(rowData, layerChildOf);
       layerDataToCopy = layerData.get(signature);
       console.log('🔍 [copyLayerSettings] Found layer data for row:', !!layerDataToCopy);
+
+      // If not found, try without the layerChildOf suffix (for backwards compatibility)
+      if(!layerDataToCopy && layerChildOf){
+        const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
+        layerDataToCopy = layerData.get(signatureWithoutLayerChildOf);
+        console.log('🔍 [copyLayerSettings] Trying without layerChildOf suffix, found:', !!layerDataToCopy);
+      }
     }
   } else if(target.type === 'group' && target.key){
     const table = getTable();
@@ -3313,6 +3371,13 @@ function copyLayerSettings(target){
             const signature = getRowSignature(rowData, groupChildOf);
             layerDataToCopy = layerData.get(signature);
             console.log('🔍 [copyLayerSettings] Found layer data for group:', !!layerDataToCopy);
+
+            // If not found, try without the layerChildOf suffix (for backwards compatibility)
+            if(!layerDataToCopy && groupChildOf){
+              const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
+              layerDataToCopy = layerData.get(signatureWithoutLayerChildOf);
+              console.log('🔍 [copyLayerSettings] Trying without layerChildOf suffix, found:', !!layerDataToCopy);
+            }
           }
         }
       }
@@ -3322,15 +3387,288 @@ function copyLayerSettings(target){
   if(layerDataToCopy){
     copiedLayerSettings = JSON.parse(JSON.stringify(layerDataToCopy)); // Deep copy
     console.log('✅ [copyLayerSettings] Copied settings:', copiedLayerSettings);
-    alert('Skiktinställningar kopierade!');
+
+    // Show checkboxes and apply button
+    showLayerSelectionCheckboxes();
+    updateApplyLayerButton();
+
+    alert('Skiktinställningar kopierade! Markera rader och tryck på "Applicera skiktning på valda".');
   } else {
     console.log('⚠️ [copyLayerSettings] No layer data found to copy');
     alert('Inga skiktinställningar att kopiera.');
   }
 }
 
+// Function to show/hide checkboxes for selecting rows to apply layering
+function showLayerSelectionCheckboxes(){
+  const table = getTable();
+  if(!table) return;
+  const tbody = table.querySelector('tbody');
+  if(!tbody) return;
+
+  console.log('📋 [showLayerSelectionCheckboxes] Adding checkboxes to applicable rows');
+
+  let checkboxCount = 0;
+  const allRows = Array.from(tbody.querySelectorAll('tr'));
+  console.log(`📋 [showLayerSelectionCheckboxes] Examining ${allRows.length} rows`);
+
+  allRows.forEach((tr, index) => {
+    const isGroupParent = tr.classList.contains('group-parent');
+    const groupKey = tr.getAttribute('data-group-key');
+    const rowDesc = tr.querySelector('td:nth-child(2)')?.textContent?.substring(0, 30);
+
+    // Only show checkboxes on group-parent rows
+    if(!isGroupParent){
+      console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (not group-parent) - ${rowDesc}`);
+      return;
+    }
+
+    if(!groupKey){
+      console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (no group-key) - ${rowDesc}`);
+      return;
+    }
+
+    const actionTd = tr.querySelector('td:first-child');
+    if(!actionTd){
+      console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (no action TD) - ${rowDesc}`);
+      return;
+    }
+
+    // Check if checkbox already exists
+    let checkbox = actionTd.querySelector('.layer-selection-checkbox');
+    if(!checkbox){
+      checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'layer-selection-checkbox';
+      checkbox.style.marginRight = '8px';
+      checkbox.style.cursor = 'pointer';
+      checkbox.style.width = '18px';
+      checkbox.style.height = '18px';
+      checkbox.style.transform = 'scale(1.2)';
+      checkbox.style.verticalAlign = 'middle';
+      checkbox.addEventListener('change', function(){
+        if(this.checked){
+          selectedRowsForLayering.add(tr);
+        } else {
+          selectedRowsForLayering.delete(tr);
+        }
+        updateApplyLayerButton();
+      });
+      actionTd.insertBefore(checkbox, actionTd.firstChild);
+      checkboxCount++;
+      console.log(`✅ [showLayerSelectionCheckboxes] Row ${index}: ADDED checkbox to group-parent - ${groupKey}`);
+    }
+  });
+
+  console.log(`📋 [showLayerSelectionCheckboxes] Total checkboxes added: ${checkboxCount}`);
+}
+
+// Function to hide checkboxes
+function hideLayerSelectionCheckboxes(){
+  const table = getTable();
+  if(!table) return;
+  const tbody = table.querySelector('tbody');
+  if(!tbody) return;
+
+  const checkboxes = tbody.querySelectorAll('.layer-selection-checkbox');
+  checkboxes.forEach(cb => cb.remove());
+  selectedRowsForLayering.clear();
+  updateApplyLayerButton();
+}
+
+// Function to update the apply button visibility and count
+function updateApplyLayerButton(){
+  if(!applyLayerToSelectedBtn || !selectedCountSpan) return;
+
+  const hasSelection = selectedRowsForLayering.size > 0;
+  const hasCopiedSettings = !!copiedLayerSettings;
+
+  if(hasCopiedSettings){
+    applyLayerToSelectedBtn.style.display = '';
+    selectedCountSpan.textContent = selectedRowsForLayering.size;
+  } else {
+    applyLayerToSelectedBtn.style.display = 'none';
+  }
+
+  console.log('🔄 [updateApplyLayerButton] Button visible:', hasCopiedSettings, 'Selected:', selectedRowsForLayering.size);
+}
+
 if(layerCancelBtn){ layerCancelBtn.addEventListener('click', closeLayerModal); }
+if(layerPasteBtn){
+  layerPasteBtn.addEventListener('click', function(){
+    if(!copiedLayerSettings){
+      alert('Inga skiktinställningar att klistra in.');
+      return;
+    }
+
+    console.log('🔄 [pasteLayerSettings] Pasting settings:', copiedLayerSettings);
+
+    // Fill in the layer count and thicknesses
+    if(layerCountInput) layerCountInput.value = copiedLayerSettings.count;
+    if(layerThicknessesInput) layerThicknessesInput.value = copiedLayerSettings.thicknesses.join(', ');
+
+    // Update mixed layer checkboxes based on count
+    updateMixedLayerCheckboxes();
+
+    // Set mixed layer checkboxes if they exist
+    if(copiedLayerSettings.mixedLayerConfigs && copiedLayerSettings.mixedLayerConfigs.length > 0){
+      copiedLayerSettings.mixedLayerConfigs.forEach(config => {
+        const checkbox = document.getElementById(`mixedLayer${config.layerIndex}`);
+        if(checkbox){
+          checkbox.checked = true;
+        }
+      });
+    }
+
+    // Update UI with mixed layer inputs
+    updateMixedLayerDetails();
+
+    // Load layer names and climate resources
+    if(copiedLayerSettings.layerNames && copiedLayerSettings.climateResources){
+      loadExistingLayerData(
+        copiedLayerSettings.layerNames,
+        copiedLayerSettings.climateResources,
+        copiedLayerSettings.climateTypes,
+        copiedLayerSettings.climateFactors
+      );
+    } else {
+      updateLayerNamesContainer();
+    }
+
+    alert('Skiktinställningar inklistrade!');
+  });
+}
 if(layerModal){ layerModal.addEventListener('click', function(e){ if(e.target === layerModal) closeLayerModal(); }); }
+
+// Apply layer settings to selected rows
+if(applyLayerToSelectedBtn){
+  applyLayerToSelectedBtn.addEventListener('click', function(){
+    if(!copiedLayerSettings){
+      alert('Inga skiktinställningar att applicera.');
+      return;
+    }
+
+    if(selectedRowsForLayering.size === 0){
+      alert('Markera minst en rad att applicera skiktning på.');
+      return;
+    }
+
+    const confirmMsg = `Applicera skiktning på ${selectedRowsForLayering.size} valda rader?`;
+    if(!confirm(confirmMsg)){
+      return;
+    }
+
+    console.log('🔄 [applyLayerToSelected] Applying to', selectedRowsForLayering.size, 'rows');
+
+    saveState(); // Save state for undo
+
+    const table = getTable();
+    if(!table) return;
+    const tbody = table.querySelector('tbody');
+    if(!tbody) return;
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    selectedRowsForLayering.forEach(tr => {
+      try {
+        // Apply layering to this row
+        const count = copiedLayerSettings.count;
+        const thicknesses = copiedLayerSettings.thicknesses;
+        const layerNames = copiedLayerSettings.layerNames || [];
+        const mixedLayerConfigs = copiedLayerSettings.mixedLayerConfigs || [];
+        const climateResources = copiedLayerSettings.climateResources || [];
+        const climateTypes = copiedLayerSettings.climateTypes || [];
+        const climateFactors = copiedLayerSettings.climateFactors || [];
+
+        console.log('📋 [applyLayerToSelected] Copied climate settings:');
+        console.log('  Resources:', JSON.stringify(climateResources));
+        console.log('  Types:', JSON.stringify(climateTypes));
+        console.log('  Factors:', JSON.stringify(climateFactors));
+
+        // Check if this is a group parent row
+        const isGroupParent = tr.classList.contains('group-parent');
+        const groupKey = isGroupParent ? tr.getAttribute('data-group-key') : null;
+
+        if(groupKey){
+          // First, remove any existing layering for this group
+          console.log('🔄 [applyLayerToSelected] Removing existing layering for group:', groupKey);
+          removeLayeringForGroup(groupKey, tbody);
+
+          // Also clear any climate data for all rows in the group
+          const groupRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+          groupRows.forEach(groupRow => {
+            const rowData = groupRow._originalRowData || getRowDataFromTr(groupRow);
+            if(rowData){
+              // Clear climate data for this row
+              const sig = getRowSignature(rowData, null);
+              if(climateData && typeof climateData.delete === 'function'){
+                climateData.delete(sig);
+              }
+            }
+          });
+
+          console.log('🔄 [applyLayerToSelected] Applying to group:', groupKey, 'rows:', groupRows.length);
+
+          groupRows.forEach((groupRow, idx) => {
+            const rowDesc = groupRow.querySelector('td:nth-child(4)')?.textContent?.substring(0, 40);
+            console.log(`  🔄 [applyLayerToSelected] Row ${idx+1}/${groupRows.length}: ${rowDesc}`);
+            applyLayerSplitToRow(groupRow, tbody, count, thicknesses, layerNames, mixedLayerConfigs, climateResources, climateTypes, climateFactors);
+            console.log(`  ✅ [applyLayerToSelected] Completed row ${idx+1}`);
+          });
+        } else {
+          // Apply to single row
+          console.log('🔄 [applyLayerToSelected] Applying to single row');
+          applyLayerSplitToRow(tr, tbody, count, thicknesses, layerNames, mixedLayerConfigs, climateResources, climateTypes, climateFactors);
+        }
+
+        successCount++;
+      } catch(err){
+        console.error('❌ [applyLayerToSelected] Error applying to row:', err);
+        errorCount++;
+      }
+    });
+
+    // Update group action buttons visibility after applying
+    updateGroupActionButtonsVisibility(tbody);
+
+    // Clear selection and hide checkboxes
+    hideLayerSelectionCheckboxes();
+
+    // Update filters and summaries
+    applyFilters();
+    debouncedUpdateClimateSummary();
+
+    alert(`Skiktning applicerad på ${successCount} rader${errorCount > 0 ? ` (${errorCount} misslyckades)` : ''}.`);
+  });
+}
+
+// Helper function to apply layer split to a single row
+function applyLayerSplitToRow(tr, tbody, count, thicknesses, layerNames, mixedLayerConfigs, climateResources, climateTypes, climateFactors){
+  // Generate unique layer key
+  const layerKey = 'row-' + Date.now() + '-' + Math.random().toString(36).substring(2, 11);
+
+  // Generate unique layer keys for each layer
+  const sharedLayerKeys = Array.from({ length: count }, (_, i) =>
+    layerKey + '_Layer_' + (i + 1)
+  );
+
+  // Apply the layer split
+  applyLayerSplitWithKey(
+    tr,
+    tbody,
+    count,
+    thicknesses,
+    layerKey,
+    false, // isNested
+    sharedLayerKeys,
+    layerNames,
+    mixedLayerConfigs,
+    climateResources,
+    climateTypes,
+    climateFactors
+  );
+}
 
 // Update mixed layer checkboxes when layer count changes
 if(layerCountInput && mixedLayerCheckboxes){
@@ -7174,10 +7512,10 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
   
   if(savedClimateTarget.type === 'row' && savedClimateTarget.rowEl){
     addClimateToRow(savedClimateTarget.rowEl);
-    
+
     // Update climate mapping indicator
     updateClimateMappingIndicator(savedClimateTarget.rowEl);
-    
+
     // Update parent row's weight sums if this row belongs to a group
     const groupKey = savedClimateTarget.rowEl.getAttribute('data-group-child-of');
     if(groupKey){
@@ -7190,7 +7528,7 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
       // Update climate mapping indicator for each row
       updateClimateMappingIndicator(row);
     });
-    
+
     // Update parent row's weight sums after applying climate to all children
     updateGroupWeightSums(savedClimateTarget.key, tbody);
   }
@@ -7319,10 +7657,10 @@ function applyCustomClimateResource(customResource){
   if(savedClimateTarget.type === 'row' && savedClimateTarget.rowEl){
     const tr = savedClimateTarget.rowEl;
     applyCustomClimateToRow(tr, customResource, headerRow);
-    
+
     // Update climate mapping indicator
     updateClimateMappingIndicator(tr);
-    
+
     // Save to climateData for persistence
     // Use original row data instead of DOM content to match signature generation during restore
     const rowData = tr._originalRowData || getRowDataFromTr(tr);
@@ -7366,10 +7704,10 @@ function applyCustomClimateResource(customResource){
     const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
     childRows.forEach(childRow => {
       applyCustomClimateToRow(childRow, customResource, headerRow);
-      
+
       // Update climate mapping indicator for each row
       updateClimateMappingIndicator(childRow);
-      
+
       // Save to climateData for persistence
       // Use original row data instead of DOM content to match signature generation during restore
       const rowData = childRow._originalRowData || getRowDataFromTr(childRow);

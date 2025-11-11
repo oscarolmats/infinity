@@ -134,6 +134,8 @@
     .icon-btn.climate-btn:hover { background: #e8f5e9; border-color: #4caf50; }
     .icon-btn.epd-btn { border-color: #ff9800; color: #ff9800; }
     .icon-btn.epd-btn:hover { background: #fff3e0; border-color: #ff9800; }
+    .icon-btn.close-btn { border-color: #f44336; color: #f44336; }
+    .icon-btn.close-btn:hover { background: #ffebee; border-color: #f44336; }
 
     .hidden { display: none; }
     /* Editable cells */
@@ -413,6 +415,7 @@
       <button id="saveProjectBtn" type="button" style="background:#607d8b; color:white;">Spara</button>
       <button id="saveAsProjectBtn" type="button" style="background:#607d8b; color:white;">Spara som...</button>
       <button id="loadProjectBtn" type="button" style="background:#607d8b; color:white;">Öppna projekt</button>
+      <button id="applyLayerToSelectedBtn" type="button" style="background:#10b981; color:white; display:none;">📋 Applicera skiktning på valda (<span id="selectedCount">0</span>)</button>
       <button id="testProgressBtn" type="button" style="background:#ff9800; color:white;">Testa Progress Bar</button>
       <input id="projectFileInput" type="file" accept=".json,application/json" style="display:none;" />
     </div>
@@ -464,6 +467,9 @@
       </div>
       
       <div style="display:flex; gap:8px; justify-content:space-between; margin-top:12px;">
+        <div style="display:flex; gap:8px;">
+          <button id="layerPaste" type="button" style="display:none;">Klistra in</button>
+        </div>
         <div style="display:flex; gap:8px;">
           <button id="layerCancel" type="button">Avbryt</button>
           <button id="layerApply" type="button">Dela</button>
