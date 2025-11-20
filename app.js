@@ -1091,7 +1091,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
                   if(cells[inbyggdViktIndex]) cells[inbyggdViktIndex].textContent = String(inbyggd);
                   if(cells[inkoptViktIndex]) cells[inkoptViktIndex].textContent = String(inkopt);
                   if(cells[a1a3ImpactIndex]) cells[a1a3ImpactIndex].textContent = String(inbyggd * a1a3);
-                  if(cells[a4ImpactIndex]) cells[a4ImpactIndex].textContent = String(inkopt * a4);
+                  if(cells[a4ImpactIndex]) cells[a4ImpactIndex].textContent = String(inbyggd * a4);
                   if(cells[a5ImpactIndex]) cells[a5ImpactIndex].textContent = String(inkopt * a5);
                 }
               }
@@ -1719,10 +1719,10 @@ function applySavedClimate(tr, rowData){
     if(inbyggdVikt !== 'N/A' && a1a3Factor !== 'N/A' && Number.isFinite(parseFloat(a1a3Factor))){
       klimatA1A3 = inbyggdVikt * parseFloat(a1a3Factor);
     }
-    
-    // Klimatpåverkan A4 = Inköpt vikt * Emissionsfaktor A4
-    if(inkoptVikt !== 'N/A' && a4Factor !== 'N/A' && Number.isFinite(parseFloat(a4Factor))){
-      klimatA4 = inkoptVikt * parseFloat(a4Factor);
+
+    // Klimatpåverkan A4 = Inbyggd vikt * Emissionsfaktor A4
+    if(inbyggdVikt !== 'N/A' && a4Factor !== 'N/A' && Number.isFinite(parseFloat(a4Factor))){
+      klimatA4 = inbyggdVikt * parseFloat(a4Factor);
     }
     
     // Klimatpåverkan A5 = Inköpt vikt * Emissionsfaktor A5
@@ -7570,10 +7570,10 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
     if(inbyggdVikt !== 'N/A' && a1a3Conservative !== 'N/A' && Number.isFinite(parseFloat(a1a3Conservative))){
       klimatA1A3 = inbyggdVikt * parseFloat(a1a3Conservative);
     }
-    
-    // Klimatpåverkan A4 = Inköpt vikt * Emissionsfaktor A4
-    if(inkoptVikt !== 'N/A' && a4Value !== 'N/A' && Number.isFinite(parseFloat(a4Value))){
-      klimatA4 = inkoptVikt * parseFloat(a4Value);
+
+    // Klimatpåverkan A4 = Inbyggd vikt * Emissionsfaktor A4
+    if(inbyggdVikt !== 'N/A' && a4Value !== 'N/A' && Number.isFinite(parseFloat(a4Value))){
+      klimatA4 = inbyggdVikt * parseFloat(a4Value);
     }
     
     // Klimatpåverkan A5 = Inköpt vikt * Emissionsfaktor A5
