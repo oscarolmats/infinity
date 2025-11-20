@@ -31,6 +31,7 @@ export function getRowDataFromTr(tr) {
 
   const headers = Array.from(table.querySelectorAll('thead tr:first-child th')).map(th => th.textContent);
   const climateColIndex = headers.findIndex(h => h === 'Klimatresurs');
+  const climateTypeColIndex = headers.findIndex(h => h === 'Klimatresurs typ');
   const factorColIndex = headers.findIndex(h => h === 'Omräkningsfaktor');
   const unitColIndex = headers.findIndex(h => h === 'Omräkningsfaktor enhet');
   const wasteColIndex = headers.findIndex(h => h === 'Spillfaktor');
@@ -49,6 +50,7 @@ export function getRowDataFromTr(tr) {
   // Skip first cell (action column) and climate/factor/unit/waste columns if they exist
   for (let i = 1; i < cells.length; i++) {
     if ((climateColIndex !== -1 && i === climateColIndex) ||
+        (climateTypeColIndex !== -1 && i === climateTypeColIndex) ||
         (factorColIndex !== -1 && i === factorColIndex) ||
         (unitColIndex !== -1 && i === unitColIndex) ||
         (wasteColIndex !== -1 && i === wasteColIndex) ||
