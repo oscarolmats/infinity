@@ -1400,7 +1400,16 @@ function applySavedClimate(tr, rowData){
   const layerChildOf = tr.getAttribute('data-layer-child-of');
   const signatureKey = layerKey || layerChildOf;
   const signature = getRowSignature(rowData, signatureKey);
-  const climateInfo = climateData.get(signature);
+  let climateInfo = climateData.get(signature);
+
+  // If not found with current signature key, try with null (for rows that were mapped in a different grouping)
+  if(!climateInfo && signatureKey !== null){
+    const signatureWithoutGroup = getRowSignature(rowData, null);
+    climateInfo = climateData.get(signatureWithoutGroup);
+    if(climateInfo){
+      console.log('✅ [applySavedClimate] Found climate data with null signature (grouping changed or Excel file changed)');
+    }
+  }
 
   console.log('🌍 [applySavedClimate] Checking row:', {
     signature: signature.substring(0, 60),
@@ -9250,23 +9259,32 @@ async function saveProject(){
 
 function loadProject(file){
   const reader = new FileReader();
-  
+
   reader.onload = function(e){
     try {
       const projectData = JSON.parse(e.target.result);
-      
+
       // Validate project data
       if(!projectData.version || !projectData.headers || !projectData.rows){
         alert('Ogiltig projektfil. Kontrollera att filen är en giltig JSON-projektfil.');
         return;
       }
-      
+
       // console.log('📂 Laddar projekt:', projectData);
-      
-      // Restore basic data
-      originalFileName = projectData.originalFileName || 'unknown';
-      lastHeaders = projectData.headers;
-      lastRows = [projectData.headers, ...projectData.rows];
+
+      // Check if we have a currently open Excel file
+      const hasCurrentExcelFile = lastRows && lastRows.length > 0 && lastHeaders && lastHeaders.length > 0;
+
+      if(hasCurrentExcelFile){
+        // Keep the current Excel file - only apply layers and climate mappings from project
+        console.log('📊 Excel-fil redan öppen, behåller aktuell fil och tillämpar endast skiktningar och mappningar');
+      } else {
+        // No Excel file open - restore both Excel data and mappings from project
+        console.log('📊 Ingen Excel-fil öppen, återställer Excel-data från projekt');
+        originalFileName = projectData.originalFileName || 'unknown';
+        lastHeaders = projectData.headers;
+        lastRows = [projectData.headers, ...projectData.rows];
+      }
       
       // Clear existing data
       console.log('🔍 [loadProject] Clearing layerData and climateData. LayerData size before:', layerData.size, 'ClimateData size before:', climateData.size);
@@ -9366,21 +9384,38 @@ function loadProject(file){
       // Update undo/redo button states
       updateUndoRedoButtons();
       
-      // Restore the table structure if available (version 1.2+)
-      if(projectData.tableHTML){
-        // console.log('🔄 Återställer sparad tabellstruktur');
+      // Restore the table structure
+      if(hasCurrentExcelFile){
+        // Excel file is already open - render from current Excel data and apply saved mappings
+        console.log('🔄 Renderar tabell från aktuell Excel-fil och tillämpar sparade mappningar');
+        renderTableWithOptionalGrouping(lastRows);
+
+        // Clean up old badges and layers before applying new ones
+        setTimeout(() => {
+          cleanupOldBadgesAndLayers();
+          applySavedLayersAndClimate();
+          debouncedUpdateClimateSummary();
+        }, 100);
+
+        // Show info to user
+        const layerCount = layerData.size;
+        const climateCount = climateData.size;
+        alert(`Projekt laddat!\n\n${layerCount} skiktning${layerCount !== 1 ? 'ar' : ''} och ${climateCount} klimatmappning${climateCount !== 1 ? 'ar' : ''} från projektet har tillämpats på den öppna Excel-filen.\n\nOm Excel-filen har ändrats sedan projektet sparades, matchas åtgärderna baserat på radinnehåll (inte radnummer).`);
+      } else if(projectData.tableHTML){
+        // No Excel file open - restore table structure from project (version 1.2+)
+        console.log('🔄 Återställer sparad tabellstruktur från projekt');
         output.innerHTML = projectData.tableHTML;
-        
+
         // Re-attach event listeners to the restored table
         reattachTableEventListeners();
-        
+
         // Update climate summary
         debouncedUpdateClimateSummary();
       } else {
         // Fallback for older project files - render table normally
-        // console.log('🔄 Återställer tabell från rådata (äldre format)');
+        console.log('🔄 Återställer tabell från rådata (äldre format)');
         renderTableWithOptionalGrouping(lastRows);
-        
+
         // Clean up old badges and layers before applying new ones
         setTimeout(() => {
           cleanupOldBadgesAndLayers();
