@@ -4050,14 +4050,9 @@ function updateLayerClimateDropdowns(){
 // Layer names and climate resources functions
 function updateLayerNamesContainer(){
   if(!layerNamesContainer || !layerCountInput) return;
-  
+
   const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
   layerNamesContainer.innerHTML = '';
-  // Parse existing thicknesses so we can show one field per layer (wall-style UI)
-  const thicknessValues = (layerThicknessesInput && layerThicknessesInput.value || '')
-    .split(',')
-    .map(s => parseFloat(String(s).trim()))
-    .filter(v => Number.isFinite(v));
   
   for(let i = 1; i <= count; i++){
     // Check if this layer is marked as mixed
@@ -4070,14 +4065,10 @@ function updateLayerNamesContainer(){
     
     const layerDiv = document.createElement('div');
     // Wall-style card with a left accent and clear per-layer fields
-    layerDiv.style.cssText = 'display:grid; grid-template-columns: 120px 1fr 1fr; align-items:end; gap:12px; margin-bottom:12px; padding:12px; border:1px solid #ddd; border-left:6px solid #8aa; border-radius:4px; background:white;';
-    
+    layerDiv.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr; align-items:end; gap:12px; margin-bottom:12px; padding:12px; border:1px solid #ddd; border-left:6px solid #8aa; border-radius:4px; background:white;';
+
     // Regular layer
     layerDiv.innerHTML = `
-      <div>
-        <label style="display:block; margin-bottom:4px; font-weight:600;">Skikt ${i} tjocklek (mm):</label>
-        <input type="number" id="layerThickness${i}" placeholder="t.ex. 200" min="0" step="1" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;" />
-      </div>
       <div>
         <label style="display:block; margin-bottom:4px; font-weight:600;">Skikt ${i} namn:</label>
         <input type="text" id="layerName${i}" placeholder="t.ex. Betong C30/37" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;" />
@@ -4098,38 +4089,13 @@ function updateLayerNamesContainer(){
         </select>
         <button type="button" id="layerClimatePick${i}" style="margin-top:6px; padding:6px 8px; font-size:0.85rem;">Välj från katalog...</button>
       </div>
-      <div id="layerFactor${i}" style="display:none; grid-column: 1 / span 3;">
+      <div id="layerFactor${i}" style="display:none; grid-column: 1 / span 2;">
         <label style="display:block; margin-bottom:4px; font-weight:600;">Omräkningsfaktor:</label>
         <input type="number" id="layerFactorValue${i}" placeholder="t.ex. 10" step="0.1" min="0" value="10" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;" />
       </div>
     `;
-    
+
     layerNamesContainer.appendChild(layerDiv);
-    
-    // Pre-fill thickness from combined field
-    const thInput = layerDiv.querySelector(`#layerThickness${i}`);
-    if(thInput){
-      const preset = thicknessValues[i-1];
-      if(Number.isFinite(preset)){
-        thInput.value = String(preset);
-      }
-      thInput.addEventListener('input', function(){
-        // Recompose the combined thicknesses input as comma-separated list
-        const vals = [];
-        for(let j = 1; j <= count; j++){
-          const el = document.getElementById(`layerThickness${j}`);
-          const v = el ? parseFloat(el.value) : NaN;
-          if(Number.isFinite(v)){
-            vals.push(String(v));
-          } else {
-            vals.push('');
-          }
-        }
-        if(layerThicknessesInput){
-          layerThicknessesInput.value = vals.join(', ').replace(/(,\s*)+$/,'');
-        }
-      });
-    }
     
     
     // Populate climate resources dropdown
