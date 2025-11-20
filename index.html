@@ -553,45 +553,86 @@
   </div>
 
   <!-- Alternative Climate Resource modal -->
-  <div id="altClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:2500;">
-    <div style="background:#fff; padding:20px; border-radius:8px; width: min(700px, 95vw); max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
-      <h2 style="margin-top:0; color:#2196f3;">Alternativ klimatresurs</h2>
-      
-      <!-- EPD Selection Method -->
-      <div style="margin-bottom:20px; padding:16px; background:#f8f9fa; border-radius:8px; border:1px solid #e9ecef;">
-        <h3 style="margin-top:0; margin-bottom:12px; color:#333; font-size:16px;">Välj datakälla</h3>
-        <div style="display:flex; gap:12px; margin-bottom:16px;">
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-            <input type="radio" name="epdSource" value="manual" checked style="margin:0;">
-            <span>Manuell inmatning</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-            <input type="radio" name="epdSource" value="epd" style="margin:0;">
-            <span>Välj från EPD-fil</span>
-          </label>
-        </div>
-        
-        <!-- EPD File Selection -->
-        <div id="epdFileSection" style="display:none;">
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            Välj EPD-fil
-          </label>
-          <select id="epdFileSelect" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
-            <option value="">Laddar EPD-filer...</option>
-          </select>
-          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
-            EPD-filer läses från mappen "epd" i programmets rotmapp
-          </small>
-        </div>
-        
-        <!-- EPD Preview -->
-        <div id="epdPreview" style="display:none; margin-top:16px; padding:12px; background:#e8f5e8; border-radius:6px; border:1px solid #c3e6c3;">
-          <h4 style="margin:0 0 8px 0; color:#2e7d32; font-size:14px;">📋 EPD-förhandsvisning</h4>
-          <div id="epdPreviewContent" style="font-size:13px; color:#333;">
-            <!-- Will be populated with EPD data -->
+  <div id="altClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:2500;">
+    <div style="background:#fff; padding:0; border-radius:8px; width: min(900px, 95vw); box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 90vh; overflow:hidden; display:flex; flex-direction:column;">
+
+      <!-- Header -->
+      <div style="padding:20px 24px; background:#fff; border-bottom:2px solid #e0e0e0;">
+        <h2 style="margin:0; font-size:1.3rem; font-weight:600; color:#333;">
+          Mappa EPD / Alternativ klimatresurs
+        </h2>
+      </div>
+
+      <!-- Tab Selection -->
+      <div style="padding:16px 24px; background:#f9f9f9; border-bottom:1px solid #e0e0e0; display:flex; gap:12px;">
+        <button id="epdTabBtn" type="button" style="padding:8px 16px; border:none; background:#555; color:white; border-radius:4px; font-size:0.95rem; cursor:pointer; font-weight:600;">
+          Välj från EPD
+        </button>
+        <button id="manualTabBtn" type="button" style="padding:8px 16px; border:1px solid #ccc; background:white; color:#333; border-radius:4px; font-size:0.95rem; cursor:pointer;">
+          Manuell inmatning
+        </button>
+      </div>
+
+      <!-- Content -->
+      <div style="padding:24px; overflow-y:auto; flex:1;">
+
+        <!-- EPD Selection Tab -->
+        <div id="epdTabContent" style="display:flex; gap:20px;">
+          <!-- Left Column: Search and List -->
+          <div style="flex:1; min-width:350px;">
+            <!-- Search Box -->
+            <div style="margin-bottom:16px;">
+              <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
+                Sök EPD
+              </label>
+              <input
+                id="epdSearchInput"
+                type="text"
+                placeholder="Filtrera på namn..."
+                style="width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:4px; font-size:0.95rem; box-sizing:border-box;"
+              />
+            </div>
+
+            <!-- EPD List -->
+            <div>
+              <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
+                Tillgängliga EPD:er
+              </label>
+              <select
+                id="epdFileSelect"
+                size="20"
+                style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:0.9rem; background:white;"
+              >
+                <option value="">Laddar EPD-filer...</option>
+              </select>
+              <p style="margin:8px 0 0 0; color:#666; font-size:0.85rem;">
+                EPD-filer från mappen "epd"
+              </p>
+            </div>
+          </div>
+
+          <!-- Right Column: EPD Details -->
+          <div style="flex:1; min-width:350px; background:#f9f9f9; padding:20px; border-radius:4px; border:1px solid #e0e0e0;">
+            <h3 style="margin:0 0 16px 0; font-size:1rem; font-weight:600; color:#333;">EPD-detaljer</h3>
+            <div id="epdPreview" style="display:none;">
+              <div id="epdPreviewContent" style="font-size:0.9rem; color:#555; line-height:1.6;">
+                <!-- Will be populated with EPD data -->
+              </div>
+            </div>
+            <div id="epdNoSelection" style="font-size:0.9rem; color:#999; font-style:italic;">
+              Välj en EPD för att se detaljer
+            </div>
+
+            <div style="margin-top:20px; padding:12px; background:white; border-radius:4px; border:1px solid #ddd;">
+              <p style="margin:0; color:#666; font-size:0.85rem; line-height:1.5;">
+                <strong>Info:</strong> När du väljer en EPD kommer emissionsfaktorerna automatiskt att fyllas i baserat på EPD-data.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+
+        <!-- Manual Input Tab -->
+        <div id="manualTabContent" style="display:none;">
       
       <p class="muted" style="margin-bottom:16px;">Mata in EPD-data manuellt för denna resurs.</p>
       
@@ -679,9 +720,17 @@
         </div>
       </div>
 
-      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px; padding-top:16px; border-top:2px solid #ddd;">
-        <button id="altClimateCancel" type="button" style="padding:10px 20px; background:#f5f5f5; border:1px solid #ddd; border-radius:4px;">Avbryt</button>
-        <button id="altClimateApply" type="button" style="background:#2196f3; color:white; border:1px solid #1976d2; padding:10px 24px; font-weight:600; border-radius:4px;">Lägg till resurs</button>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:16px 24px; background:#f5f5f5; border-top:1px solid #e0e0e0; display:flex; gap:12px; justify-content:flex-end;">
+        <button id="altClimateCancel" type="button" style="padding:8px 20px; border:1px solid #999; background:white; border-radius:4px; font-size:0.95rem; cursor:pointer;">
+          Avbryt
+        </button>
+        <button id="altClimateApply" type="button" style="padding:8px 20px; border:1px solid #555; background:#555; color:white; border-radius:4px; font-size:0.95rem; cursor:pointer; font-weight:600;">
+          Applicera
+        </button>
       </div>
     </div>
   </div>

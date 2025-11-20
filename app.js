@@ -4420,10 +4420,42 @@ const altClimateCancel = document.getElementById('altClimateCancel');
 const altClimateApply = document.getElementById('altClimateApply');
 
 // EPD-related elements
-const epdFileSection = document.getElementById('epdFileSection');
+const epdTabBtn = document.getElementById('epdTabBtn');
+const manualTabBtn = document.getElementById('manualTabBtn');
+const epdTabContent = document.getElementById('epdTabContent');
+const manualTabContent = document.getElementById('manualTabContent');
 const epdFileSelect = document.getElementById('epdFileSelect');
+const epdSearchInput = document.getElementById('epdSearchInput');
 const epdPreview = document.getElementById('epdPreview');
 const epdPreviewContent = document.getElementById('epdPreviewContent');
+const epdNoSelection = document.getElementById('epdNoSelection');
+
+// Tab switching logic
+if(epdTabBtn && manualTabBtn && epdTabContent && manualTabContent) {
+  epdTabBtn.addEventListener('click', function() {
+    // Switch to EPD tab
+    epdTabContent.style.display = 'flex';
+    manualTabContent.style.display = 'none';
+    epdTabBtn.style.background = '#555';
+    epdTabBtn.style.color = 'white';
+    epdTabBtn.style.border = 'none';
+    manualTabBtn.style.background = 'white';
+    manualTabBtn.style.color = '#333';
+    manualTabBtn.style.border = '1px solid #ccc';
+  });
+
+  manualTabBtn.addEventListener('click', function() {
+    // Switch to manual tab
+    epdTabContent.style.display = 'none';
+    manualTabContent.style.display = 'block';
+    manualTabBtn.style.background = '#555';
+    manualTabBtn.style.color = 'white';
+    manualTabBtn.style.border = 'none';
+    epdTabBtn.style.background = 'white';
+    epdTabBtn.style.color = '#333';
+    epdTabBtn.style.border = '1px solid #ccc';
+  });
+}
 
 // Store loaded EPD data
 let loadedEpdData = new Map();
@@ -4555,15 +4587,37 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
       ];
     }
     
-    // Populate the dropdown
-    if(epdFileSelect) {
+    // Store all EPD files for searching
+    window.allEpdFiles = epdFiles;
+
+    // Function to populate dropdown with optional filter
+    function populateEpdDropdown(filterQuery = '') {
+      if(!epdFileSelect) return;
+
+      const query = filterQuery.toLowerCase();
+      const filteredFiles = query
+        ? epdFiles.filter(file => file.name.toLowerCase().includes(query))
+        : epdFiles;
+
       epdFileSelect.innerHTML = '<option value="">Välj EPD-fil...</option>';
-      // console.log(` [loadEpdFiles] Loaded ${epdFiles.length} EPD files:`, epdFiles.map(f => f.name));
-      epdFiles.forEach((file, index) => {
+      filteredFiles.forEach((file, originalIndex) => {
         const option = document.createElement('option');
-        option.value = index;
+        // Use the original index from epdFiles array
+        const actualIndex = epdFiles.indexOf(file);
+        option.value = actualIndex;
         option.textContent = file.name;
         epdFileSelect.appendChild(option);
+      });
+    }
+
+    // Populate the dropdown initially
+    populateEpdDropdown();
+
+    // Set up search functionality
+    const epdSearchInput = document.getElementById('epdSearchInput');
+    if(epdSearchInput) {
+      epdSearchInput.addEventListener('input', function() {
+        populateEpdDropdown(this.value);
       });
     }
     
@@ -4606,15 +4660,18 @@ function parseEpdCsv(csvText) {
 // Function to show EPD preview
 function showEpdPreview(epdData) {
   if(!epdPreview || !epdPreviewContent) return;
-  
+
+  // Hide "no selection" message
+  if(epdNoSelection) epdNoSelection.style.display = 'none';
+
   // Handle unit display
   let displayUnit = epdData.refUnit || 'kg';
   if(displayUnit === 'qm') {
     displayUnit = 'm²';
   }
-  
+
   const previewHtml = `
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:12px;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
       <div><strong>Namn:</strong> ${epdData.name || 'Okänt'}</div>
       <div><strong>Enhet:</strong> ${displayUnit}</div>
       ${epdData.refQuantity ? `<div style="grid-column: 1 / -1;"><strong>Ref. kvantitet:</strong> ${epdData.refQuantity}</div>` : ''}
@@ -4632,7 +4689,7 @@ function showEpdPreview(epdData) {
       </div>
     </div>
   `;
-  
+
   epdPreviewContent.innerHTML = previewHtml;
   epdPreview.style.display = 'block';
 }
@@ -4694,7 +4751,7 @@ function populateFormFromEpd(epdData) {
 
 function openAltClimateModal(target){
   climateTarget = target;
-  if(altClimateModal){ 
+  if(altClimateModal){
     altClimateModal.style.display = 'flex';
     // Reset form
     if(altClimateName) altClimateName.value = '';
@@ -4705,14 +4762,36 @@ function openAltClimateModal(target){
     if(altClimateA1A3) altClimateA1A3.value = '';
     if(altClimateA4) altClimateA4.value = '';
     if(altClimateA5) altClimateA5.value = '';
-    
+
     // Reset EPD selection
-    const manualRadio = document.querySelector('input[name="epdSource"][value="manual"]');
-    if(manualRadio) manualRadio.checked = true;
-    if(epdFileSection) epdFileSection.style.display = 'none';
-    if(epdPreview) epdPreview.style.display = 'none';
     if(epdFileSelect) epdFileSelect.value = '';
-    
+    if(epdPreview) epdPreview.style.display = 'none';
+
+    // Show EPD tab by default
+    const epdTabBtn = document.getElementById('epdTabBtn');
+    const manualTabBtn = document.getElementById('manualTabBtn');
+    const epdTabContent = document.getElementById('epdTabContent');
+    const manualTabContent = document.getElementById('manualTabContent');
+    const epdNoSelection = document.getElementById('epdNoSelection');
+
+    if(epdTabBtn && manualTabBtn && epdTabContent && manualTabContent) {
+      // Show EPD tab
+      epdTabContent.style.display = 'flex';
+      manualTabContent.style.display = 'none';
+
+      // Update button styles
+      epdTabBtn.style.background = '#555';
+      epdTabBtn.style.color = 'white';
+      epdTabBtn.style.border = 'none';
+
+      manualTabBtn.style.background = 'white';
+      manualTabBtn.style.color = '#333';
+      manualTabBtn.style.border = '1px solid #ccc';
+    }
+
+    // Show "no selection" message
+    if(epdNoSelection) epdNoSelection.style.display = 'block';
+
     // EPD files are already loaded by the indicator on page load
   }
 }
@@ -4744,9 +4823,10 @@ if(epdFileSelect) {
     if(selectedIndex && loadedEpdData.has(selectedIndex)) {
       const epdData = loadedEpdData.get(selectedIndex);
       showEpdPreview(epdData);
-      populateFormFromEpd(epdData);
     } else {
-      if(epdPreview) epdPreview.style.display = 'none';
+      if(epdPreview) epdPreview.style.display = 'block';
+      if(epdNoSelection) epdNoSelection.style.display = 'block';
+      if(epdPreviewContent) epdPreviewContent.innerHTML = '';
     }
   });
 }
@@ -4754,7 +4834,48 @@ if(epdFileSelect) {
 // Apply alternative climate resource
 if(altClimateApply){
   altClimateApply.addEventListener('click', function(){
-    // Validate required fields
+    // Check which tab is active
+    const epdTabContent = document.getElementById('epdTabContent');
+    const manualTabContent = document.getElementById('manualTabContent');
+    const isEpdTab = epdTabContent && epdTabContent.style.display !== 'none';
+
+    if(isEpdTab) {
+      // EPD tab - populate form and switch to manual tab for editing
+      const selectedIndex = epdFileSelect.value;
+      if(!selectedIndex || !loadedEpdData.has(selectedIndex)) {
+        alert('Välj en EPD från listan');
+        return;
+      }
+
+      const epdData = loadedEpdData.get(selectedIndex);
+
+      // Populate manual form fields with EPD data
+      populateFormFromEpd(epdData);
+
+      // Switch to manual tab to allow editing
+      const epdTabBtn = document.getElementById('epdTabBtn');
+      const manualTabBtn = document.getElementById('manualTabBtn');
+
+      if(epdTabBtn && manualTabBtn && epdTabContent && manualTabContent) {
+        // Switch to manual tab
+        epdTabContent.style.display = 'none';
+        manualTabContent.style.display = 'block';
+
+        // Update button styles
+        epdTabBtn.style.background = 'white';
+        epdTabBtn.style.color = '#333';
+        epdTabBtn.style.border = '1px solid #ccc';
+
+        manualTabBtn.style.background = '#555';
+        manualTabBtn.style.color = 'white';
+        manualTabBtn.style.border = 'none';
+      }
+
+      // Don't apply yet - let user edit first
+      return;
+    }
+
+    // Manual tab - validate and apply
     if(!altClimateName || !altClimateName.value.trim()){
       alert('EPD-namn är obligatoriskt');
       return;
@@ -4775,8 +4896,8 @@ if(altClimateApply){
       alert('Klimatpåverkan A1-A3 är obligatorisk');
       return;
     }
-    
-    // Create custom climate resource object
+
+    // Create custom climate resource object from form data
     const customResource = {
       name: altClimateName.value.trim(),
       unit: altClimateUnit.value,
@@ -4788,15 +4909,9 @@ if(altClimateApply){
       a5: parseFloat(altClimateA5.value) || 0,
       isCustom: true
     };
-    
-    
-    // console.log(' [AltClimate] Applying custom resource:', customResource);
-    // console.log(' [AltClimate] A1-A3 factor:', customResource.a1a3, 'A4 factor:', customResource.a4, 'A5 factor:', customResource.a5);
-    
+
     // Apply the custom resource
     applyCustomClimateResource(customResource);
-    
-    // Close modal
     closeAltClimateModal();
   });
 }
