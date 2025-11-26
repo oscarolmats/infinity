@@ -1021,7 +1021,24 @@
           
           // Store resources and populate dropdown with categories
           window.climateResources = data.Resources;
-          populateClimateResourcesWithCategories(data.Resources);
+
+          // Add generic "Luft" resource
+          window.climateResources.push({
+            Name: 'Luft',
+            Categories: [{ Text: 'Generiska resurser' }],
+            Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
+            WasteFactor: 1,
+            Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
+            DataItems: [{
+              DataValueItems: [
+                { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
+                { DataModuleCode: 'A4', Value: 0 },
+                { DataModuleCode: 'A5.1', Value: 0 }
+              ]
+            }]
+          });
+
+          populateClimateResourcesWithCategories(window.climateResources);
         } else if(Array.isArray(data)){
           // Fallback: if data is directly an array
           apiIndicator.className = 'api-indicator connected';
@@ -1033,7 +1050,24 @@
           `;
           
           window.climateResources = data;
-          populateClimateResourcesWithCategories(data);
+
+          // Add generic "Luft" resource
+          window.climateResources.push({
+            Name: 'Luft',
+            Categories: [{ Text: 'Generiska resurser' }],
+            Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
+            WasteFactor: 1,
+            Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
+            DataItems: [{
+              DataValueItems: [
+                { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
+                { DataModuleCode: 'A4', Value: 0 },
+                { DataModuleCode: 'A5.1', Value: 0 }
+              ]
+            }]
+          });
+
+          populateClimateResourcesWithCategories(window.climateResources);
         } else {
           apiIndicator.className = 'api-indicator error';
           apiIndicator.innerHTML = `
@@ -1043,12 +1077,28 @@
             </div>
             <div class="api-details">Oväntat format</div>
           `;
-          climateResourceSelect.innerHTML = '<option value="">Inga resurser tillgängliga</option>';
+
+          // Add generic "Luft" resource even on error
+          window.climateResources = [{
+            Name: 'Luft',
+            Categories: [{ Text: 'Generiska resurser' }],
+            Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
+            WasteFactor: 1,
+            Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
+            DataItems: [{
+              DataValueItems: [
+                { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
+                { DataModuleCode: 'A4', Value: 0 },
+                { DataModuleCode: 'A5.1', Value: 0 }
+              ]
+            }]
+          }];
+          populateClimateResourcesWithCategories(window.climateResources);
         }
       })
       .catch(err =>{
         console.error('API Error:', err);
-        
+
         // Update API indicator with error status
         apiIndicator.className = 'api-indicator error';
         apiIndicator.innerHTML = `
@@ -1058,7 +1108,23 @@
           </div>
           <div class="api-details">${err.message || 'Okänt fel'}</div>
         `;
-        climateResourceSelect.innerHTML = '<option value="">Kunde inte ladda resurser</option>';
+
+        // Add generic "Luft" resource even on error
+        window.climateResources = [{
+          Name: 'Luft',
+          Categories: [{ Text: 'Generiska resurser' }],
+          Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
+          WasteFactor: 1,
+          Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
+          DataItems: [{
+            DataValueItems: [
+              { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
+              { DataModuleCode: 'A4', Value: 0 },
+              { DataModuleCode: 'A5.1', Value: 0 }
+            ]
+          }]
+        }];
+        populateClimateResourcesWithCategories(window.climateResources);
       });
     
     // EPD files will be loaded by app.js after it initializes

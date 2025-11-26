@@ -3346,7 +3346,7 @@ function openLayerModal(target){
 
     // Load layer names and climate resources
     if(pendingData.layerNames && pendingData.climateResources){
-      loadExistingLayerData(pendingData.layerNames, pendingData.climateResources, pendingData.climateTypes, pendingData.climateFactors);
+      loadExistingLayerData(pendingData.layerNames, pendingData.climateResources, pendingData.climateTypes, pendingData.climateFactors, pendingData.mixedLayerConfigs);
     } else {
       updateLayerNamesContainer();
     }
@@ -4195,76 +4195,69 @@ function updateLayerNamesContainer(){
 }
 
 
-function loadExistingLayerData(layerNames, climateResources, climateTypes = [], climateFactors = []){
+function loadExistingLayerData(layerNames, climateResources, climateTypes = [], climateFactors = [], mixedLayerConfigs = []){
   if(!layerNamesContainer) return;
-  
+
   // Clear and rebuild container
   updateLayerNamesContainer();
-  
+
   // Fill in existing data
   const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
-  
+
   for(let i = 1; i <= count; i++){
     // Check if this layer is marked as mixed
     const isMixedLayer = document.getElementById(`mixedLayer${i}`) && document.getElementById(`mixedLayer${i}`).checked;
-    
+
     if(isMixedLayer){
-      // Mixed layer - fill material inputs from mixed layer details
+      // Mixed layer - fill material inputs from mixedLayerConfigs
+      const mixedConfig = mixedLayerConfigs.find(config => config.layerIndex === i);
+
       const material1Name = document.getElementById(`mixedMat1Name${i}`);
+      const material1Percent = document.getElementById(`mixedMat1Percent${i}`);
       const material2Name = document.getElementById(`mixedMat2Name${i}`);
+      const material2Percent = document.getElementById(`mixedMat2Percent${i}`);
       const material1Climate = document.getElementById(`mixedMat1Climate${i}`);
       const material2Climate = document.getElementById(`mixedMat2Climate${i}`);
       const material1FactorDiv = document.getElementById(`mixedMat1Factor${i}`);
       const material1FactorInput = document.getElementById(`mixedMat1FactorValue${i}`);
       const material2FactorDiv = document.getElementById(`mixedMat2Factor${i}`);
       const material2FactorInput = document.getElementById(`mixedMat2FactorValue${i}`);
-      
-      if(material1Name && layerNames[i-1]){
-        material1Name.value = layerNames[i-1];
-      }
-      if(material2Name && layerNames[i-1]){
-        material2Name.value = layerNames[i-1];
-      }
-      
-      if(material1Climate && climateResources[i-1] !== undefined && climateTypes[i-1] !== undefined){
-        // Reconstruct the value based on type and resource for material 1
-        const climateType = climateTypes[i-1];
-        const climateResource = climateResources[i-1];
-        
-        if(climateType === 'boverket'){
-          material1Climate.value = `boverket:${climateResource}`;
-        } else if(climateType === 'epd'){
-          material1Climate.value = `epd:${climateResource}`;
-          // Show factor input for EPD and set its value
-          if(material1FactorDiv && material1FactorInput) {
-            material1FactorDiv.style.display = 'block';
-            material1FactorInput.value = climateFactors[i-1] || 1;
-          }
-        } else if(climateType === 'custom'){
-          material1Climate.value = 'custom:manual';
-        } else {
-          material1Climate.value = '';
+
+      if(mixedConfig){
+        // Load material 1 data
+        if(material1Name && mixedConfig.material1){
+          material1Name.value = mixedConfig.material1.name || '';
         }
-      }
-      
-      // For material 2, we use the same values as material 1 for now
-      if(material2Climate && climateResources[i-1] !== undefined && climateTypes[i-1] !== undefined){
-        const climateType = climateTypes[i-1];
-        const climateResource = climateResources[i-1];
-        
-        if(climateType === 'boverket'){
-          material2Climate.value = `boverket:${climateResource}`;
-        } else if(climateType === 'epd'){
-          material2Climate.value = `epd:${climateResource}`;
-          // Show factor input for EPD and set its value
-          if(material2FactorDiv && material2FactorInput) {
-            material2FactorDiv.style.display = 'block';
-            material2FactorInput.value = climateFactors[i-1] || 1;
+        if(material1Percent && mixedConfig.material1){
+          material1Percent.value = mixedConfig.material1.percent || 50;
+        }
+        if(material1Climate && mixedConfig.material1 && mixedConfig.material1.climateResource){
+          material1Climate.value = mixedConfig.material1.climateResource;
+          // Show factor input if EPD
+          if(mixedConfig.material1.climateResource.startsWith('epd:')){
+            if(material1FactorDiv) material1FactorDiv.style.display = 'block';
+            if(material1FactorInput && mixedConfig.material1.factor){
+              material1FactorInput.value = mixedConfig.material1.factor;
+            }
           }
-        } else if(climateType === 'custom'){
-          material2Climate.value = 'custom:manual';
-        } else {
-          material2Climate.value = '';
+        }
+
+        // Load material 2 data
+        if(material2Name && mixedConfig.material2){
+          material2Name.value = mixedConfig.material2.name || '';
+        }
+        if(material2Percent && mixedConfig.material2){
+          material2Percent.value = mixedConfig.material2.percent || 50;
+        }
+        if(material2Climate && mixedConfig.material2 && mixedConfig.material2.climateResource){
+          material2Climate.value = mixedConfig.material2.climateResource;
+          // Show factor input if EPD
+          if(mixedConfig.material2.climateResource.startsWith('epd:')){
+            if(material2FactorDiv) material2FactorDiv.style.display = 'block';
+            if(material2FactorInput && mixedConfig.material2.factor){
+              material2FactorInput.value = mixedConfig.material2.factor;
+            }
+          }
         }
       }
     } else {
@@ -5059,28 +5052,42 @@ if(layerApplyBtn){
       const mat2Percent = document.getElementById(`mixedMat2Percent${layerIndex}`);
       const mat1Climate = document.getElementById(`mixedMat1Climate${layerIndex}`);
       const mat2Climate = document.getElementById(`mixedMat2Climate${layerIndex}`);
-      
+      const mat1FactorInput = document.getElementById(`mixedMat1FactorValue${layerIndex}`);
+      const mat2FactorInput = document.getElementById(`mixedMat2FactorValue${layerIndex}`);
+
       const mat1NameValue = mat1Name ? mat1Name.value.trim() : '';
       const mat2NameValue = mat2Name ? mat2Name.value.trim() : '';
       const mat1PercentValue = parseFloat(mat1Percent ? mat1Percent.value : '50');
       const mat2PercentValue = parseFloat(mat2Percent ? mat2Percent.value : '50');
       const mat1ClimateValue = mat1Climate ? mat1Climate.value : '';
       const mat2ClimateValue = mat2Climate ? mat2Climate.value : '';
-      
+      const mat1FactorValue = mat1FactorInput ? parseFloat(mat1FactorInput.value) : undefined;
+      const mat2FactorValue = mat2FactorInput ? parseFloat(mat2FactorInput.value) : undefined;
+
       if(mat1NameValue && mat2NameValue){
-        mixedLayerConfigs.push({
+        const config = {
           layerIndex: layerIndex,
-          material1: { 
-            name: mat1NameValue, 
+          material1: {
+            name: mat1NameValue,
             percent: mat1PercentValue,
             climateResource: mat1ClimateValue
           },
-          material2: { 
-            name: mat2NameValue, 
+          material2: {
+            name: mat2NameValue,
             percent: mat2PercentValue,
             climateResource: mat2ClimateValue
           }
-        });
+        };
+
+        // Add factor if EPD is selected
+        if(mat1ClimateValue.startsWith('epd:') && mat1FactorValue){
+          config.material1.factor = mat1FactorValue;
+        }
+        if(mat2ClimateValue.startsWith('epd:') && mat2FactorValue){
+          config.material2.factor = mat2FactorValue;
+        }
+
+        mixedLayerConfigs.push(config);
       }
     });
     
