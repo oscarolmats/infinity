@@ -10,8 +10,9 @@
   <style>
     body { font-family: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif; margin: 1rem; background: #f7f9fc; color: #111827; }
     button, input, select, textarea { font-family: inherit; }
-    .container { max-width: calc(95vw - 340px); margin: 0 auto; margin-right: 360px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.06); padding: 16px; }
-    .picker { margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; }
+    .container { max-width: calc(95vw - 340px); margin: 0 auto; margin-right: 360px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.06); padding: 16px; padding-top: 0; }
+    h1 { position: sticky; top: 0; z-index: 11; background: #ffffff; margin: 0; padding: 16px; padding-bottom: 8px; margin-left: -16px; margin-right: -16px; border-bottom: 1px solid #e5e7eb; }
+    .picker { position: sticky; top: 60px; z-index: 10; background: #ffffff; margin-bottom: 1rem; margin-left: -16px; margin-right: -16px; padding: 16px; padding-bottom: 12px; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.04); flex-wrap: wrap; }
     /* Toolbar controls styled like modern rounded buttons */
     .picker button {
       border-radius: 9999px;
@@ -36,14 +37,14 @@
     }
     table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
     th, td { border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 6px 8px; font-size: 0.85rem; }
-    th { position: sticky; top: 0; background: #ffffff; z-index: 2; text-align: left; font-weight: 600; color: #374151; }
+    th { position: sticky; top: 130px; background: #ffffff; z-index: 2; text-align: left; font-weight: 600; color: #374151; }
     thead tr { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     thead th { border-top: 1px solid #e5e7eb; }
     thead th:first-child { border-top-left-radius: 12px; }
     thead th:last-child { border-top-right-radius: 12px; }
     thead th:hover { background: #f8fafc; }
-    thead th:first-child, tbody td:first-child { position: sticky; left: 0; background: #fff; z-index: 3; width: 1%; white-space: nowrap; }
-    thead th:first-child { z-index: 4; }
+    thead th:first-child, tbody td:first-child { position: sticky; left: 0; background: #fff; z-index: 5; width: 1%; white-space: nowrap; }
+    thead th:first-child { z-index: 12; top: 130px; }
     /* Zebra rows via classes for correct alternation with hidden rows */
     tbody tr.zebra-even td { background: #f8fafc; }
     tbody tr.zebra-odd td { background: #eef2f7; }
@@ -54,7 +55,6 @@
     table tbody tr:hover td { background: #e8eef7; }
     table { box-shadow: 0 0 0 1px #e5e7eb; border-radius: 6px; overflow: hidden; }
     .ag-resize-handle { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; user-select: none; }
-    th { position: sticky; top: 0; }
     thead th.ag-sort-asc::after { content: '▲'; font-size: 10px; margin-left: 6px; color: #6b7280; }
     thead th.ag-sort-desc::after { content: '▼'; font-size: 10px; margin-left: 6px; color: #6b7280; }
     .filter { flex: 1; max-width: 320px; }
