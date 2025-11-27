@@ -1379,6 +1379,9 @@ function updateLayerParentSums(parentTr, tbody){
 
   console.log('✅ [updateLayerParentSums] Updated parent sums - Inbyggd:', sumInbyggdVikt.toFixed(2), 'Inkopt:', sumInkoptVikt.toFixed(2), 'A1-A3:', sumKlimatA1A3.toFixed(2), 'A4:', sumKlimatA4.toFixed(2), 'A5:', sumKlimatA5.toFixed(2));
 
+  // Fill parent row with common values from children
+  fillParentRowsWithCommonValues(tbody);
+
   // IMPORTANT: Verify the cell value right after setting it
   setTimeout(() => {
     const verifyCell = parentCells[klimatA1A3ColIndex];
@@ -2097,6 +2100,89 @@ function openClimateForGroupKey(groupKey, table){
   }
 }
 
+// Helper function to fill parent rows with common values from children
+function fillParentRowsWithCommonValues(tbody){
+  if(!tbody) return;
+
+  // Handle group parents
+  const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
+  groupParents.forEach(parentTr => {
+    const groupKey = parentTr.getAttribute('data-group-key');
+    if(!groupKey) return;
+
+    const children = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+    if(children.length === 0) return;
+
+    const parentCells = Array.from(parentTr.children);
+
+    // For each cell in parent (skip first action cell)
+    for(let i = 1; i < parentCells.length; i++){
+      const parentCell = parentCells[i];
+
+      // Skip cells that already have content or are sum cells
+      if(parentCell.textContent.trim() !== '' ||
+         parentCell.hasAttribute('data-sum-inbyggd-vikt') ||
+         parentCell.hasAttribute('data-sum-inkopt-vikt') ||
+         parentCell.hasAttribute('data-sum-klimat-a1a3') ||
+         parentCell.hasAttribute('data-sum-klimat-a4') ||
+         parentCell.hasAttribute('data-sum-klimat-a5')) {
+        continue;
+      }
+
+      // Get values from all children for this column
+      const childValues = children.map(child => {
+        const childCell = child.children[i];
+        return childCell ? childCell.textContent.trim() : '';
+      });
+
+      // Check if all children have the same non-empty value
+      const uniqueValues = [...new Set(childValues.filter(v => v !== ''))];
+      if(uniqueValues.length === 1){
+        parentCell.textContent = uniqueValues[0];
+      }
+    }
+  });
+
+  // Handle layer parents
+  const layerParents = Array.from(tbody.querySelectorAll('tr.layer-parent'));
+  layerParents.forEach(parentTr => {
+    const layerKey = parentTr.getAttribute('data-layer-key');
+    if(!layerKey) return;
+
+    const children = Array.from(tbody.querySelectorAll(`tr[data-parent-key="${CSS.escape(layerKey)}"]`));
+    if(children.length === 0) return;
+
+    const parentCells = Array.from(parentTr.children);
+
+    // For each cell in parent (skip first action cell)
+    for(let i = 1; i < parentCells.length; i++){
+      const parentCell = parentCells[i];
+
+      // Skip cells that already have content or are sum cells
+      if(parentCell.textContent.trim() !== '' ||
+         parentCell.hasAttribute('data-sum-inbyggd-vikt') ||
+         parentCell.hasAttribute('data-sum-inkopt-vikt') ||
+         parentCell.hasAttribute('data-sum-klimat-a1a3') ||
+         parentCell.hasAttribute('data-sum-klimat-a4') ||
+         parentCell.hasAttribute('data-sum-klimat-a5')) {
+        continue;
+      }
+
+      // Get values from all children for this column
+      const childValues = children.map(child => {
+        const childCell = child.children[i];
+        return childCell ? childCell.textContent.trim() : '';
+      });
+
+      // Check if all children have the same non-empty value
+      const uniqueValues = [...new Set(childValues.filter(v => v !== ''))];
+      if(uniqueValues.length === 1){
+        parentCell.textContent = uniqueValues[0];
+      }
+    }
+  });
+}
+
 function buildGroupedTable(headers, bodyRows, groupColIndex){
   const table = document.createElement('table');
   table.classList.add('ag-like');
@@ -2120,8 +2206,25 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       }
     });
   }
-  
-  allHeaders.forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; th.dataset.colIndex = String(i); addResizeHandle(th); headerTr.appendChild(th); });
+
+  allHeaders.forEach((h, i) => {
+    const th = document.createElement('th');
+    // Mark the grouped column with a visual indicator
+    if(i === groupColIndex){
+      th.innerHTML = `<span style="display: inline-flex; align-items: center; gap: 6px;">
+        <svg style="width: 14px; height: 14px; fill: currentColor;" viewBox="0 0 24 24">
+          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+        </svg>
+        <span>${h}</span>
+      </span>`;
+      th.setAttribute('data-grouped', 'true');
+    } else {
+      th.textContent = h;
+    }
+    th.dataset.colIndex = String(i);
+    addResizeHandle(th);
+    headerTr.appendChild(th);
+  });
   thead.appendChild(headerTr); table.appendChild(thead);
   const tbody = document.createElement('tbody');
 
@@ -2344,6 +2447,8 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       applySavedClimate(tr, rowData);
     }
   });
+  // Fill parent rows with common values from children
+  fillParentRowsWithCommonValues(tbody);
   // Update visibility of group action buttons that depend on layering state
   updateGroupActionButtonsVisibility(tbody);
   // Schedule deferred updates to catch async layer restoration
@@ -2792,6 +2897,27 @@ function handleFile(file){
   reader.onerror = function(){ output.textContent = 'Fel vid lasning av filen.'; };
   reader.readAsText(file, 'utf-8');
 }
+
+// Password protection for production
+let isAuthenticated = false;
+fileInput.addEventListener('click', function(e) {
+  // Check if we're on localhost:3000
+  const isLocalhost = window.location.hostname === 'localhost' && window.location.port === '3000';
+
+  // If not on localhost:3000 and not authenticated, require password
+  if (!isLocalhost && !isAuthenticated) {
+    e.preventDefault();
+    const password = prompt('Ange lösenord för att fortsätta:');
+
+    if (password === 'fritidsgård') {
+      isAuthenticated = true;
+      // Trigger file input again
+      fileInput.click();
+    } else {
+      alert('Felaktigt lösenord');
+    }
+  }
+});
 
 fileInput.addEventListener('change', function(){ const file = this.files && this.files[0]; if(!file) return; handleFile(file); });
 if(filterInput){ filterInput.addEventListener('input', applyFilters); }
@@ -8876,7 +9002,10 @@ function updateGroupWeightSums(groupKey, tbody){
   
   // Also update parent climate display (show climate resource data if all children have same)
   updateParentClimateDisplay(groupKey, tbody);
-  
+
+  // Fill parent row with common values from children
+  fillParentRowsWithCommonValues(tbody);
+
   // Debug: Check what values are actually on the parent row after all updates
   // console.log('🔍 [DEBUG] Final parent row values after all updates:');
   if(klimatA1A3ColIndex !== -1 && parentCells[klimatA1A3ColIndex]){
