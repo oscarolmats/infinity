@@ -3142,8 +3142,8 @@ function exportTableToExcel(){
   // Get headers
   const thead = table.querySelector('thead');
   const headerRow = thead ? thead.querySelector('tr:first-child') : null;
+  const headers = [];
   if(headerRow){
-    const headers = [];
     Array.from(headerRow.children).forEach((th, index) => {
       // Skip first column (action buttons)
       if(index === 0) return;
@@ -3151,6 +3151,32 @@ function exportTableToExcel(){
     });
     exportData.push(headers);
   }
+
+  // Identify columns that should always be numbers (weight and climate impact columns)
+  const numericColumnNames = [
+    'Inbyggd vikt',
+    'Inköpt vikt',
+    'Klimatpåverkan A1-A3',
+    'Klimatpåverkan A4',
+    'Klimatpåverkan A5',
+    'Net Area',
+    'Length',
+    'Thickness',
+    'Height',
+    'Volume',
+    'Count',
+    'Omräkningsfaktor',
+    'Spillfaktor',
+    'Emissionsfaktor A1-A3',
+    'Emissionsfaktor A4',
+    'Emissionsfaktor A5'
+  ];
+  const numericColumnIndices = new Set();
+  headers.forEach((header, index) => {
+    if(numericColumnNames.includes(header)){
+      numericColumnIndices.add(index);
+    }
+  });
   
   // Get all visible rows (not hidden by filters)
   const tbody = table.querySelector('tbody');
@@ -3169,27 +3195,43 @@ function exportTableToExcel(){
         // Get clean text content
         let text = td.textContent.trim();
 
-        // Only convert to number if the ENTIRE string is numeric
-        // This preserves text like "0001234", "123ABC", "1.5 meter" as text
-        const num = parseNumberLike(text);
-        if(Number.isFinite(num)){
-          // Check if converting back to string gives us the same value
-          // (handles cases like "123" vs "123ABC")
-          const normalizedOriginal = text.replace(/\s+/g, '').replace(',', '.');
-          const normalizedNum = String(num);
+        // Calculate column index (adjusted for skipped first column)
+        const colIndex = index - 1;
 
-          // Only use number if the normalized strings match
-          // This ensures "123" becomes number but "123ABC" stays as text
-          if(normalizedOriginal === normalizedNum ||
-             normalizedOriginal === normalizedNum + '.0' ||
-             normalizedOriginal === normalizedNum + ',0'){
+        // Check if this column should always be numeric
+        const shouldBeNumeric = numericColumnIndices.has(colIndex);
+
+        if(shouldBeNumeric){
+          // Force conversion to number for weight and climate columns
+          const num = parseNumberLike(text);
+          if(Number.isFinite(num)){
             rowData.push(num);
           } else {
-            // Keep as text (e.g., "0001234", "123ABC", "1.5m")
-            rowData.push(text);
+            // If can't be parsed, use empty string instead of text
+            rowData.push(text === '' ? '' : num); // Will be NaN or empty
           }
         } else {
-          rowData.push(text);
+          // For other columns, use smart detection
+          const num = parseNumberLike(text);
+          if(Number.isFinite(num)){
+            // Check if converting back to string gives us the same value
+            // (handles cases like "123" vs "123ABC")
+            const normalizedOriginal = text.replace(/\s+/g, '').replace(',', '.');
+            const normalizedNum = String(num);
+
+            // Only use number if the normalized strings match
+            // This ensures "123" becomes number but "123ABC" stays as text
+            if(normalizedOriginal === normalizedNum ||
+               normalizedOriginal === normalizedNum + '.0' ||
+               normalizedOriginal === normalizedNum + ',0'){
+              rowData.push(num);
+            } else {
+              // Keep as text (e.g., "0001234", "123ABC", "1.5m")
+              rowData.push(text);
+            }
+          } else {
+            rowData.push(text);
+          }
         }
       });
       
@@ -3202,8 +3244,7 @@ function exportTableToExcel(){
   // Create worksheet from data
   const ws = window.XLSX.utils.aoa_to_sheet(exportData);
 
-  // Force text formatting for cells that should be text (e.g., cells with leading zeros)
-  // This prevents Excel from auto-converting "0001234" to 1234
+  // Apply formatting to cells
   const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1');
   for(let R = range.s.r; R <= range.e.r; ++R) {
     for(let C = range.s.c; C <= range.e.c; ++C) {
@@ -3211,13 +3252,24 @@ function exportTableToExcel(){
       const cell = ws[cellAddress];
       if(!cell) continue;
 
-      // If cell value is a string that looks like it should stay as text
-      if(typeof cell.v === 'string' && cell.v.length > 0) {
-        const str = cell.v;
-        // Check if string starts with zero, or contains letters after numbers
-        if(str.match(/^0\d/) || str.match(/^\d+[A-Za-z]/) || str.match(/^\d.*[^\d\s.,]/)) {
-          // Force this cell to be text type
-          cell.t = 's'; // 's' = string type
+      // Skip header row
+      if(R === range.s.r) continue;
+
+      // Check if this column should be formatted as decimal number
+      if(numericColumnIndices.has(C)){
+        // If it's a number, format it with 2 decimal places
+        if(cell.t === 'n'){
+          cell.z = '0.00'; // Excel number format for 2 decimals
+        }
+      } else {
+        // For non-numeric columns, check if string should stay as text
+        if(typeof cell.v === 'string' && cell.v.length > 0) {
+          const str = cell.v;
+          // Check if string starts with zero, or contains letters after numbers
+          if(str.match(/^0\d/) || str.match(/^\d+[A-Za-z]/) || str.match(/^\d.*[^\d\s.,]/)) {
+            // Force this cell to be text type
+            cell.t = 's'; // 's' = string type
+          }
         }
       }
     }
