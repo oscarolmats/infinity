@@ -9575,6 +9575,25 @@ function loadProject(file){
       if(hasCurrentExcelFile){
         // Excel file is already open - render from current Excel data and apply saved mappings
         console.log('🔄 Renderar tabell från aktuell Excel-fil och tillämpar sparade mappningar');
+
+        // If project has layer data, ensure "Skiktnamn" is in headers before rendering
+        if(layerData.size > 0 && !lastHeaders.includes('Skiktnamn')){
+          // Find where to insert "Skiktnamn" - before "Klimatresurs" if it exists, otherwise at end
+          const klimatIndex = lastHeaders.findIndex(h => h === 'Klimatresurs');
+          const insertIndex = klimatIndex !== -1 ? klimatIndex : lastHeaders.length;
+
+          lastHeaders.splice(insertIndex, 0, 'Skiktnamn');
+
+          // Also add empty cell to all rows in lastRows at the same position
+          lastRows.forEach(row => {
+            if(Array.isArray(row)){
+              row.splice(insertIndex, 0, '');
+            }
+          });
+
+          console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
+        }
+
         renderTableWithOptionalGrouping(lastRows);
 
         // Clean up old badges and layers before applying new ones
@@ -9582,6 +9601,20 @@ function loadProject(file){
           cleanupOldBadgesAndLayers();
           applySavedLayersAndClimate();
           debouncedUpdateClimateSummary();
+
+          // Update lastHeaders to include dynamically added columns like "Skiktnamn"
+          const table = getTable();
+          if(table){
+            const thead = table.querySelector('thead');
+            if(thead){
+              const headerRow = thead.querySelector('tr:first-child');
+              if(headerRow){
+                const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
+                lastHeaders = updatedHeaders;
+                console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
+              }
+            }
+          }
         }, 100);
 
         // Show info to user
@@ -9593,6 +9626,21 @@ function loadProject(file){
         console.log('🔄 Återställer sparad tabellstruktur från projekt');
         output.innerHTML = projectData.tableHTML;
 
+        // Update lastHeaders to match the restored table (includes dynamic columns like "Skiktnamn")
+        const table = getTable();
+        if(table){
+          const thead = table.querySelector('thead');
+          if(thead){
+            const headerRow = thead.querySelector('tr:first-child');
+            if(headerRow){
+              // Extract headers from restored table (skip first action column)
+              const restoredHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
+              lastHeaders = restoredHeaders;
+              console.log('📋 Updated lastHeaders from restored table:', lastHeaders.length, 'columns');
+            }
+          }
+        }
+
         // Re-attach event listeners to the restored table
         reattachTableEventListeners();
 
@@ -9601,6 +9649,25 @@ function loadProject(file){
       } else {
         // Fallback for older project files - render table normally
         console.log('🔄 Återställer tabell från rådata (äldre format)');
+
+        // If project has layer data, ensure "Skiktnamn" is in headers before rendering
+        if(layerData.size > 0 && !lastHeaders.includes('Skiktnamn')){
+          // Find where to insert "Skiktnamn" - before "Klimatresurs" if it exists, otherwise at end
+          const klimatIndex = lastHeaders.findIndex(h => h === 'Klimatresurs');
+          const insertIndex = klimatIndex !== -1 ? klimatIndex : lastHeaders.length;
+
+          lastHeaders.splice(insertIndex, 0, 'Skiktnamn');
+
+          // Also add empty cell to all rows in lastRows at the same position
+          lastRows.forEach(row => {
+            if(Array.isArray(row)){
+              row.splice(insertIndex, 0, '');
+            }
+          });
+
+          console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
+        }
+
         renderTableWithOptionalGrouping(lastRows);
 
         // Clean up old badges and layers before applying new ones
@@ -9608,6 +9675,20 @@ function loadProject(file){
           cleanupOldBadgesAndLayers();
           applySavedLayersAndClimate();
           debouncedUpdateClimateSummary();
+
+          // Update lastHeaders to include dynamically added columns like "Skiktnamn"
+          const table = getTable();
+          if(table){
+            const thead = table.querySelector('thead');
+            if(thead){
+              const headerRow = thead.querySelector('tr:first-child');
+              if(headerRow){
+                const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
+                lastHeaders = updatedHeaders;
+                console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
+              }
+            }
+          }
         }, 100);
       }
       
