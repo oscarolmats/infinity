@@ -1884,10 +1884,14 @@ function ensureColumnFilters(){
     filterRow.setAttribute('data-filter-row', 'true');
     for(let i=0;i<colCount;i++){
       const th = document.createElement('th');
-      const input = document.createElement('input');
-      input.type = 'search'; input.placeholder = 'Filter...'; input.style.width = '100%';
-      input.dataset.colIndex = String(i);
-      th.appendChild(input); filterRow.appendChild(th);
+      // Skip filter input for first column (action buttons)
+      if(i !== 0){
+        const input = document.createElement('input');
+        input.type = 'search'; input.placeholder = 'Filter...'; input.style.width = '100%';
+        input.dataset.colIndex = String(i);
+        th.appendChild(input);
+      }
+      filterRow.appendChild(th);
     }
     thead.appendChild(filterRow);
   }
@@ -1935,7 +1939,11 @@ function applyFilters(){
       const text = tr.textContent.toLowerCase();
       const globalOk = !globalQ || text.includes(globalQ);
       const colsOk = colQueries.every((q, idx) => {
-        if(!q) return true; const td = cells[idx]; const cellText = (td ? td.textContent : '').toLowerCase(); return cellText.includes(q);
+        if(!q) return true;
+        // Add 1 to idx because first column (index 0) has no filter
+        const td = cells[idx + 1];
+        const cellText = (td ? td.textContent : '').toLowerCase();
+        return cellText.includes(q);
       });
       return globalOk && colsOk;
     }

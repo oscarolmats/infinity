@@ -35,16 +35,22 @@
       padding: 8px 12px;
       border: 1px solid #e5e7eb;
     }
-    table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; box-shadow: 0 0 0 1px #e5e7eb; border-radius: 6px; }
     th, td { border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 6px 8px; font-size: 0.85rem; }
-    th { position: sticky; top: 130px; background: #ffffff; z-index: 2; text-align: left; font-weight: 600; color: #374151; }
+    th { text-align: left; font-weight: 600; color: #374151; }
+    /* Main column headers */
+    thead tr:first-child th { position: sticky !important; top: 130px !important; background: #ffffff; z-index: 9 !important; }
+    /* Filter row below headers */
+    thead tr[data-filter-row="true"] th { position: sticky !important; top: 165px !important; background: #ffffff; z-index: 9 !important; padding: 4px; }
     thead tr { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     thead th { border-top: 1px solid #e5e7eb; }
     thead th:first-child { border-top-left-radius: 12px; }
     thead th:last-child { border-top-right-radius: 12px; }
     thead th:hover { background: #f8fafc; }
-    thead th:first-child, tbody td:first-child { position: sticky; left: 0; background: #fff; z-index: 5; width: 1%; white-space: nowrap; }
-    thead th:first-child { z-index: 12; top: 130px; }
+    tbody td:first-child { position: sticky !important; left: 0; background: #fff; z-index: 8; width: 140px; min-width: 140px; white-space: nowrap; }
+    thead th:first-child { position: sticky !important; left: 0; background: #fff; width: 140px; min-width: 140px; white-space: nowrap; }
+    thead tr:first-child th:first-child { z-index: 30 !important; top: 130px !important; }
+    thead tr[data-filter-row="true"] th:first-child { z-index: 30 !important; top: 165px !important; }
     /* Zebra rows via classes for correct alternation with hidden rows */
     tbody tr.zebra-even td { background: #f8fafc; }
     tbody tr.zebra-odd td { background: #eef2f7; }
@@ -53,7 +59,6 @@
     /* Keep action cell content tight */
     td:first-child > * { gap: 2px; }
     table tbody tr:hover td { background: #e8eef7; }
-    table { box-shadow: 0 0 0 1px #e5e7eb; border-radius: 6px; overflow: hidden; }
     .ag-resize-handle { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; user-select: none; }
     thead th.ag-sort-asc::after { content: '▲'; font-size: 10px; margin-left: 6px; color: #6b7280; }
     thead th.ag-sort-desc::after { content: '▼'; font-size: 10px; margin-left: 6px; color: #6b7280; }
@@ -448,7 +453,11 @@
   </div>
 
   <div class="container">
-    <h1>INFINITY</h1>
+    <h1 style="display: flex; align-items: baseline; gap: 8px;">
+      <span style="line-height: 1;">INFINITY</span>
+      <span style="font-size: 0.5em; color: #666; font-weight: 400; line-height: 1;">by</span>
+      <img src="intecloggokonsultregistret6.webp" alt="intecloggokonsultregistret6" style="height: 0.6em; align-self: baseline;">
+    </h1>
     <div class="picker">
       <input id="fileInput" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"/>
       <input id="filterInput" class="filter" type="search" placeholder="Filtrera rader..." />
