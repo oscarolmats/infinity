@@ -455,6 +455,10 @@
         <span class="climate-summary-label">EPD-andel:</span>
         <span class="climate-summary-value">0.0%</span>
       </div>
+      <div class="climate-summary-item" id="summaryBtaPerM2" style="display: none;">
+        <span class="climate-summary-label">Per m² BTA:</span>
+        <span class="climate-summary-value" id="summaryBtaValue">0.00 kg CO₂e/m²</span>
+      </div>
     </div>
   </div>
 
@@ -483,6 +487,8 @@
       <input id="filterInput" class="filter" type="search" placeholder="Filtrera rader..." />
       <label for="groupBy" class="muted">Gruppera efter:</label>
       <select id="groupBy"></select>
+      <label for="btaInput" class="muted" style="margin-left: 1rem;">BTA-yta (m²):</label>
+      <input id="btaInput" type="number" min="0" step="0.01" placeholder="0" style="width: 100px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 9999px;" />
       <button id="toggleAllBtn" type="button">Fäll ihop alla</button>
       <button id="addRowBtn" type="button" style="background:#607d8b; color:white;">Lägg till rad</button>
       <button id="exportBtn" type="button" style="background:#607d8b; color:white;">Exportera till Excel</button>
@@ -492,7 +498,6 @@
       <button id="saveAsProjectBtn" type="button" style="background:#607d8b; color:white;">Spara som...</button>
       <button id="loadProjectBtn" type="button" style="background:#607d8b; color:white;">Öppna projekt</button>
       <button id="applyLayerToSelectedBtn" type="button" style="background:#10b981; color:white; display:none;">📋 Applicera skiktning på valda (<span id="selectedCount">0</span>)</button>
-      <button id="testProgressBtn" type="button" style="background:#ff9800; color:white;">Testa Progress Bar</button>
       <input id="projectFileInput" type="file" accept=".json,application/json" style="display:none;" />
     </div>
     <div id="output"></div>

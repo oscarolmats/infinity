@@ -2921,6 +2921,15 @@ fileInput.addEventListener('click', function(e) {
 
 fileInput.addEventListener('change', function(){ const file = this.files && this.files[0]; if(!file) return; handleFile(file); });
 if(filterInput){ filterInput.addEventListener('input', applyFilters); }
+
+// Add event listener for BTA input to update climate summary
+const btaInput = document.getElementById('btaInput');
+if(btaInput){
+  btaInput.addEventListener('input', function(){
+    debouncedUpdateClimateSummary();
+  });
+}
+
 // Track hovered table row and open layering modal with 's'
 let hoveredTableRow = null;
 function installHoverRowTracking(table){
@@ -9368,6 +9377,22 @@ function updateClimateSummary(){
       summaryEpdPercent.querySelector('.climate-summary-value').textContent = `${epdPercent.toFixed(1)}%`;
     } else {
       summaryEpdPercent.style.display = 'none';
+    }
+  }
+
+  // Update BTA per m² display
+  const btaInput = document.getElementById('btaInput');
+  const summaryBtaPerM2 = document.getElementById('summaryBtaPerM2');
+  const summaryBtaValue = document.getElementById('summaryBtaValue');
+
+  if(btaInput && summaryBtaPerM2 && summaryBtaValue){
+    const btaArea = parseFloat(btaInput.value);
+    if(btaArea && btaArea > 0 && total > 0){
+      const perM2 = total / btaArea;
+      summaryBtaPerM2.style.display = 'flex';
+      summaryBtaValue.textContent = `${perM2.toFixed(2)} kg CO₂e/m²`;
+    } else {
+      summaryBtaPerM2.style.display = 'none';
     }
   }
 }
