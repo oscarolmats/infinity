@@ -1896,94 +1896,104 @@ function ensureColumnFilters(){
 
 function applyFilters(){
   const table = getTable(); if(!table) return;
-  
-  // Show progress bar for large datasets
+
+  // Check if we should show progress bar for large datasets
   const tbody = table.querySelector('tbody');
+  let shouldShowProgress = false;
   if(tbody) {
     const allRows = Array.from(tbody.querySelectorAll('tr'));
-    if(allRows.length > 100) {
-      showProgressBar('Filtrerar data...');
-    }
-  }
-  const globalQ = (filterInput && filterInput.value || '').toLowerCase().trim();
-  const colInputs = ensureColumnFilters();
-  const colQueries = colInputs.map(inp => (inp.value || '').toLowerCase().trim());
-  const rows = Array.from(table.querySelectorAll('tbody tr'));
-
-  const groupParents = rows.filter(r => r.hasAttribute('data-group-key'));
-  const layerParents = rows.filter(r => r.hasAttribute('data-layer-key'));
-  const childrenByGroup = new Map();
-  const childrenByLayer = new Map();
-  
-  rows.forEach(r => {
-    const groupOf = r.getAttribute('data-group-child-of');
-    const parentKey = r.getAttribute('data-parent-key');
-    if(groupOf && !r.hasAttribute('data-layer-child-of')){ 
-      if(!childrenByGroup.has(groupOf)) childrenByGroup.set(groupOf, []); 
-      childrenByGroup.get(groupOf).push(r); 
-    }
-    if(parentKey){ 
-      if(!childrenByLayer.has(parentKey)) childrenByLayer.set(parentKey, []); 
-      childrenByLayer.get(parentKey).push(r); 
-    }
-  });
-
-  function rowMatches(tr){
-    const cells = Array.from(tr.children);
-    const text = tr.textContent.toLowerCase();
-    const globalOk = !globalQ || text.includes(globalQ);
-    const colsOk = colQueries.every((q, idx) => {
-      if(!q) return true; const td = cells[idx]; const cellText = (td ? td.textContent : '').toLowerCase(); return cellText.includes(q);
-    });
-    return globalOk && colsOk;
+    shouldShowProgress = allRows.length > 100;
   }
 
-  rows.forEach(tr => { tr.style.display = ''; });
+  // Function to perform the actual filtering
+  function performFiltering() {
+    const globalQ = (filterInput && filterInput.value || '').toLowerCase().trim();
+    const colInputs = ensureColumnFilters();
+    const colQueries = colInputs.map(inp => (inp.value || '').toLowerCase().trim());
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
 
-  // Handle group parents (respect collapsed state)
-  groupParents.forEach(parent => {
-    const key = parent.getAttribute('data-group-key');
-    const kids = childrenByGroup.get(key) || [];
-    const parentMatch = rowMatches(parent);
-    const anyChildMatch = kids.some(rowMatches);
-    const showParent = parentMatch || anyChildMatch;
-    const isOpen = parent.getAttribute('data-open') !== 'false';
-    parent.style.display = showParent ? '' : 'none';
-    kids.forEach(k => { k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none'; });
-  });
+    const groupParents = rows.filter(r => r.hasAttribute('data-group-key'));
+    const layerParents = rows.filter(r => r.hasAttribute('data-layer-key'));
+    const childrenByGroup = new Map();
+    const childrenByLayer = new Map();
 
-  // Handle layer parents (respect collapsed state)
-  layerParents.forEach(parent => {
-    const key = parent.getAttribute('data-layer-key');
-    const kids = childrenByLayer.get(key) || [];
-    const parentMatch = rowMatches(parent);
-    const anyChildMatch = kids.some(rowMatches);
-    const showParent = parentMatch || anyChildMatch;
-    const isOpen = parent.getAttribute('data-open') !== 'false';
-    if(parent.style.display !== 'none'){ // Don't override group visibility
-      parent.style.display = showParent ? '' : 'none';
-    }
-    kids.forEach(k => { 
-      if(k.style.display !== 'none'){ // Don't override group visibility
-        k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none'; 
+    rows.forEach(r => {
+      const groupOf = r.getAttribute('data-group-child-of');
+      const parentKey = r.getAttribute('data-parent-key');
+      if(groupOf && !r.hasAttribute('data-layer-child-of')){
+        if(!childrenByGroup.has(groupOf)) childrenByGroup.set(groupOf, []);
+        childrenByGroup.get(groupOf).push(r);
+      }
+      if(parentKey){
+        if(!childrenByLayer.has(parentKey)) childrenByLayer.set(parentKey, []);
+        childrenByLayer.get(parentKey).push(r);
       }
     });
-  });
 
-  // Handle rows that are neither parents nor grouped children
-  rows.filter(r => !r.hasAttribute('data-group-key') && !r.hasAttribute('data-group-child-of') && !r.hasAttribute('data-layer-key') && !r.hasAttribute('data-parent-key'))
-      .forEach(tr => { tr.style.display = rowMatches(tr) ? '' : 'none'; });
-  
-  // Update climate summary after filtering
-  debouncedUpdateClimateSummary();
-  
-  // Update climate mapping indicators
-  updateAllClimateMappingIndicators();
-  // Recompute zebra stripes for visible rows
-  recomputeZebraStripes();
-  
-  // Hide progress bar
-  hideProgressBar();
+    function rowMatches(tr){
+      const cells = Array.from(tr.children);
+      const text = tr.textContent.toLowerCase();
+      const globalOk = !globalQ || text.includes(globalQ);
+      const colsOk = colQueries.every((q, idx) => {
+        if(!q) return true; const td = cells[idx]; const cellText = (td ? td.textContent : '').toLowerCase(); return cellText.includes(q);
+      });
+      return globalOk && colsOk;
+    }
+
+    rows.forEach(tr => { tr.style.display = ''; });
+
+    // Handle group parents (respect collapsed state)
+    groupParents.forEach(parent => {
+      const key = parent.getAttribute('data-group-key');
+      const kids = childrenByGroup.get(key) || [];
+      const parentMatch = rowMatches(parent);
+      const anyChildMatch = kids.some(rowMatches);
+      const showParent = parentMatch || anyChildMatch;
+      const isOpen = parent.getAttribute('data-open') !== 'false';
+      parent.style.display = showParent ? '' : 'none';
+      kids.forEach(k => { k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none'; });
+    });
+
+    // Handle layer parents (respect collapsed state)
+    layerParents.forEach(parent => {
+      const key = parent.getAttribute('data-layer-key');
+      const kids = childrenByLayer.get(key) || [];
+      const parentMatch = rowMatches(parent);
+      const anyChildMatch = kids.some(rowMatches);
+      const showParent = parentMatch || anyChildMatch;
+      const isOpen = parent.getAttribute('data-open') !== 'false';
+      if(parent.style.display !== 'none'){ // Don't override group visibility
+        parent.style.display = showParent ? '' : 'none';
+      }
+      kids.forEach(k => {
+        if(k.style.display !== 'none'){ // Don't override group visibility
+          k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none';
+        }
+      });
+    });
+
+    // Handle rows that are neither parents nor grouped children
+    rows.filter(r => !r.hasAttribute('data-group-key') && !r.hasAttribute('data-group-child-of') && !r.hasAttribute('data-layer-key') && !r.hasAttribute('data-parent-key'))
+        .forEach(tr => { tr.style.display = rowMatches(tr) ? '' : 'none'; });
+
+    // Update climate summary after filtering
+    debouncedUpdateClimateSummary();
+
+    // Update climate mapping indicators
+    updateAllClimateMappingIndicators();
+    // Recompute zebra stripes for visible rows
+    recomputeZebraStripes();
+
+    // Hide progress bar
+    hideProgressBar();
+  }
+
+  // Show progress bar with callback if needed, otherwise just run filtering
+  if(shouldShowProgress) {
+    showProgressBar('Filtrerar data...', performFiltering);
+  } else {
+    performFiltering();
+  }
 }
 // Apply zebra classes to visible tbody rows so alternation is correct
 function recomputeZebraStripes(){
@@ -2532,16 +2542,16 @@ function isNumericOnlyColumn(rows, columnIndex){
 
 function renderTableWithOptionalGrouping(rows){
   if(!rows || rows.length === 0){ output.innerHTML = '<div>Ingen data att visa.</div>'; return; }
-  
-  // Show progress bar for large datasets
-  if(rows.length > 50) {
-    showProgressBar('Grupperar data...');
-  }
-  const headers = rows[0];
-  lastHeaders = headers; // Store headers for project save/load
-  const bodyRows = rows.slice(1);
-  const selected = groupBySelect ? groupBySelect.value : '';
-  const groupIdx = selected === '' ? -1 : parseInt(selected, 10);
+
+  // Check if we should show progress bar for large datasets
+  const shouldShowProgress = rows.length > 50;
+
+  function performRendering() {
+    const headers = rows[0];
+    lastHeaders = headers; // Store headers for project save/load
+    const bodyRows = rows.slice(1);
+    const selected = groupBySelect ? groupBySelect.value : '';
+    const groupIdx = selected === '' ? -1 : parseInt(selected, 10);
 
   if(groupIdx === -1 || Number.isNaN(groupIdx)){
     const table = document.createElement('table');
@@ -2731,13 +2741,21 @@ function renderTableWithOptionalGrouping(rows){
     climateEntryCount++;
   });
   
-  // Save initial state after table is rendered (but not during restore)
-  if(!isRestoringState && undoStack.length === 0){
-    setTimeout(() => saveState(), 200);
+    // Save initial state after table is rendered (but not during restore)
+    if(!isRestoringState && undoStack.length === 0){
+      setTimeout(() => saveState(), 200);
+    }
+
+    // Hide progress bar
+    hideProgressBar();
   }
-  
-  // Hide progress bar
-  hideProgressBar();
+
+  // Show progress bar with callback if needed, otherwise just run rendering
+  if(shouldShowProgress) {
+    showProgressBar('Grupperar data...', performRendering);
+  } else {
+    performRendering();
+  }
 }
 
 function handleFile(file){
@@ -5093,15 +5111,15 @@ if(layerApplyBtn){
     
     // Save state before layering
     saveState();
-    
-    // Show progress bar immediately
-    showProgressBar('Skiktar objekt...');
-    
+
     // Get layer names and climate resources
     const { layerNames, climateResources, climateTypes, climateFactors } = getLayerNamesAndClimateResources();
 
-    applyLayerSplit(count, thicknesses, mixedLayerConfigs, layerNames, climateResources, climateTypes, climateFactors);
-    closeLayerModal();
+    // Show progress bar with callback to ensure it renders before heavy operation
+    showProgressBar('Skiktar objekt...', () => {
+      applyLayerSplit(count, thicknesses, mixedLayerConfigs, layerNames, climateResources, climateTypes, climateFactors);
+      closeLayerModal();
+    });
   });
 }
 
@@ -7090,16 +7108,21 @@ function openGroupParentByKey(groupKey, tbody){
 
 function applyClimateResource(resource){
   if(!climateTarget){ return; }
-  
-  showProgressBar('Mappar klimatresurs...');
-  
+
   // Save climateTarget because it might be cleared if modals close
   const savedClimateTarget = climateTarget;
-  
-  const table = getTable(); if(!table) return;
-  const thead = table.querySelector('thead'); if(!thead) return;
-  const tbody = table.querySelector('tbody'); if(!tbody) return;
-  
+
+  // Show progress bar with callback to ensure it renders before heavy operation
+  showProgressBar('Mappar klimatresurs...', () => {
+    const table = getTable(); if(!table) { hideProgressBar(); return; }
+    const thead = table.querySelector('thead'); if(!thead) { hideProgressBar(); return; }
+    const tbody = table.querySelector('tbody'); if(!tbody) { hideProgressBar(); return; }
+
+    performClimateResourceMapping(resource, savedClimateTarget, table, thead, tbody);
+  });
+}
+
+function performClimateResourceMapping(resource, savedClimateTarget, table, thead, tbody){
   // Check if "Klimatresurs", "Omräkningsfaktor", "Omräkningsfaktor enhet" and "Avfallsfaktor" columns already exist
   const headerRow = thead.querySelector('tr');
   const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
@@ -7324,23 +7347,57 @@ function updateAllClimateMappingIndicators() {
 }
 
 // Progress Bar Functions
-function showProgressBar(text = 'Bearbetar...') {
+function showProgressBar(text = 'Bearbetar...', callback = null) {
   const progressBar = document.getElementById('progressBar');
+  const loadingOverlay = document.getElementById('loadingOverlay');
   const progressText = progressBar?.querySelector('.progress-bar-text');
-  if(progressBar) {
+  const progressFill = progressBar?.querySelector('.progress-bar-fill');
+
+  if(progressBar && loadingOverlay) {
+    // Reset progress fill to 0
+    if(progressFill) {
+      progressFill.style.width = '0%';
+    }
+
+    // Show overlay and progress bar
+    loadingOverlay.style.display = 'block';
     progressBar.style.display = 'block';
+
     if(progressText) {
       progressText.textContent = text;
     }
+
+    // Force a reflow to ensure the browser renders the progress bar
+    // before any heavy operations start
+    progressBar.offsetHeight;
+
+    // Use requestAnimationFrame to ensure rendering happens
+    if(callback) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          callback();
+        });
+      });
+    }
   } else {
-    console.error('❌ Progress bar element not found!');
+    console.error('❌ Progress bar or overlay element not found!');
+    // If progress bar failed, still run the callback
+    if(callback) {
+      callback();
+    }
   }
 }
 
 function hideProgressBar() {
   const progressBar = document.getElementById('progressBar');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+
   if(progressBar) {
     progressBar.style.display = 'none';
+  }
+
+  if(loadingOverlay) {
+    loadingOverlay.style.display = 'none';
   }
 }
 
@@ -7348,13 +7405,18 @@ function updateProgressBar(percent, text = null) {
   const progressBar = document.getElementById('progressBar');
   const progressFill = progressBar?.querySelector('.progress-bar-fill');
   const progressText = progressBar?.querySelector('.progress-bar-text');
-  
+
   if(progressFill) {
     progressFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
   }
-  
+
   if(text && progressText) {
     progressText.textContent = text;
+  }
+
+  // Force reflow to ensure update is visible
+  if(progressFill) {
+    progressFill.offsetHeight;
   }
 }
 
