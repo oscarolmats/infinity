@@ -3165,14 +3165,29 @@ function exportTableToExcel(){
       cells.forEach((td, index) => {
         // Skip first column (action buttons)
         if(index === 0) return;
-        
+
         // Get clean text content
         let text = td.textContent.trim();
-        
-        // Try to parse as number for better Excel formatting
+
+        // Only convert to number if the ENTIRE string is numeric
+        // This preserves text like "0001234", "123ABC", "1.5 meter" as text
         const num = parseNumberLike(text);
         if(Number.isFinite(num)){
-          rowData.push(num);
+          // Check if converting back to string gives us the same value
+          // (handles cases like "123" vs "123ABC")
+          const normalizedOriginal = text.replace(/\s+/g, '').replace(',', '.');
+          const normalizedNum = String(num);
+
+          // Only use number if the normalized strings match
+          // This ensures "123" becomes number but "123ABC" stays as text
+          if(normalizedOriginal === normalizedNum ||
+             normalizedOriginal === normalizedNum + '.0' ||
+             normalizedOriginal === normalizedNum + ',0'){
+            rowData.push(num);
+          } else {
+            // Keep as text (e.g., "0001234", "123ABC", "1.5m")
+            rowData.push(text);
+          }
         } else {
           rowData.push(text);
         }
@@ -3186,7 +3201,28 @@ function exportTableToExcel(){
   
   // Create worksheet from data
   const ws = window.XLSX.utils.aoa_to_sheet(exportData);
-  
+
+  // Force text formatting for cells that should be text (e.g., cells with leading zeros)
+  // This prevents Excel from auto-converting "0001234" to 1234
+  const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for(let R = range.s.r; R <= range.e.r; ++R) {
+    for(let C = range.s.c; C <= range.e.c; ++C) {
+      const cellAddress = window.XLSX.utils.encode_cell({r: R, c: C});
+      const cell = ws[cellAddress];
+      if(!cell) continue;
+
+      // If cell value is a string that looks like it should stay as text
+      if(typeof cell.v === 'string' && cell.v.length > 0) {
+        const str = cell.v;
+        // Check if string starts with zero, or contains letters after numbers
+        if(str.match(/^0\d/) || str.match(/^\d+[A-Za-z]/) || str.match(/^\d.*[^\d\s.,]/)) {
+          // Force this cell to be text type
+          cell.t = 's'; // 's' = string type
+        }
+      }
+    }
+  }
+
   // Add worksheet to workbook
   window.XLSX.utils.book_append_sheet(wb, ws, 'Data');
   
