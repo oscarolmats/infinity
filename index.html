@@ -575,6 +575,29 @@
 
         <!-- Left Column: Search and List -->
         <div style="flex:1; min-width:350px;">
+          <!-- Database Toggle -->
+          <div style="margin-bottom:16px;">
+            <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
+              Välj databas
+            </label>
+            <div style="display:flex; gap:8px;">
+              <button
+                id="toggleBoverket"
+                type="button"
+                style="flex:1; padding:10px; border:2px solid #2196f3; background:#2196f3; color:white; border-radius:6px; font-weight:600; cursor:pointer; transition:all 0.2s;"
+              >
+                🇸🇪 Boverket
+              </button>
+              <button
+                id="toggleCo2data"
+                type="button"
+                style="flex:1; padding:10px; border:2px solid #ddd; background:white; color:#666; border-radius:6px; font-weight:600; cursor:pointer; transition:all 0.2s;"
+              >
+                🇫🇮 co2data.fi
+              </button>
+            </div>
+          </div>
+
           <!-- Search Box -->
           <div style="margin-bottom:16px;">
             <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
@@ -884,6 +907,9 @@
 
     // Store climate resources globally so they can be accessed when numbering
     window.climateResources = [];
+    window.boverketResources = [];
+    window.co2dataResources = [];
+    window.currentDatabase = 'boverket'; // 'boverket' or 'co2data'
 
     // Function to populate climate resources with categories
     function populateClimateResourcesWithCategories(resources) {
@@ -930,6 +956,130 @@
 
         climateResourceSelect.appendChild(optgroup);
       });
+    }
+
+    // Function to normalize co2data.fi structure to match Boverket
+    function normalizeCo2dataResource(resource) {
+      // Normalize Categories structure
+      if (resource.Categories && Array.isArray(resource.Categories)) {
+        resource.Categories = resource.Categories.map(cat => {
+          if (cat.Text) return cat; // Already in correct format
+          if (cat.Title) return { Text: cat.Title }; // Convert Title to Text
+          return { Text: String(cat) }; // Wrap string
+        });
+      } else {
+        resource.Categories = [{ Text: 'Övrigt' }];
+      }
+
+      // Ensure Name field exists (use Names.FI or Names.SV as fallback)
+      if (!resource.Name && resource.Names) {
+        resource.Name = resource.Names.FI || resource.Names.SV || 'Namnlös resurs';
+      }
+
+      // Normalize Conversions structure
+      if (resource.Conversions && Array.isArray(resource.Conversions)) {
+        resource.Conversions = resource.Conversions.map(conv => {
+          // co2data.fi uses Field/Unit/Value, Boverket uses Type/Unit/Value
+          return {
+            Type: conv.Field || conv.Type,
+            Unit: conv.Unit,
+            Value: conv.Value
+          };
+        });
+      }
+
+      // If no standard Conversions but has InventoryUnit, create a basic conversion
+      if ((!resource.Conversions || resource.Conversions.length === 0) && resource.InventoryUnit) {
+        resource.Conversions = [{ Unit: resource.InventoryUnit, Value: 1 }];
+      }
+
+      // Convert co2data.fi DataItems format to match Boverket if needed
+      // co2data.fi has DataItems with PropertyId, PropertyName, DataValueItems
+      // This should already be compatible, but ensure DataItems exists
+      if (!resource.DataItems && resource.A1A3Total_GWP !== undefined) {
+        // Create DataItems from direct GWP values
+        resource.DataItems = [{
+          PropertyId: 1,
+          PropertyName: 'Global Warming Potential',
+          PropertyUnitCode: `kg CO2e/${resource.InventoryUnit || 'kg'}`,
+          DataValueItems: []
+        }];
+
+        // Add all available GWP values
+        if (resource.A1A3Conservative_GWP !== undefined) {
+          resource.DataItems[0].DataValueItems.push({
+            DataModuleCode: 'A1-A3 Conservative',
+            Value: resource.A1A3Conservative_GWP
+          });
+        }
+        if (resource.A1A3Total_GWP !== undefined) {
+          resource.DataItems[0].DataValueItems.push({
+            DataModuleCode: 'A1-A3 Total',
+            Value: resource.A1A3Total_GWP
+          });
+        }
+        if (resource.A1A3Typical_GWP !== undefined) {
+          resource.DataItems[0].DataValueItems.push({
+            DataModuleCode: 'A1-A3 Typical',
+            Value: resource.A1A3Typical_GWP
+          });
+        }
+        if (resource.C3_GWP !== undefined) {
+          resource.DataItems[0].DataValueItems.push({
+            DataModuleCode: 'C3',
+            Value: resource.C3_GWP
+          });
+        }
+        if (resource.C4_GWP !== undefined) {
+          resource.DataItems[0].DataValueItems.push({
+            DataModuleCode: 'C4',
+            Value: resource.C4_GWP
+          });
+        }
+      }
+
+      return resource;
+    }
+
+    // Function to switch between databases
+    function switchDatabase(database) {
+      window.currentDatabase = database;
+
+      // Update toggle button styles
+      const boverketBtn = document.getElementById('toggleBoverket');
+      const co2dataBtn = document.getElementById('toggleCo2data');
+
+      if (database === 'boverket') {
+        boverketBtn.style.background = '#2196f3';
+        boverketBtn.style.color = 'white';
+        boverketBtn.style.borderColor = '#2196f3';
+
+        co2dataBtn.style.background = 'white';
+        co2dataBtn.style.color = '#666';
+        co2dataBtn.style.borderColor = '#ddd';
+
+        window.climateResources = window.boverketResources;
+      } else {
+        co2dataBtn.style.background = '#ff9800';
+        co2dataBtn.style.color = 'white';
+        co2dataBtn.style.borderColor = '#ff9800';
+
+        boverketBtn.style.background = 'white';
+        boverketBtn.style.color = '#666';
+        boverketBtn.style.borderColor = '#ddd';
+
+        window.climateResources = window.co2dataResources;
+      }
+
+      // Repopulate the dropdown
+      populateClimateResourcesWithCategories(window.climateResources);
+
+      // Clear search
+      if (climateSearchInput) {
+        climateSearchInput.value = '';
+      }
+
+      console.log(`Switched to ${database} database (${window.climateResources.length} resources)`);
     }
 
     // Search function for climate resources
@@ -1076,122 +1226,78 @@
       });
     }
 
-    fetch('https://api.boverket.se/klimatdatabas/v2/get-all-resources/senaste/sv/json')
-      .then(res =>{
-        return res.json();
-      })
-      .then(data =>{
-        console.log('API Response:', data); // Debug log
-        
-        // Update API indicator with success status
-        if(data && data.Resources && Array.isArray(data.Resources)){
-          const version = data.Version || 'Okänd version';
-          const publishedDate = data.PublishedDate ? new Date(data.PublishedDate).toLocaleDateString('sv-SE') : 'Okänt datum';
-          
-          apiIndicator.className = 'api-indicator connected';
-          apiIndicator.innerHTML = `
-            <div class="api-status">
-              <span class="api-status-dot connected"></span>
-              <span>Boverket API</span>
-            </div>
-            <div class="api-details">
-              Version: ${version}<br>
-              Publicerad: ${publishedDate}
-            </div>
-          `;
-          
-          // Store resources and populate dropdown with categories
-          window.climateResources = data.Resources;
+    // Attach toggle event listeners
+    document.getElementById('toggleBoverket').addEventListener('click', () => switchDatabase('boverket'));
+    document.getElementById('toggleCo2data').addEventListener('click', () => switchDatabase('co2data'));
 
-          // Add generic "Luft" resource
-          window.climateResources.push({
-            Name: 'Luft',
-            Categories: [{ Text: 'Generiska resurser' }],
-            Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
-            WasteFactor: 1,
-            Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
-            DataItems: [{
-              DataValueItems: [
-                { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
-                { DataModuleCode: 'A4', Value: 0 },
-                { DataModuleCode: 'A5.1', Value: 0 }
-              ]
-            }]
-          });
+    // Fetch both APIs in parallel
+    Promise.all([
+      fetch('https://api.boverket.se/klimatdatabas/api/Klimat/v2/GetAllResources/latest/sv/json')
+        .then(res => res.json())
+        .catch(err => {
+          console.error('Boverket API Error:', err);
+          return null;
+        }),
+      fetch('/api/co2data')  // Use backend proxy to avoid CORS
+        .then(res => res.json())
+        .catch(err => {
+          console.error('co2data.fi API Error:', err);
+          return null;
+        })
+    ]).then(([boverketData, co2dataFiData]) => {
+      console.log('Boverket API Response:', boverketData);
+      console.log('co2data.fi API Response:', co2dataFiData);
 
-          populateClimateResourcesWithCategories(window.climateResources);
-        } else if(Array.isArray(data)){
-          // Fallback: if data is directly an array
-          apiIndicator.className = 'api-indicator connected';
-          apiIndicator.innerHTML = `
-            <div class="api-status">
-              <span class="api-status-dot connected"></span>
-              <span>Boverket API</span>
-            </div>
-          `;
-          
-          window.climateResources = data;
+      // Process Boverket data
+      if(boverketData && boverketData.Resources && Array.isArray(boverketData.Resources)){
+        const version = boverketData.Version || 'Okänd version';
+        const publishedDate = boverketData.PublishedDate ? new Date(boverketData.PublishedDate).toLocaleDateString('sv-SE') : 'Okänt datum';
 
-          // Add generic "Luft" resource
-          window.climateResources.push({
-            Name: 'Luft',
-            Categories: [{ Text: 'Generiska resurser' }],
-            Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
-            WasteFactor: 1,
-            Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
-            DataItems: [{
-              DataValueItems: [
-                { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
-                { DataModuleCode: 'A4', Value: 0 },
-                { DataModuleCode: 'A5.1', Value: 0 }
-              ]
-            }]
-          });
+        apiIndicator.className = 'api-indicator connected';
+        apiIndicator.innerHTML = `
+          <div class="api-status">
+            <span class="api-status-dot connected"></span>
+            <span>Boverket</span>
+          </div>
+          <div class="api-details">
+            ${boverketData.Resources.length} resurser<br>
+            Ver: ${version}
+          </div>
+        `;
 
-          populateClimateResourcesWithCategories(window.climateResources);
-        } else {
-          apiIndicator.className = 'api-indicator error';
-          apiIndicator.innerHTML = `
-            <div class="api-status">
-              <span class="api-status-dot error"></span>
-              <span>API-fel</span>
-            </div>
-            <div class="api-details">Oväntat format</div>
-          `;
+        // Store Boverket resources
+        window.boverketResources = [...boverketData.Resources];
 
-          // Add generic "Luft" resource even on error
-          window.climateResources = [{
-            Name: 'Luft',
-            Categories: [{ Text: 'Generiska resurser' }],
-            Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
-            WasteFactor: 1,
-            Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
-            DataItems: [{
-              DataValueItems: [
-                { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
-                { DataModuleCode: 'A4', Value: 0 },
-                { DataModuleCode: 'A5.1', Value: 0 }
-              ]
-            }]
-          }];
-          populateClimateResourcesWithCategories(window.climateResources);
-        }
-      })
-      .catch(err =>{
-        console.error('API Error:', err);
+        // Add generic "Luft" resource to Boverket
+        window.boverketResources.push({
+          Name: 'Luft',
+          Categories: [{ Text: 'Generiska resurser' }],
+          Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
+          WasteFactor: 1,
+          Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
+          DataItems: [{
+            DataValueItems: [
+              { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
+              { DataModuleCode: 'A4', Value: 0 },
+              { DataModuleCode: 'A5.1', Value: 0 }
+            ]
+          }]
+        });
 
-        // Update API indicator with error status
+        console.log(`✅ Loaded ${window.boverketResources.length} Boverket resources`);
+      } else {
         apiIndicator.className = 'api-indicator error';
         apiIndicator.innerHTML = `
           <div class="api-status">
             <span class="api-status-dot error"></span>
-            <span>Anslutning misslyckades</span>
+            <span>Boverket</span>
           </div>
-          <div class="api-details">${err.message || 'Okänt fel'}</div>
+          <div class="api-details">Fel vid laddning</div>
         `;
+        console.warn('❌ Boverket API failed or returned unexpected format');
 
-        // Add generic "Luft" resource even on error
-        window.climateResources = [{
+        // Still add Luft resource even if Boverket fails
+        window.boverketResources = [{
           Name: 'Luft',
           Categories: [{ Text: 'Generiska resurser' }],
           Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
@@ -1205,8 +1311,90 @@
             ]
           }]
         }];
-        populateClimateResourcesWithCategories(window.climateResources);
-      });
+      }
+
+      // Process co2data.fi data
+      if(co2dataFiData && co2dataFiData.Resources && Array.isArray(co2dataFiData.Resources)){
+        const version = co2dataFiData.Version || 'Okänd version';
+
+        epdIndicator.className = 'api-indicator connected';
+        epdIndicator.innerHTML = `
+          <div class="api-status">
+            <span class="api-status-dot connected"></span>
+            <span>co2data.fi</span>
+          </div>
+          <div class="api-details">
+            ${co2dataFiData.Resources.length} resurser<br>
+            Ver: ${version}
+          </div>
+        `;
+
+        // Normalize and store co2data.fi resources
+        window.co2dataResources = co2dataFiData.Resources.map(resource => normalizeCo2dataResource(resource));
+
+        console.log(`✅ Loaded ${window.co2dataResources.length} co2data.fi resources`);
+      } else {
+        epdIndicator.className = 'api-indicator error';
+        epdIndicator.innerHTML = `
+          <div class="api-status">
+            <span class="api-status-dot error"></span>
+            <span>co2data.fi</span>
+          </div>
+          <div class="api-details">Fel vid laddning</div>
+        `;
+        console.warn('❌ co2data.fi API failed or returned unexpected format');
+        window.co2dataResources = [];
+      }
+
+      // Set active database (default to Boverket)
+      window.climateResources = window.boverketResources;
+      window.currentDatabase = 'boverket';
+
+      // Populate dropdown with default database (Boverket)
+      populateClimateResourcesWithCategories(window.climateResources);
+
+      console.log(`📊 Total: Boverket=${window.boverketResources.length}, co2data.fi=${window.co2dataResources.length}`);
+    }).catch(err => {
+      console.error('Critical API Error:', err);
+
+      // Update API indicator with error status
+      apiIndicator.className = 'api-indicator error';
+      apiIndicator.innerHTML = `
+        <div class="api-status">
+          <span class="api-status-dot error"></span>
+          <span>Boverket</span>
+        </div>
+        <div class="api-details">Anslutning misslyckades</div>
+      `;
+
+      epdIndicator.className = 'api-indicator error';
+      epdIndicator.innerHTML = `
+        <div class="api-status">
+          <span class="api-status-dot error"></span>
+          <span>co2data.fi</span>
+        </div>
+        <div class="api-details">Anslutning misslyckades</div>
+      `;
+
+      // Add generic "Luft" resource as fallback
+      window.climateResources = [{
+        Name: 'Luft',
+        Categories: [{ Text: 'Generiska resurser' }],
+        Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
+        WasteFactor: 1,
+        Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
+        DataItems: [{
+          DataValueItems: [
+            { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
+            { DataModuleCode: 'A4', Value: 0 },
+            { DataModuleCode: 'A5.1', Value: 0 }
+          ]
+        }]
+      }];
+      window.boverketResources = window.climateResources;
+      window.co2dataResources = [];
+      populateClimateResourcesWithCategories(window.climateResources);
+    });
     
     // EPD files will be loaded by app.js after it initializes
     

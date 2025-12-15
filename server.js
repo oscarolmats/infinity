@@ -72,6 +72,18 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// Proxy endpoint for co2data.fi API (to avoid CORS)
+app.get('/api/co2data', async (req, res) => {
+  try {
+    const response = await fetch('https://co2data.fi/api/co2data_construction.json');
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('co2data.fi API Error:', error);
+    res.status(500).json({ error: 'Failed to fetch co2data.fi data', message: error.message });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
