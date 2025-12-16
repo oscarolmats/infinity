@@ -42,10 +42,30 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../index.html'));
 });
 
+// Proxy endpoint for co2data.fi API (to avoid CORS)
+app.get('/api/co2data', async (req, res) => {
+  try {
+    const response = await fetch('https://co2data.fi/api/co2data_construction.json');
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('co2data.fi API Error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch co2data.fi data',
+      message: error.message
+    });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     message: 'Server is running on Vercel',
     timestamp: new Date().toISOString()
   });
@@ -99,3 +119,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
 // Export för Vercel
 module.exports = app;
+
+// Start server if running directly (not in Vercel)
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server körs på http://localhost:${PORT}`);
+  });
+}

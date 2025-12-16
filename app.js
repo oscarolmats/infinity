@@ -1379,9 +1379,6 @@ function updateLayerParentSums(parentTr, tbody){
 
   console.log('✅ [updateLayerParentSums] Updated parent sums - Inbyggd:', sumInbyggdVikt.toFixed(2), 'Inkopt:', sumInkoptVikt.toFixed(2), 'A1-A3:', sumKlimatA1A3.toFixed(2), 'A4:', sumKlimatA4.toFixed(2), 'A5:', sumKlimatA5.toFixed(2));
 
-  // Fill parent row with common values from children
-  fillParentRowsWithCommonValues(tbody);
-
   // IMPORTANT: Verify the cell value right after setting it
   setTimeout(() => {
     const verifyCell = parentCells[klimatA1A3ColIndex];
@@ -1433,24 +1430,17 @@ function applySavedClimate(tr, rowData){
     
     const headerRow = thead.querySelector('tr');
     const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
-    const existingClimateTypeHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs typ');
     const existingFactorHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor');
     const existingUnitHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor enhet');
     const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Spillfaktor');
     const existingA1_A3Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A1-A3');
     const existingA4Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A4');
     const existingA5Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A5');
-
+    
     if(!existingClimateHeader){
       const climateTh = document.createElement('th');
       climateTh.textContent = 'Klimatresurs';
       headerRow.appendChild(climateTh);
-    }
-
-    if(!existingClimateTypeHeader){
-      const climateTypeTh = document.createElement('th');
-      climateTypeTh.textContent = 'Klimatresurs typ';
-      headerRow.appendChild(climateTypeTh);
     }
     
     if(!existingFactorHeader){
@@ -1639,19 +1629,7 @@ function applySavedClimate(tr, rowData){
       climateTd.setAttribute('data-climate-cell', 'true');
       tr.appendChild(climateTd);
     }
-
-    // Add climate type cell (Boverket = "Generisk klimatresurs", others = "EPD")
-    const climateType = isCustom ? 'EPD' : 'Generisk klimatresurs';
-    const existingClimateTypeCell = tr.querySelector('td[data-climate-type-cell="true"]');
-    if(existingClimateTypeCell){
-      existingClimateTypeCell.textContent = climateType;
-    } else {
-      const climateTypeTd = document.createElement('td');
-      climateTypeTd.textContent = climateType;
-      climateTypeTd.setAttribute('data-climate-type-cell', 'true');
-      tr.appendChild(climateTypeTd);
-    }
-
+    
     const existingFactorCell = tr.querySelector('td[data-factor-cell="true"]');
     if(existingFactorCell){
       existingFactorCell.textContent = conversionFactor;
@@ -1741,8 +1719,8 @@ function applySavedClimate(tr, rowData){
     if(inbyggdVikt !== 'N/A' && a1a3Factor !== 'N/A' && Number.isFinite(parseFloat(a1a3Factor))){
       klimatA1A3 = inbyggdVikt * parseFloat(a1a3Factor);
     }
-
-    // Klimatpåverkan A4 = Inbyggd vikt * Emissionsfaktor A4
+    
+    // Klimatpåverkan A4 = Inköpt vikt * Emissionsfaktor A4
     if(inbyggdVikt !== 'N/A' && a4Factor !== 'N/A' && Number.isFinite(parseFloat(a4Factor))){
       klimatA4 = inbyggdVikt * parseFloat(a4Factor);
     }
@@ -1887,14 +1865,10 @@ function ensureColumnFilters(){
     filterRow.setAttribute('data-filter-row', 'true');
     for(let i=0;i<colCount;i++){
       const th = document.createElement('th');
-      // Skip filter input for first column (action buttons)
-      if(i !== 0){
-        const input = document.createElement('input');
-        input.type = 'search'; input.placeholder = 'Filter...'; input.style.width = '100%';
-        input.dataset.colIndex = String(i);
-        th.appendChild(input);
-      }
-      filterRow.appendChild(th);
+      const input = document.createElement('input');
+      input.type = 'search'; input.placeholder = 'Filter...'; input.style.width = '100%';
+      input.dataset.colIndex = String(i);
+      th.appendChild(input); filterRow.appendChild(th);
     }
     thead.appendChild(filterRow);
   }
@@ -1903,108 +1877,94 @@ function ensureColumnFilters(){
 
 function applyFilters(){
   const table = getTable(); if(!table) return;
-
-  // Check if we should show progress bar for large datasets
+  
+  // Show progress bar for large datasets
   const tbody = table.querySelector('tbody');
-  let shouldShowProgress = false;
   if(tbody) {
     const allRows = Array.from(tbody.querySelectorAll('tr'));
-    shouldShowProgress = allRows.length > 100;
-  }
-
-  // Function to perform the actual filtering
-  function performFiltering() {
-    const globalQ = (filterInput && filterInput.value || '').toLowerCase().trim();
-    const colInputs = ensureColumnFilters();
-    const colQueries = colInputs.map(inp => (inp.value || '').toLowerCase().trim());
-    const rows = Array.from(table.querySelectorAll('tbody tr'));
-
-    const groupParents = rows.filter(r => r.hasAttribute('data-group-key'));
-    const layerParents = rows.filter(r => r.hasAttribute('data-layer-key'));
-    const childrenByGroup = new Map();
-    const childrenByLayer = new Map();
-
-    rows.forEach(r => {
-      const groupOf = r.getAttribute('data-group-child-of');
-      const parentKey = r.getAttribute('data-parent-key');
-      if(groupOf && !r.hasAttribute('data-layer-child-of')){
-        if(!childrenByGroup.has(groupOf)) childrenByGroup.set(groupOf, []);
-        childrenByGroup.get(groupOf).push(r);
-      }
-      if(parentKey){
-        if(!childrenByLayer.has(parentKey)) childrenByLayer.set(parentKey, []);
-        childrenByLayer.get(parentKey).push(r);
-      }
-    });
-
-    function rowMatches(tr){
-      const cells = Array.from(tr.children);
-      const text = tr.textContent.toLowerCase();
-      const globalOk = !globalQ || text.includes(globalQ);
-      const colsOk = colQueries.every((q, idx) => {
-        if(!q) return true;
-        // Add 1 to idx because first column (index 0) has no filter
-        const td = cells[idx + 1];
-        const cellText = (td ? td.textContent : '').toLowerCase();
-        return cellText.includes(q);
-      });
-      return globalOk && colsOk;
+    if(allRows.length > 100) {
+      showProgressBar('Filtrerar data...');
     }
+  }
+  const globalQ = (filterInput && filterInput.value || '').toLowerCase().trim();
+  const colInputs = ensureColumnFilters();
+  const colQueries = colInputs.map(inp => (inp.value || '').toLowerCase().trim());
+  const rows = Array.from(table.querySelectorAll('tbody tr'));
 
-    rows.forEach(tr => { tr.style.display = ''; });
+  const groupParents = rows.filter(r => r.hasAttribute('data-group-key'));
+  const layerParents = rows.filter(r => r.hasAttribute('data-layer-key'));
+  const childrenByGroup = new Map();
+  const childrenByLayer = new Map();
+  
+  rows.forEach(r => {
+    const groupOf = r.getAttribute('data-group-child-of');
+    const parentKey = r.getAttribute('data-parent-key');
+    if(groupOf && !r.hasAttribute('data-layer-child-of')){ 
+      if(!childrenByGroup.has(groupOf)) childrenByGroup.set(groupOf, []); 
+      childrenByGroup.get(groupOf).push(r); 
+    }
+    if(parentKey){ 
+      if(!childrenByLayer.has(parentKey)) childrenByLayer.set(parentKey, []); 
+      childrenByLayer.get(parentKey).push(r); 
+    }
+  });
 
-    // Handle group parents (respect collapsed state)
-    groupParents.forEach(parent => {
-      const key = parent.getAttribute('data-group-key');
-      const kids = childrenByGroup.get(key) || [];
-      const parentMatch = rowMatches(parent);
-      const anyChildMatch = kids.some(rowMatches);
-      const showParent = parentMatch || anyChildMatch;
-      const isOpen = parent.getAttribute('data-open') !== 'false';
+  function rowMatches(tr){
+    const cells = Array.from(tr.children);
+    const text = tr.textContent.toLowerCase();
+    const globalOk = !globalQ || text.includes(globalQ);
+    const colsOk = colQueries.every((q, idx) => {
+      if(!q) return true; const td = cells[idx]; const cellText = (td ? td.textContent : '').toLowerCase(); return cellText.includes(q);
+    });
+    return globalOk && colsOk;
+  }
+
+  rows.forEach(tr => { tr.style.display = ''; });
+
+  // Handle group parents (respect collapsed state)
+  groupParents.forEach(parent => {
+    const key = parent.getAttribute('data-group-key');
+    const kids = childrenByGroup.get(key) || [];
+    const parentMatch = rowMatches(parent);
+    const anyChildMatch = kids.some(rowMatches);
+    const showParent = parentMatch || anyChildMatch;
+    const isOpen = parent.getAttribute('data-open') !== 'false';
+    parent.style.display = showParent ? '' : 'none';
+    kids.forEach(k => { k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none'; });
+  });
+
+  // Handle layer parents (respect collapsed state)
+  layerParents.forEach(parent => {
+    const key = parent.getAttribute('data-layer-key');
+    const kids = childrenByLayer.get(key) || [];
+    const parentMatch = rowMatches(parent);
+    const anyChildMatch = kids.some(rowMatches);
+    const showParent = parentMatch || anyChildMatch;
+    const isOpen = parent.getAttribute('data-open') !== 'false';
+    if(parent.style.display !== 'none'){ // Don't override group visibility
       parent.style.display = showParent ? '' : 'none';
-      kids.forEach(k => { k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none'; });
-    });
-
-    // Handle layer parents (respect collapsed state)
-    layerParents.forEach(parent => {
-      const key = parent.getAttribute('data-layer-key');
-      const kids = childrenByLayer.get(key) || [];
-      const parentMatch = rowMatches(parent);
-      const anyChildMatch = kids.some(rowMatches);
-      const showParent = parentMatch || anyChildMatch;
-      const isOpen = parent.getAttribute('data-open') !== 'false';
-      if(parent.style.display !== 'none'){ // Don't override group visibility
-        parent.style.display = showParent ? '' : 'none';
+    }
+    kids.forEach(k => { 
+      if(k.style.display !== 'none'){ // Don't override group visibility
+        k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none'; 
       }
-      kids.forEach(k => {
-        if(k.style.display !== 'none'){ // Don't override group visibility
-          k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none';
-        }
-      });
     });
+  });
 
-    // Handle rows that are neither parents nor grouped children
-    rows.filter(r => !r.hasAttribute('data-group-key') && !r.hasAttribute('data-group-child-of') && !r.hasAttribute('data-layer-key') && !r.hasAttribute('data-parent-key'))
-        .forEach(tr => { tr.style.display = rowMatches(tr) ? '' : 'none'; });
-
-    // Update climate summary after filtering
-    debouncedUpdateClimateSummary();
-
-    // Update climate mapping indicators
-    updateAllClimateMappingIndicators();
-    // Recompute zebra stripes for visible rows
-    recomputeZebraStripes();
-
-    // Hide progress bar
-    hideProgressBar();
-  }
-
-  // Show progress bar with callback if needed, otherwise just run filtering
-  if(shouldShowProgress) {
-    showProgressBar('Filtrerar data...', performFiltering);
-  } else {
-    performFiltering();
-  }
+  // Handle rows that are neither parents nor grouped children
+  rows.filter(r => !r.hasAttribute('data-group-key') && !r.hasAttribute('data-group-child-of') && !r.hasAttribute('data-layer-key') && !r.hasAttribute('data-parent-key'))
+      .forEach(tr => { tr.style.display = rowMatches(tr) ? '' : 'none'; });
+  
+  // Update climate summary after filtering
+  debouncedUpdateClimateSummary();
+  
+  // Update climate mapping indicators
+  updateAllClimateMappingIndicators();
+  // Recompute zebra stripes for visible rows
+  recomputeZebraStripes();
+  
+  // Hide progress bar
+  hideProgressBar();
 }
 // Apply zebra classes to visible tbody rows so alternation is correct
 function recomputeZebraStripes(){
@@ -2100,89 +2060,6 @@ function openClimateForGroupKey(groupKey, table){
   }
 }
 
-// Helper function to fill parent rows with common values from children
-function fillParentRowsWithCommonValues(tbody){
-  if(!tbody) return;
-
-  // Handle group parents
-  const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
-  groupParents.forEach(parentTr => {
-    const groupKey = parentTr.getAttribute('data-group-key');
-    if(!groupKey) return;
-
-    const children = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
-    if(children.length === 0) return;
-
-    const parentCells = Array.from(parentTr.children);
-
-    // For each cell in parent (skip first action cell)
-    for(let i = 1; i < parentCells.length; i++){
-      const parentCell = parentCells[i];
-
-      // Skip cells that already have content or are sum cells
-      if(parentCell.textContent.trim() !== '' ||
-         parentCell.hasAttribute('data-sum-inbyggd-vikt') ||
-         parentCell.hasAttribute('data-sum-inkopt-vikt') ||
-         parentCell.hasAttribute('data-sum-klimat-a1a3') ||
-         parentCell.hasAttribute('data-sum-klimat-a4') ||
-         parentCell.hasAttribute('data-sum-klimat-a5')) {
-        continue;
-      }
-
-      // Get values from all children for this column
-      const childValues = children.map(child => {
-        const childCell = child.children[i];
-        return childCell ? childCell.textContent.trim() : '';
-      });
-
-      // Check if all children have the same non-empty value
-      const uniqueValues = [...new Set(childValues.filter(v => v !== ''))];
-      if(uniqueValues.length === 1){
-        parentCell.textContent = uniqueValues[0];
-      }
-    }
-  });
-
-  // Handle layer parents
-  const layerParents = Array.from(tbody.querySelectorAll('tr.layer-parent'));
-  layerParents.forEach(parentTr => {
-    const layerKey = parentTr.getAttribute('data-layer-key');
-    if(!layerKey) return;
-
-    const children = Array.from(tbody.querySelectorAll(`tr[data-parent-key="${CSS.escape(layerKey)}"]`));
-    if(children.length === 0) return;
-
-    const parentCells = Array.from(parentTr.children);
-
-    // For each cell in parent (skip first action cell)
-    for(let i = 1; i < parentCells.length; i++){
-      const parentCell = parentCells[i];
-
-      // Skip cells that already have content or are sum cells
-      if(parentCell.textContent.trim() !== '' ||
-         parentCell.hasAttribute('data-sum-inbyggd-vikt') ||
-         parentCell.hasAttribute('data-sum-inkopt-vikt') ||
-         parentCell.hasAttribute('data-sum-klimat-a1a3') ||
-         parentCell.hasAttribute('data-sum-klimat-a4') ||
-         parentCell.hasAttribute('data-sum-klimat-a5')) {
-        continue;
-      }
-
-      // Get values from all children for this column
-      const childValues = children.map(child => {
-        const childCell = child.children[i];
-        return childCell ? childCell.textContent.trim() : '';
-      });
-
-      // Check if all children have the same non-empty value
-      const uniqueValues = [...new Set(childValues.filter(v => v !== ''))];
-      if(uniqueValues.length === 1){
-        parentCell.textContent = uniqueValues[0];
-      }
-    }
-  });
-}
-
 function buildGroupedTable(headers, bodyRows, groupColIndex){
   const table = document.createElement('table');
   table.classList.add('ag-like');
@@ -2206,25 +2083,8 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       }
     });
   }
-
-  allHeaders.forEach((h, i) => {
-    const th = document.createElement('th');
-    // Mark the grouped column with a visual indicator
-    if(i === groupColIndex){
-      th.innerHTML = `<span style="display: inline-flex; align-items: center; gap: 6px;">
-        <svg style="width: 14px; height: 14px; fill: currentColor;" viewBox="0 0 24 24">
-          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-        </svg>
-        <span>${h}</span>
-      </span>`;
-      th.setAttribute('data-grouped', 'true');
-    } else {
-      th.textContent = h;
-    }
-    th.dataset.colIndex = String(i);
-    addResizeHandle(th);
-    headerTr.appendChild(th);
-  });
+  
+  allHeaders.forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; th.dataset.colIndex = String(i); addResizeHandle(th); headerTr.appendChild(th); });
   thead.appendChild(headerTr); table.appendChild(thead);
   const tbody = document.createElement('tbody');
 
@@ -2366,10 +2226,6 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
         // Mark as placeholder - will be filled by applySavedClimate
         td.setAttribute('data-climate-cell', 'true');
         td.textContent = '';
-      } else if(allHeaders[i] === 'Klimatresurs typ'){
-        // Mark as placeholder - will be filled by applySavedClimate
-        td.setAttribute('data-climate-type-cell', 'true');
-        td.textContent = '';
       } else {
         td.textContent = '';
       }
@@ -2400,9 +2256,6 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
           td.setAttribute('data-climate-cell', 'true');
           // Mark as placeholder - will be filled by applySavedClimate
           td.setAttribute('data-climate-cell', 'true');
-          td.textContent = '';
-        } else if(headerName === 'Klimatresurs typ'){
-          td.setAttribute('data-climate-type-cell', 'true');
           td.textContent = '';
         } else if(headerName === 'Omräkningsfaktor'){
           td.setAttribute('data-factor-cell', 'true');
@@ -2447,8 +2300,6 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       applySavedClimate(tr, rowData);
     }
   });
-  // Fill parent rows with common values from children
-  fillParentRowsWithCommonValues(tbody);
   // Update visibility of group action buttons that depend on layering state
   updateGroupActionButtonsVisibility(tbody);
   // Schedule deferred updates to catch async layer restoration
@@ -2465,8 +2316,7 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       // Check if any child row is a layer parent and get its climate data
       const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
       let climateResourceName = '';
-      let climateInfoForParent = null;
-
+      
       for(const childTr of childRows) {
         const rowData = childTr._originalRowData;
         if(rowData) {
@@ -2476,26 +2326,17 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
             const climateInfo = climateData.get(baseSignature);
             if(climateInfo) {
               climateResourceName = typeof climateInfo === 'string' ? climateInfo : climateInfo.name;
-              climateInfoForParent = climateInfo;
               break; // Use the first layer parent's climate data
             }
           }
         }
       }
-
-      // Set climate resource name and type in parent row if found
-      if(climateResourceName && climateInfoForParent) {
+      
+      // Set climate resource name in parent row if found
+      if(climateResourceName) {
         const climateCell = parentTr.querySelector('td[data-climate-cell="true"]');
         if(climateCell) {
           climateCell.textContent = climateResourceName;
-        }
-
-        // Also set climate type
-        const isCustom = typeof climateInfoForParent === 'object' && climateInfoForParent.isCustom;
-        const climateType = isCustom ? 'EPD' : 'Generisk klimatresurs';
-        const climateTypeCell = parentTr.querySelector('td[data-climate-type-cell="true"]');
-        if(climateTypeCell) {
-          climateTypeCell.textContent = climateType;
         }
       }
       
@@ -2655,16 +2496,16 @@ function isNumericOnlyColumn(rows, columnIndex){
 
 function renderTableWithOptionalGrouping(rows){
   if(!rows || rows.length === 0){ output.innerHTML = '<div>Ingen data att visa.</div>'; return; }
-
-  // Check if we should show progress bar for large datasets
-  const shouldShowProgress = rows.length > 50;
-
-  function performRendering() {
-    const headers = rows[0];
-    lastHeaders = headers; // Store headers for project save/load
-    const bodyRows = rows.slice(1);
-    const selected = groupBySelect ? groupBySelect.value : '';
-    const groupIdx = selected === '' ? -1 : parseInt(selected, 10);
+  
+  // Show progress bar for large datasets
+  if(rows.length > 50) {
+    showProgressBar('Grupperar data...');
+  }
+  const headers = rows[0];
+  lastHeaders = headers; // Store headers for project save/load
+  const bodyRows = rows.slice(1);
+  const selected = groupBySelect ? groupBySelect.value : '';
+  const groupIdx = selected === '' ? -1 : parseInt(selected, 10);
 
   if(groupIdx === -1 || Number.isNaN(groupIdx)){
     const table = document.createElement('table');
@@ -2724,9 +2565,6 @@ function renderTableWithOptionalGrouping(rows){
           td.setAttribute('data-climate-cell', 'true');
           // Mark as placeholder - will be filled by applySavedClimate
           td.setAttribute('data-climate-cell', 'true');
-          td.textContent = '';
-        } else if(headerName === 'Klimatresurs typ'){
-          td.setAttribute('data-climate-type-cell', 'true');
           td.textContent = '';
         } else if(headerName === 'Omräkningsfaktor'){
           td.setAttribute('data-factor-cell', 'true');
@@ -2854,21 +2692,13 @@ function renderTableWithOptionalGrouping(rows){
     climateEntryCount++;
   });
   
-    // Save initial state after table is rendered (but not during restore)
-    if(!isRestoringState && undoStack.length === 0){
-      setTimeout(() => saveState(), 200);
-    }
-
-    // Hide progress bar
-    hideProgressBar();
+  // Save initial state after table is rendered (but not during restore)
+  if(!isRestoringState && undoStack.length === 0){
+    setTimeout(() => saveState(), 200);
   }
-
-  // Show progress bar with callback if needed, otherwise just run rendering
-  if(shouldShowProgress) {
-    showProgressBar('Grupperar data...', performRendering);
-  } else {
-    performRendering();
-  }
+  
+  // Hide progress bar
+  hideProgressBar();
 }
 
 function handleFile(file){
@@ -2898,38 +2728,8 @@ function handleFile(file){
   reader.readAsText(file, 'utf-8');
 }
 
-// Password protection for production
-let isAuthenticated = false;
-fileInput.addEventListener('click', function(e) {
-  // Check if we're on localhost:3000
-  const isLocalhost = window.location.hostname === 'localhost' && window.location.port === '3000';
-
-  // If not on localhost:3000 and not authenticated, require password
-  if (!isLocalhost && !isAuthenticated) {
-    e.preventDefault();
-    const password = prompt('Ange lösenord för att fortsätta:');
-
-    if (password === 'fritidsgård') {
-      isAuthenticated = true;
-      // Trigger file input again
-      fileInput.click();
-    } else {
-      alert('Felaktigt lösenord');
-    }
-  }
-});
-
 fileInput.addEventListener('change', function(){ const file = this.files && this.files[0]; if(!file) return; handleFile(file); });
 if(filterInput){ filterInput.addEventListener('input', applyFilters); }
-
-// Add event listener for BTA input to update climate summary
-const btaInput = document.getElementById('btaInput');
-if(btaInput){
-  btaInput.addEventListener('input', function(){
-    debouncedUpdateClimateSummary();
-  });
-}
-
 // Track hovered table row and open layering modal with 's'
 let hoveredTableRow = null;
 function installHoverRowTracking(table){
@@ -3082,7 +2882,7 @@ function addNewRow(){
   const headers = Array.from(thead.querySelectorAll('th')).map(th => th.textContent);
   
   // Filter out climate-related headers - new rows should not have these initially
-  const climateHeaders = ['Klimatresurs', 'Klimatresurs typ', 'Omräkningsfaktor', 'Omräkningsfaktor enhet', 'Spillfaktor',
+  const climateHeaders = ['Klimatresurs', 'Omräkningsfaktor', 'Omräkningsfaktor enhet', 'Spillfaktor', 
                          'Emissionsfaktor A1-A3', 'Emissionsfaktor A4', 'Emissionsfaktor A5',
                          'Inbyggd vikt', 'Inköpt vikt', 'Klimatpåverkan A1-A3', 'Klimatpåverkan A4', 'Klimatpåverkan A5'];
   const baseHeaders = headers.filter(h => !climateHeaders.includes(h) && h.trim() !== '');
@@ -3285,8 +3085,8 @@ function exportTableToExcel(){
   // Get headers
   const thead = table.querySelector('thead');
   const headerRow = thead ? thead.querySelector('tr:first-child') : null;
-  const headers = [];
   if(headerRow){
+    const headers = [];
     Array.from(headerRow.children).forEach((th, index) => {
       // Skip first column (action buttons)
       if(index === 0) return;
@@ -3294,32 +3094,6 @@ function exportTableToExcel(){
     });
     exportData.push(headers);
   }
-
-  // Identify columns that should always be numbers (weight and climate impact columns)
-  const numericColumnNames = [
-    'Inbyggd vikt',
-    'Inköpt vikt',
-    'Klimatpåverkan A1-A3',
-    'Klimatpåverkan A4',
-    'Klimatpåverkan A5',
-    'Net Area',
-    'Length',
-    'Thickness',
-    'Height',
-    'Volume',
-    'Count',
-    'Omräkningsfaktor',
-    'Spillfaktor',
-    'Emissionsfaktor A1-A3',
-    'Emissionsfaktor A4',
-    'Emissionsfaktor A5'
-  ];
-  const numericColumnIndices = new Set();
-  headers.forEach((header, index) => {
-    if(numericColumnNames.includes(header)){
-      numericColumnIndices.add(index);
-    }
-  });
   
   // Get all visible rows (not hidden by filters)
   const tbody = table.querySelector('tbody');
@@ -3334,47 +3108,16 @@ function exportTableToExcel(){
       cells.forEach((td, index) => {
         // Skip first column (action buttons)
         if(index === 0) return;
-
+        
         // Get clean text content
         let text = td.textContent.trim();
-
-        // Calculate column index (adjusted for skipped first column)
-        const colIndex = index - 1;
-
-        // Check if this column should always be numeric
-        const shouldBeNumeric = numericColumnIndices.has(colIndex);
-
-        if(shouldBeNumeric){
-          // Force conversion to number for weight and climate columns
-          const num = parseNumberLike(text);
-          if(Number.isFinite(num)){
-            rowData.push(num);
-          } else {
-            // If can't be parsed, use empty string instead of text
-            rowData.push(text === '' ? '' : num); // Will be NaN or empty
-          }
+        
+        // Try to parse as number for better Excel formatting
+        const num = parseNumberLike(text);
+        if(Number.isFinite(num)){
+          rowData.push(num);
         } else {
-          // For other columns, use smart detection
-          const num = parseNumberLike(text);
-          if(Number.isFinite(num)){
-            // Check if converting back to string gives us the same value
-            // (handles cases like "123" vs "123ABC")
-            const normalizedOriginal = text.replace(/\s+/g, '').replace(',', '.');
-            const normalizedNum = String(num);
-
-            // Only use number if the normalized strings match
-            // This ensures "123" becomes number but "123ABC" stays as text
-            if(normalizedOriginal === normalizedNum ||
-               normalizedOriginal === normalizedNum + '.0' ||
-               normalizedOriginal === normalizedNum + ',0'){
-              rowData.push(num);
-            } else {
-              // Keep as text (e.g., "0001234", "123ABC", "1.5m")
-              rowData.push(text);
-            }
-          } else {
-            rowData.push(text);
-          }
+          rowData.push(text);
         }
       });
       
@@ -3386,38 +3129,7 @@ function exportTableToExcel(){
   
   // Create worksheet from data
   const ws = window.XLSX.utils.aoa_to_sheet(exportData);
-
-  // Apply formatting to cells
-  const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1');
-  for(let R = range.s.r; R <= range.e.r; ++R) {
-    for(let C = range.s.c; C <= range.e.c; ++C) {
-      const cellAddress = window.XLSX.utils.encode_cell({r: R, c: C});
-      const cell = ws[cellAddress];
-      if(!cell) continue;
-
-      // Skip header row
-      if(R === range.s.r) continue;
-
-      // Check if this column should be formatted as decimal number
-      if(numericColumnIndices.has(C)){
-        // If it's a number, format it with 2 decimal places
-        if(cell.t === 'n'){
-          cell.z = '0.00'; // Excel number format for 2 decimals
-        }
-      } else {
-        // For non-numeric columns, check if string should stay as text
-        if(typeof cell.v === 'string' && cell.v.length > 0) {
-          const str = cell.v;
-          // Check if string starts with zero, or contains letters after numbers
-          if(str.match(/^0\d/) || str.match(/^\d+[A-Za-z]/) || str.match(/^\d.*[^\d\s.,]/)) {
-            // Force this cell to be text type
-            cell.t = 's'; // 's' = string type
-          }
-        }
-      }
-    }
-  }
-
+  
   // Add worksheet to workbook
   window.XLSX.utils.book_append_sheet(wb, ws, 'Data');
   
@@ -3595,7 +3307,7 @@ function openLayerModal(target){
 
     // Load layer names and climate resources
     if(pendingData.layerNames && pendingData.climateResources){
-      loadExistingLayerData(pendingData.layerNames, pendingData.climateResources, pendingData.climateTypes, pendingData.climateFactors, pendingData.mixedLayerConfigs);
+      loadExistingLayerData(pendingData.layerNames, pendingData.climateResources, pendingData.climateTypes, pendingData.climateFactors);
     } else {
       updateLayerNamesContainer();
     }
@@ -4338,9 +4050,14 @@ function updateLayerClimateDropdowns(){
 // Layer names and climate resources functions
 function updateLayerNamesContainer(){
   if(!layerNamesContainer || !layerCountInput) return;
-
+  
   const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
   layerNamesContainer.innerHTML = '';
+  // Parse existing thicknesses so we can show one field per layer (wall-style UI)
+  const thicknessValues = (layerThicknessesInput && layerThicknessesInput.value || '')
+    .split(',')
+    .map(s => parseFloat(String(s).trim()))
+    .filter(v => Number.isFinite(v));
   
   for(let i = 1; i <= count; i++){
     // Check if this layer is marked as mixed
@@ -4353,10 +4070,14 @@ function updateLayerNamesContainer(){
     
     const layerDiv = document.createElement('div');
     // Wall-style card with a left accent and clear per-layer fields
-    layerDiv.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr; align-items:end; gap:12px; margin-bottom:12px; padding:12px; border:1px solid #ddd; border-left:6px solid #8aa; border-radius:4px; background:white;';
-
+    layerDiv.style.cssText = 'display:grid; grid-template-columns: 120px 1fr 1fr; align-items:end; gap:12px; margin-bottom:12px; padding:12px; border:1px solid #ddd; border-left:6px solid #8aa; border-radius:4px; background:white;';
+    
     // Regular layer
     layerDiv.innerHTML = `
+      <div>
+        <label style="display:block; margin-bottom:4px; font-weight:600;">Skikt ${i} tjocklek (mm):</label>
+        <input type="number" id="layerThickness${i}" placeholder="t.ex. 200" min="0" step="1" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;" />
+      </div>
       <div>
         <label style="display:block; margin-bottom:4px; font-weight:600;">Skikt ${i} namn:</label>
         <input type="text" id="layerName${i}" placeholder="t.ex. Betong C30/37" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;" />
@@ -4377,13 +4098,38 @@ function updateLayerNamesContainer(){
         </select>
         <button type="button" id="layerClimatePick${i}" style="margin-top:6px; padding:6px 8px; font-size:0.85rem;">Välj från katalog...</button>
       </div>
-      <div id="layerFactor${i}" style="display:none; grid-column: 1 / span 2;">
+      <div id="layerFactor${i}" style="display:none; grid-column: 1 / span 3;">
         <label style="display:block; margin-bottom:4px; font-weight:600;">Omräkningsfaktor:</label>
         <input type="number" id="layerFactorValue${i}" placeholder="t.ex. 10" step="0.1" min="0" value="10" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;" />
       </div>
     `;
-
+    
     layerNamesContainer.appendChild(layerDiv);
+    
+    // Pre-fill thickness from combined field
+    const thInput = layerDiv.querySelector(`#layerThickness${i}`);
+    if(thInput){
+      const preset = thicknessValues[i-1];
+      if(Number.isFinite(preset)){
+        thInput.value = String(preset);
+      }
+      thInput.addEventListener('input', function(){
+        // Recompose the combined thicknesses input as comma-separated list
+        const vals = [];
+        for(let j = 1; j <= count; j++){
+          const el = document.getElementById(`layerThickness${j}`);
+          const v = el ? parseFloat(el.value) : NaN;
+          if(Number.isFinite(v)){
+            vals.push(String(v));
+          } else {
+            vals.push('');
+          }
+        }
+        if(layerThicknessesInput){
+          layerThicknessesInput.value = vals.join(', ').replace(/(,\s*)+$/,'');
+        }
+      });
+    }
     
     
     // Populate climate resources dropdown
@@ -4444,69 +4190,76 @@ function updateLayerNamesContainer(){
 }
 
 
-function loadExistingLayerData(layerNames, climateResources, climateTypes = [], climateFactors = [], mixedLayerConfigs = []){
+function loadExistingLayerData(layerNames, climateResources, climateTypes = [], climateFactors = []){
   if(!layerNamesContainer) return;
-
+  
   // Clear and rebuild container
   updateLayerNamesContainer();
-
+  
   // Fill in existing data
   const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
-
+  
   for(let i = 1; i <= count; i++){
     // Check if this layer is marked as mixed
     const isMixedLayer = document.getElementById(`mixedLayer${i}`) && document.getElementById(`mixedLayer${i}`).checked;
-
+    
     if(isMixedLayer){
-      // Mixed layer - fill material inputs from mixedLayerConfigs
-      const mixedConfig = mixedLayerConfigs.find(config => config.layerIndex === i);
-
+      // Mixed layer - fill material inputs from mixed layer details
       const material1Name = document.getElementById(`mixedMat1Name${i}`);
-      const material1Percent = document.getElementById(`mixedMat1Percent${i}`);
       const material2Name = document.getElementById(`mixedMat2Name${i}`);
-      const material2Percent = document.getElementById(`mixedMat2Percent${i}`);
       const material1Climate = document.getElementById(`mixedMat1Climate${i}`);
       const material2Climate = document.getElementById(`mixedMat2Climate${i}`);
       const material1FactorDiv = document.getElementById(`mixedMat1Factor${i}`);
       const material1FactorInput = document.getElementById(`mixedMat1FactorValue${i}`);
       const material2FactorDiv = document.getElementById(`mixedMat2Factor${i}`);
       const material2FactorInput = document.getElementById(`mixedMat2FactorValue${i}`);
-
-      if(mixedConfig){
-        // Load material 1 data
-        if(material1Name && mixedConfig.material1){
-          material1Name.value = mixedConfig.material1.name || '';
-        }
-        if(material1Percent && mixedConfig.material1){
-          material1Percent.value = mixedConfig.material1.percent || 50;
-        }
-        if(material1Climate && mixedConfig.material1 && mixedConfig.material1.climateResource){
-          material1Climate.value = mixedConfig.material1.climateResource;
-          // Show factor input if EPD
-          if(mixedConfig.material1.climateResource.startsWith('epd:')){
-            if(material1FactorDiv) material1FactorDiv.style.display = 'block';
-            if(material1FactorInput && mixedConfig.material1.factor){
-              material1FactorInput.value = mixedConfig.material1.factor;
-            }
+      
+      if(material1Name && layerNames[i-1]){
+        material1Name.value = layerNames[i-1];
+      }
+      if(material2Name && layerNames[i-1]){
+        material2Name.value = layerNames[i-1];
+      }
+      
+      if(material1Climate && climateResources[i-1] !== undefined && climateTypes[i-1] !== undefined){
+        // Reconstruct the value based on type and resource for material 1
+        const climateType = climateTypes[i-1];
+        const climateResource = climateResources[i-1];
+        
+        if(climateType === 'boverket'){
+          material1Climate.value = `boverket:${climateResource}`;
+        } else if(climateType === 'epd'){
+          material1Climate.value = `epd:${climateResource}`;
+          // Show factor input for EPD and set its value
+          if(material1FactorDiv && material1FactorInput) {
+            material1FactorDiv.style.display = 'block';
+            material1FactorInput.value = climateFactors[i-1] || 1;
           }
+        } else if(climateType === 'custom'){
+          material1Climate.value = 'custom:manual';
+        } else {
+          material1Climate.value = '';
         }
-
-        // Load material 2 data
-        if(material2Name && mixedConfig.material2){
-          material2Name.value = mixedConfig.material2.name || '';
-        }
-        if(material2Percent && mixedConfig.material2){
-          material2Percent.value = mixedConfig.material2.percent || 50;
-        }
-        if(material2Climate && mixedConfig.material2 && mixedConfig.material2.climateResource){
-          material2Climate.value = mixedConfig.material2.climateResource;
-          // Show factor input if EPD
-          if(mixedConfig.material2.climateResource.startsWith('epd:')){
-            if(material2FactorDiv) material2FactorDiv.style.display = 'block';
-            if(material2FactorInput && mixedConfig.material2.factor){
-              material2FactorInput.value = mixedConfig.material2.factor;
-            }
+      }
+      
+      // For material 2, we use the same values as material 1 for now
+      if(material2Climate && climateResources[i-1] !== undefined && climateTypes[i-1] !== undefined){
+        const climateType = climateTypes[i-1];
+        const climateResource = climateResources[i-1];
+        
+        if(climateType === 'boverket'){
+          material2Climate.value = `boverket:${climateResource}`;
+        } else if(climateType === 'epd'){
+          material2Climate.value = `epd:${climateResource}`;
+          // Show factor input for EPD and set its value
+          if(material2FactorDiv && material2FactorInput) {
+            material2FactorDiv.style.display = 'block';
+            material2FactorInput.value = climateFactors[i-1] || 1;
           }
+        } else if(climateType === 'custom'){
+          material2Climate.value = 'custom:manual';
+        } else {
+          material2Climate.value = '';
         }
       }
     } else {
@@ -5301,56 +5054,42 @@ if(layerApplyBtn){
       const mat2Percent = document.getElementById(`mixedMat2Percent${layerIndex}`);
       const mat1Climate = document.getElementById(`mixedMat1Climate${layerIndex}`);
       const mat2Climate = document.getElementById(`mixedMat2Climate${layerIndex}`);
-      const mat1FactorInput = document.getElementById(`mixedMat1FactorValue${layerIndex}`);
-      const mat2FactorInput = document.getElementById(`mixedMat2FactorValue${layerIndex}`);
-
+      
       const mat1NameValue = mat1Name ? mat1Name.value.trim() : '';
       const mat2NameValue = mat2Name ? mat2Name.value.trim() : '';
       const mat1PercentValue = parseFloat(mat1Percent ? mat1Percent.value : '50');
       const mat2PercentValue = parseFloat(mat2Percent ? mat2Percent.value : '50');
       const mat1ClimateValue = mat1Climate ? mat1Climate.value : '';
       const mat2ClimateValue = mat2Climate ? mat2Climate.value : '';
-      const mat1FactorValue = mat1FactorInput ? parseFloat(mat1FactorInput.value) : undefined;
-      const mat2FactorValue = mat2FactorInput ? parseFloat(mat2FactorInput.value) : undefined;
-
+      
       if(mat1NameValue && mat2NameValue){
-        const config = {
+        mixedLayerConfigs.push({
           layerIndex: layerIndex,
-          material1: {
-            name: mat1NameValue,
+          material1: { 
+            name: mat1NameValue, 
             percent: mat1PercentValue,
             climateResource: mat1ClimateValue
           },
-          material2: {
-            name: mat2NameValue,
+          material2: { 
+            name: mat2NameValue, 
             percent: mat2PercentValue,
             climateResource: mat2ClimateValue
           }
-        };
-
-        // Add factor if EPD is selected
-        if(mat1ClimateValue.startsWith('epd:') && mat1FactorValue){
-          config.material1.factor = mat1FactorValue;
-        }
-        if(mat2ClimateValue.startsWith('epd:') && mat2FactorValue){
-          config.material2.factor = mat2FactorValue;
-        }
-
-        mixedLayerConfigs.push(config);
+        });
       }
     });
     
     // Save state before layering
     saveState();
-
+    
+    // Show progress bar immediately
+    showProgressBar('Skiktar objekt...');
+    
     // Get layer names and climate resources
     const { layerNames, climateResources, climateTypes, climateFactors } = getLayerNamesAndClimateResources();
 
-    // Show progress bar with callback to ensure it renders before heavy operation
-    showProgressBar('Skiktar objekt...', () => {
-      applyLayerSplit(count, thicknesses, mixedLayerConfigs, layerNames, climateResources, climateTypes, climateFactors);
-      closeLayerModal();
-    });
+    applyLayerSplit(count, thicknesses, mixedLayerConfigs, layerNames, climateResources, climateTypes, climateFactors);
+    closeLayerModal();
   });
 }
 
@@ -7339,25 +7078,19 @@ function openGroupParentByKey(groupKey, tbody){
 
 function applyClimateResource(resource){
   if(!climateTarget){ return; }
-
+  
+  showProgressBar('Mappar klimatresurs...');
+  
   // Save climateTarget because it might be cleared if modals close
   const savedClimateTarget = climateTarget;
-
-  // Show progress bar with callback to ensure it renders before heavy operation
-  showProgressBar('Mappar klimatresurs...', () => {
-    const table = getTable(); if(!table) { hideProgressBar(); return; }
-    const thead = table.querySelector('thead'); if(!thead) { hideProgressBar(); return; }
-    const tbody = table.querySelector('tbody'); if(!tbody) { hideProgressBar(); return; }
-
-    performClimateResourceMapping(resource, savedClimateTarget, table, thead, tbody);
-  });
-}
-
-function performClimateResourceMapping(resource, savedClimateTarget, table, thead, tbody){
+  
+  const table = getTable(); if(!table) return;
+  const thead = table.querySelector('thead'); if(!thead) return;
+  const tbody = table.querySelector('tbody'); if(!tbody) return;
+  
   // Check if "Klimatresurs", "Omräkningsfaktor", "Omräkningsfaktor enhet" and "Avfallsfaktor" columns already exist
   const headerRow = thead.querySelector('tr');
   const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
-  const existingClimateTypeHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs typ');
   const existingFactorHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor');
   const FactorUnit = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor enhet');
   const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Spillfaktor');
@@ -7366,18 +7099,12 @@ function performClimateResourceMapping(resource, savedClimateTarget, table, thea
   const existingA5Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A5');
   const existingInbyggdViktHeader = Array.from(headerRow.children).find(th => th.textContent === 'Inbyggd vikt');
   const existingInkoptViktHeader = Array.from(headerRow.children).find(th => th.textContent === 'Inköpt vikt');
-
+  
   if(!existingClimateHeader){
     // Add "Klimatresurs" header
     const climateTh = document.createElement('th');
     climateTh.textContent = 'Klimatresurs';
     headerRow.appendChild(climateTh);
-  }
-
-  if(!existingClimateTypeHeader){
-    const climateTypeTh = document.createElement('th');
-    climateTypeTh.textContent = 'Klimatresurs typ';
-    headerRow.appendChild(climateTypeTh);
   }
   
   if(!existingFactorHeader){
@@ -7578,57 +7305,23 @@ function updateAllClimateMappingIndicators() {
 }
 
 // Progress Bar Functions
-function showProgressBar(text = 'Bearbetar...', callback = null) {
+function showProgressBar(text = 'Bearbetar...') {
   const progressBar = document.getElementById('progressBar');
-  const loadingOverlay = document.getElementById('loadingOverlay');
   const progressText = progressBar?.querySelector('.progress-bar-text');
-  const progressFill = progressBar?.querySelector('.progress-bar-fill');
-
-  if(progressBar && loadingOverlay) {
-    // Reset progress fill to 0
-    if(progressFill) {
-      progressFill.style.width = '0%';
-    }
-
-    // Show overlay and progress bar
-    loadingOverlay.style.display = 'block';
+  if(progressBar) {
     progressBar.style.display = 'block';
-
     if(progressText) {
       progressText.textContent = text;
     }
-
-    // Force a reflow to ensure the browser renders the progress bar
-    // before any heavy operations start
-    progressBar.offsetHeight;
-
-    // Use requestAnimationFrame to ensure rendering happens
-    if(callback) {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          callback();
-        });
-      });
-    }
   } else {
-    console.error('❌ Progress bar or overlay element not found!');
-    // If progress bar failed, still run the callback
-    if(callback) {
-      callback();
-    }
+    console.error('❌ Progress bar element not found!');
   }
 }
 
 function hideProgressBar() {
   const progressBar = document.getElementById('progressBar');
-  const loadingOverlay = document.getElementById('loadingOverlay');
-
   if(progressBar) {
     progressBar.style.display = 'none';
-  }
-
-  if(loadingOverlay) {
-    loadingOverlay.style.display = 'none';
   }
 }
 
@@ -7636,18 +7329,13 @@ function updateProgressBar(percent, text = null) {
   const progressBar = document.getElementById('progressBar');
   const progressFill = progressBar?.querySelector('.progress-bar-fill');
   const progressText = progressBar?.querySelector('.progress-bar-text');
-
+  
   if(progressFill) {
     progressFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
   }
-
+  
   if(text && progressText) {
     progressText.textContent = text;
-  }
-
-  // Force reflow to ensure update is visible
-  if(progressFill) {
-    progressFill.offsetHeight;
   }
 }
 
@@ -7719,18 +7407,7 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
       climateTd.setAttribute('data-climate-cell', 'true');
       tr.appendChild(climateTd);
     }
-
-    // Add climate type cell (Boverket = "Generisk klimatresurs")
-    const existingClimateTypeCell = tr.querySelector('td[data-climate-type-cell="true"]');
-    if(existingClimateTypeCell){
-      existingClimateTypeCell.textContent = 'Generisk klimatresurs';
-    } else {
-      const climateTypeTd = document.createElement('td');
-      climateTypeTd.textContent = 'Generisk klimatresurs';
-      climateTypeTd.setAttribute('data-climate-type-cell', 'true');
-      tr.appendChild(climateTypeTd);
-    }
-
+    
     if(existingFactorCell){
       existingFactorCell.textContent = conversionFactor;
     } else {
@@ -7893,10 +7570,10 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
     if(inbyggdVikt !== 'N/A' && a1a3Conservative !== 'N/A' && Number.isFinite(parseFloat(a1a3Conservative))){
       klimatA1A3 = inbyggdVikt * parseFloat(a1a3Conservative);
     }
-
-    // Klimatpåverkan A4 = Inbyggd vikt * Emissionsfaktor A4
-    if(inbyggdVikt !== 'N/A' && a4Value !== 'N/A' && Number.isFinite(parseFloat(a4Value))){
-      klimatA4 = inbyggdVikt * parseFloat(a4Value);
+    
+    // Klimatpåverkan A4 = Inköpt vikt * Emissionsfaktor A4
+    if(inkoptVikt !== 'N/A' && a4Value !== 'N/A' && Number.isFinite(parseFloat(a4Value))){
+      klimatA4 = inkoptVikt * parseFloat(a4Value);
     }
     
     // Klimatpåverkan A5 = Inköpt vikt * Emissionsfaktor A5
@@ -7979,19 +7656,6 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
 
     // Update parent row's weight sums after applying climate to all children
     updateGroupWeightSums(savedClimateTarget.key, tbody);
-
-    // Also set climate resource name and type on parent row
-    const parentTr = tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(savedClimateTarget.key)}"]`);
-    if(parentTr && rows.length > 0){
-      const climateCell = parentTr.querySelector('td[data-climate-cell="true"]');
-      if(climateCell){
-        climateCell.textContent = resourceName;
-      }
-      const climateTypeCell = parentTr.querySelector('td[data-climate-type-cell="true"]');
-      if(climateTypeCell){
-        climateTypeCell.textContent = 'Generisk klimatresurs';
-      }
-    }
   }
   
   // Re-apply filters to keep visibility consistent
@@ -8024,25 +7688,18 @@ function applyCustomClimateResource(customResource){
   // Check if climate columns already exist
   const headerRow = thead.querySelector('tr');
   const existingClimateHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs');
-  const existingClimateTypeHeader = Array.from(headerRow.children).find(th => th.textContent === 'Klimatresurs typ');
   const existingFactorHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor');
   const existingFactorUnitHeader = Array.from(headerRow.children).find(th => th.textContent === 'Omräkningsfaktor enhet');
   const existingWasteHeader = Array.from(headerRow.children).find(th => th.textContent === 'Spillfaktor');
   const existingA1A3Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A1-A3');
   const existingA4Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A4');
   const existingA5Header = Array.from(headerRow.children).find(th => th.textContent === 'Emissionsfaktor A5');
-
+  
   // Add headers if they don't exist
   if(!existingClimateHeader){
     const climateTh = document.createElement('th');
     climateTh.textContent = 'Klimatresurs';
     headerRow.appendChild(climateTh);
-  }
-
-  if(!existingClimateTypeHeader){
-    const climateTypeTh = document.createElement('th');
-    climateTypeTh.textContent = 'Klimatresurs typ';
-    headerRow.appendChild(climateTypeTh);
   }
   
   if(!existingFactorHeader){
@@ -8198,24 +7855,11 @@ function applyCustomClimateResource(customResource){
         originalBoverket: childRow._originalBoverketClimate
       });
     });
-
+    
     // Update parent row's weight sums after applying climate to all children
     updateGroupWeightSums(savedClimateTarget.key, tbody);
-
-    // Also set climate resource name and type on parent row
-    const parentTr = tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(savedClimateTarget.key)}"]`);
-    if(parentTr && childRows.length > 0){
-      const climateCell = parentTr.querySelector('td[data-climate-cell="true"]');
-      if(climateCell){
-        climateCell.textContent = customResource.name;
-      }
-      const climateTypeCell = parentTr.querySelector('td[data-climate-type-cell="true"]');
-      if(climateTypeCell){
-        climateTypeCell.textContent = 'EPD';
-      }
-    }
   }
-
+  
   // Re-apply filters
   applyFilters();
   
@@ -8243,7 +7887,6 @@ function applyCustomClimateToRow(tr, customResource, headerRow){
   const headerTexts = Array.from(headerRow.children).map(th => th.textContent);
 
   const climateIndex = headerTexts.findIndex(h => h === 'Klimatresurs');
-  const climateTypeIndex = headerTexts.findIndex(h => h === 'Klimatresurs typ');
   const factorIndex = headerTexts.findIndex(h => h === 'Omräkningsfaktor');
   const factorUnitIndex = headerTexts.findIndex(h => h === 'Omräkningsfaktor enhet');
   const wasteIndex = headerTexts.findIndex(h => h === 'Spillfaktor');
@@ -8298,14 +7941,7 @@ function applyCustomClimateToRow(tr, customResource, headerRow){
     climateCell.textContent = customResource.name;
     climateCell.setAttribute('data-climate-cell', 'true');
   }
-
-  // Update climate type (EPD for custom resources)
-  if(climateTypeIndex >= 0 && tr.children[climateTypeIndex]){
-    const climateTypeCell = tr.children[climateTypeIndex];
-    climateTypeCell.textContent = 'EPD';
-    climateTypeCell.setAttribute('data-climate-type-cell', 'true');
-  }
-
+  
   // Update conversion factor
   if(factorIndex >= 0 && tr.children[factorIndex]){
     const factorCell = tr.children[factorIndex];
@@ -8637,7 +8273,6 @@ function updateParentClimateDisplay(groupKey, tbody){
   
   // Check if all children have the same climate resource
   let commonClimateResource = null;
-  let commonClimateType = null;
   let commonFactor = null;
   let commonFactorUnit = null;
   let commonWaste = null;
@@ -8645,35 +8280,32 @@ function updateParentClimateDisplay(groupKey, tbody){
   let commonA4 = null;
   let commonA5 = null;
   let allHaveSameClimate = true;
-
+  
   childRows.forEach((childTr, index) => {
     const climateCell = childTr.querySelector('td[data-climate-cell="true"]');
-    const climateTypeCell = childTr.querySelector('td[data-climate-type-cell="true"]');
     const factorCell = childTr.querySelector('td[data-factor-cell="true"]');
     const factorUnitCell = childTr.querySelector('td[data-unit-cell="true"]');
     const wasteCell = childTr.querySelector('td[data-waste-cell="true"]');
     const a1a3Cell = childTr.querySelector('td[data-klimat-a1a3-cell="true"], td[data-A1_A3-cell="true"]');
     const a4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"], td[data-A4-cell="true"]');
     const a5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"], td[data-A5-cell="true"]');
-
+    
     if(!climateCell || !factorCell || !factorUnitCell || !wasteCell || !a1a3Cell || !a4Cell || !a5Cell) {
       allHaveSameClimate = false;
       return;
     }
-
+    
     const climateName = climateCell.textContent.trim();
-    const climateType = climateTypeCell ? climateTypeCell.textContent.trim() : '';
     const factor = factorCell.textContent.trim();
     const factorUnit = factorUnitCell.textContent.trim();
     const waste = wasteCell.textContent.trim();
     const a1a3 = a1a3Cell.textContent.trim();
     const a4 = a4Cell.textContent.trim();
     const a5 = a5Cell.textContent.trim();
-
+    
     if(index === 0) {
       // First child - set as reference
       commonClimateResource = climateName;
-      commonClimateType = climateType;
       commonFactor = factor;
       commonFactorUnit = factorUnit;
       commonWaste = waste;
@@ -8682,9 +8314,8 @@ function updateParentClimateDisplay(groupKey, tbody){
       commonA5 = a5;
     } else {
       // Compare with reference
-      if(climateName !== commonClimateResource ||
-         climateType !== commonClimateType ||
-         factor !== commonFactor ||
+      if(climateName !== commonClimateResource || 
+         factor !== commonFactor || 
          factorUnit !== commonFactorUnit ||
          waste !== commonWaste ||
          a1a3 !== commonA1A3 ||
@@ -8702,21 +8333,20 @@ function updateParentClimateDisplay(groupKey, tbody){
   const headers = Array.from(headerRow.children).map(th => th.textContent);
   
   const climateIndex = headers.findIndex(h => h === 'Klimatresurs');
-  const climateTypeIndex = headers.findIndex(h => h === 'Klimatresurs typ');
   const factorIndex = headers.findIndex(h => h === 'Omräkningsfaktor');
   const factorUnitIndex = headers.findIndex(h => h === 'Omräkningsfaktor enhet');
   const wasteIndex = headers.findIndex(h => h === 'Spillfaktor');
   const a1a3Index = headers.findIndex(h => h === 'Emissionsfaktor A1-A3');
   const a4Index = headers.findIndex(h => h === 'Emissionsfaktor A4');
   const a5Index = headers.findIndex(h => h === 'Emissionsfaktor A5');
-
+  
   // For climate impact columns, we should NOT overwrite the sums - they are calculated separately
   const klimatA1A3Index = headers.findIndex(h => h === 'Klimatpåverkan A1-A3');
   const klimatA4Index = headers.findIndex(h => h === 'Klimatpåverkan A4');
   const klimatA5Index = headers.findIndex(h => h === 'Klimatpåverkan A5');
-
+  
   // Ensure parent has enough cells
-  const neededCells = Math.max(climateIndex, climateTypeIndex, factorIndex, factorUnitIndex, wasteIndex, a1a3Index, a4Index, a5Index) + 1;
+  const neededCells = Math.max(climateIndex, factorIndex, factorUnitIndex, wasteIndex, a1a3Index, a4Index, a5Index) + 1;
   while(parentTr.children.length < neededCells) {
     const td = document.createElement('td');
     td.textContent = '';
@@ -8730,13 +8360,7 @@ function updateParentClimateDisplay(groupKey, tbody){
       cell.textContent = commonClimateResource;
       cell.setAttribute('data-climate-cell', 'true');
     }
-
-    if(climateTypeIndex >= 0) {
-      const cell = parentTr.children[climateTypeIndex];
-      cell.textContent = commonClimateType;
-      cell.setAttribute('data-climate-type-cell', 'true');
-    }
-
+    
     if(factorIndex >= 0) {
       const cell = parentTr.children[factorIndex];
       cell.textContent = commonFactor;
@@ -8783,13 +8407,7 @@ function updateParentClimateDisplay(groupKey, tbody){
       cell.textContent = '';
       cell.removeAttribute('data-climate-cell');
     }
-
-    if(climateTypeIndex >= 0) {
-      const cell = parentTr.children[climateTypeIndex];
-      cell.textContent = '';
-      cell.removeAttribute('data-climate-type-cell');
-    }
-
+    
     if(factorIndex >= 0) {
       const cell = parentTr.children[factorIndex];
       cell.textContent = '';
@@ -9011,10 +8629,7 @@ function updateGroupWeightSums(groupKey, tbody){
   
   // Also update parent climate display (show climate resource data if all children have same)
   updateParentClimateDisplay(groupKey, tbody);
-
-  // Fill parent row with common values from children
-  fillParentRowsWithCommonValues(tbody);
-
+  
   // Debug: Check what values are actually on the parent row after all updates
   // console.log('🔍 [DEBUG] Final parent row values after all updates:');
   if(klimatA1A3ColIndex !== -1 && parentCells[klimatA1A3ColIndex]){
@@ -9377,22 +8992,6 @@ function updateClimateSummary(){
       summaryEpdPercent.querySelector('.climate-summary-value').textContent = `${epdPercent.toFixed(1)}%`;
     } else {
       summaryEpdPercent.style.display = 'none';
-    }
-  }
-
-  // Update BTA per m² display
-  const btaInput = document.getElementById('btaInput');
-  const summaryBtaPerM2 = document.getElementById('summaryBtaPerM2');
-  const summaryBtaValue = document.getElementById('summaryBtaValue');
-
-  if(btaInput && summaryBtaPerM2 && summaryBtaValue){
-    const btaArea = parseFloat(btaInput.value);
-    if(btaArea && btaArea > 0 && total > 0){
-      const perM2 = total / btaArea;
-      summaryBtaPerM2.style.display = 'flex';
-      summaryBtaValue.textContent = `${perM2.toFixed(2)} kg CO₂e/m²`;
-    } else {
-      summaryBtaPerM2.style.display = 'none';
     }
   }
 }
@@ -9789,25 +9388,6 @@ function loadProject(file){
       if(hasCurrentExcelFile){
         // Excel file is already open - render from current Excel data and apply saved mappings
         console.log('🔄 Renderar tabell från aktuell Excel-fil och tillämpar sparade mappningar');
-
-        // If project has layer data, ensure "Skiktnamn" is in headers before rendering
-        if(layerData.size > 0 && !lastHeaders.includes('Skiktnamn')){
-          // Find where to insert "Skiktnamn" - before "Klimatresurs" if it exists, otherwise at end
-          const klimatIndex = lastHeaders.findIndex(h => h === 'Klimatresurs');
-          const insertIndex = klimatIndex !== -1 ? klimatIndex : lastHeaders.length;
-
-          lastHeaders.splice(insertIndex, 0, 'Skiktnamn');
-
-          // Also add empty cell to all rows in lastRows at the same position
-          lastRows.forEach(row => {
-            if(Array.isArray(row)){
-              row.splice(insertIndex, 0, '');
-            }
-          });
-
-          console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
-        }
-
         renderTableWithOptionalGrouping(lastRows);
 
         // Clean up old badges and layers before applying new ones
@@ -9815,20 +9395,6 @@ function loadProject(file){
           cleanupOldBadgesAndLayers();
           applySavedLayersAndClimate();
           debouncedUpdateClimateSummary();
-
-          // Update lastHeaders to include dynamically added columns like "Skiktnamn"
-          const table = getTable();
-          if(table){
-            const thead = table.querySelector('thead');
-            if(thead){
-              const headerRow = thead.querySelector('tr:first-child');
-              if(headerRow){
-                const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
-                lastHeaders = updatedHeaders;
-                console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
-              }
-            }
-          }
         }, 100);
 
         // Show info to user
@@ -9840,21 +9406,6 @@ function loadProject(file){
         console.log('🔄 Återställer sparad tabellstruktur från projekt');
         output.innerHTML = projectData.tableHTML;
 
-        // Update lastHeaders to match the restored table (includes dynamic columns like "Skiktnamn")
-        const table = getTable();
-        if(table){
-          const thead = table.querySelector('thead');
-          if(thead){
-            const headerRow = thead.querySelector('tr:first-child');
-            if(headerRow){
-              // Extract headers from restored table (skip first action column)
-              const restoredHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
-              lastHeaders = restoredHeaders;
-              console.log('📋 Updated lastHeaders from restored table:', lastHeaders.length, 'columns');
-            }
-          }
-        }
-
         // Re-attach event listeners to the restored table
         reattachTableEventListeners();
 
@@ -9863,25 +9414,6 @@ function loadProject(file){
       } else {
         // Fallback for older project files - render table normally
         console.log('🔄 Återställer tabell från rådata (äldre format)');
-
-        // If project has layer data, ensure "Skiktnamn" is in headers before rendering
-        if(layerData.size > 0 && !lastHeaders.includes('Skiktnamn')){
-          // Find where to insert "Skiktnamn" - before "Klimatresurs" if it exists, otherwise at end
-          const klimatIndex = lastHeaders.findIndex(h => h === 'Klimatresurs');
-          const insertIndex = klimatIndex !== -1 ? klimatIndex : lastHeaders.length;
-
-          lastHeaders.splice(insertIndex, 0, 'Skiktnamn');
-
-          // Also add empty cell to all rows in lastRows at the same position
-          lastRows.forEach(row => {
-            if(Array.isArray(row)){
-              row.splice(insertIndex, 0, '');
-            }
-          });
-
-          console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
-        }
-
         renderTableWithOptionalGrouping(lastRows);
 
         // Clean up old badges and layers before applying new ones
@@ -9889,20 +9421,6 @@ function loadProject(file){
           cleanupOldBadgesAndLayers();
           applySavedLayersAndClimate();
           debouncedUpdateClimateSummary();
-
-          // Update lastHeaders to include dynamically added columns like "Skiktnamn"
-          const table = getTable();
-          if(table){
-            const thead = table.querySelector('thead');
-            if(thead){
-              const headerRow = thead.querySelector('tr:first-child');
-              if(headerRow){
-                const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
-                lastHeaders = updatedHeaders;
-                console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
-              }
-            }
-          }
         }, 100);
       }
       
