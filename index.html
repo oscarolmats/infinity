@@ -1230,20 +1230,93 @@
     document.getElementById('toggleBoverket').addEventListener('click', () => switchDatabase('boverket'));
     document.getElementById('toggleCo2data').addEventListener('click', () => switchDatabase('co2data'));
 
-    // Fetch both APIs in parallel
+    // Cache helper functions
+    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+    function getCachedData(key) {
+      try {
+        const cached = localStorage.getItem(key);
+        if (!cached) return null;
+
+        const { data, timestamp, version } = JSON.parse(cached);
+        const age = Date.now() - timestamp;
+
+        // Check if cache is still valid (less than 24h old)
+        if (age < CACHE_DURATION) {
+          console.log(`✅ Using cached ${key} (${Math.round(age / 1000 / 60)} minutes old, version: ${version})`);
+          return data;
+        } else {
+          console.log(`⏰ Cache expired for ${key} (${Math.round(age / 1000 / 60 / 60)} hours old)`);
+          localStorage.removeItem(key);
+          return null;
+        }
+      } catch (err) {
+        console.warn(`Cache read error for ${key}:`, err);
+        return null;
+      }
+    }
+
+    function setCachedData(key, data) {
+      try {
+        const version = data.Version || 'unknown';
+        const cacheObj = {
+          data,
+          timestamp: Date.now(),
+          version
+        };
+        localStorage.setItem(key, JSON.stringify(cacheObj));
+        console.log(`💾 Cached ${key} (version: ${version})`);
+      } catch (err) {
+        console.warn(`Cache write error for ${key}:`, err);
+      }
+    }
+
+    // Update loading indicators
+    apiIndicator.innerHTML = `
+      <div class="api-status">
+        <span class="api-status-dot"></span>
+        <span>Boverket</span>
+      </div>
+      <div class="api-details">Laddar...</div>
+    `;
+
+    epdIndicator.innerHTML = `
+      <div class="api-status">
+        <span class="api-status-dot"></span>
+        <span>co2data.fi</span>
+      </div>
+      <div class="api-details">Laddar...</div>
+    `;
+
+    // Fetch both APIs in parallel with caching
     Promise.all([
-      fetch('https://api.boverket.se/klimatdatabas/api/Klimat/v2/GetAllResources/latest/sv/json')
-        .then(res => res.json())
-        .catch(err => {
-          console.error('Boverket API Error:', err);
-          return null;
-        }),
-      fetch('/api/co2data')  // Use backend proxy to avoid CORS
-        .then(res => res.json())
-        .catch(err => {
-          console.error('co2data.fi API Error:', err);
-          return null;
-        })
+      // Fetch Boverket API
+      (async () => {
+        const cached = getCachedData('boverket_climate_data');
+        if (cached) return cached;
+
+        const res = await fetch('https://api.boverket.se/klimatdatabas/api/Klimat/v2/GetAllResources/latest/sv/json');
+        const data = await res.json();
+        setCachedData('boverket_climate_data', data);
+        return data;
+      })().catch(err => {
+        console.error('Boverket API Error:', err);
+        return null;
+      }),
+
+      // Fetch co2data.fi API
+      (async () => {
+        const cached = getCachedData('co2data_climate_data');
+        if (cached) return cached;
+
+        const res = await fetch('/api/co2data');
+        const data = await res.json();
+        setCachedData('co2data_climate_data', data);
+        return data;
+      })().catch(err => {
+        console.error('co2data.fi API Error:', err);
+        return null;
+      })
     ]).then(([boverketData, co2dataFiData]) => {
       console.log('Boverket API Response:', boverketData);
       console.log('co2data.fi API Response:', co2dataFiData);
@@ -1395,9 +1468,24 @@
       window.co2dataResources = [];
       populateClimateResourcesWithCategories(window.climateResources);
     });
-    
+
+    // Add cache refresh functionality to indicators
+    apiIndicator.addEventListener('click', () => {
+      if (confirm('Vill du uppdatera Boverket-data från servern? (Nuvarande cache raderas)')) {
+        localStorage.removeItem('boverket_climate_data');
+        location.reload();
+      }
+    });
+
+    epdIndicator.addEventListener('click', () => {
+      if (confirm('Vill du uppdatera co2data.fi-data från servern? (Nuvarande cache raderas)')) {
+        localStorage.removeItem('co2data_climate_data');
+        location.reload();
+      }
+    });
+
     // EPD files will be loaded by app.js after it initializes
-    
+
   </script>
 </body>
 </html>
