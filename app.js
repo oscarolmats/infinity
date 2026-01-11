@@ -4042,7 +4042,7 @@ function updateMixedLayerDetails(){
             <input type="text" id="mixedMat1Name${layerNum}" placeholder="t.ex. Betong C30/37" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;" />
           </div>
           <div>
-            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Andel (%):</label>
+            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Andel av volym (%):</label>
             <input type="number" id="mixedMat1Percent${layerNum}" min="0" max="100" value="50" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;" />
           </div>
           <div>
@@ -4066,7 +4066,7 @@ function updateMixedLayerDetails(){
             <input type="text" id="mixedMat2Name${layerNum}" placeholder="t.ex. Stål" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;" />
           </div>
           <div>
-            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Andel (%):</label>
+            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Andel av volym (%):</label>
             <input type="number" id="mixedMat2Percent${layerNum}" min="0" max="100" value="50" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;" />
           </div>
           <div>
