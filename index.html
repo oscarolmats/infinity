@@ -418,13 +418,15 @@
         <span>Ansluter till Boverket...</span>
       </div>
     </div>
-    
+
+    <!-- DISABLED: Finnish database indicator hidden as it's not being loaded
     <div id="epdIndicator" class="api-indicator">
       <div class="api-status">
         <span class="api-status-dot"></span>
         <span>Laddar EPD-filer...</span>
       </div>
     </div>
+    -->
   </div>
 
   <!-- Climate Impact Summary -->
@@ -576,6 +578,7 @@
         <!-- Left Column: Search and List -->
         <div style="flex:1; min-width:350px;">
           <!-- Database Toggle -->
+          <!-- DISABLED: Finnish database toggle hidden as it's not working in production
           <div style="margin-bottom:16px;">
             <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
               Välj databas
@@ -597,6 +600,7 @@
               </button>
             </div>
           </div>
+          -->
 
           <!-- Search Box -->
           <div style="margin-bottom:16px;">
@@ -1227,8 +1231,9 @@
     }
 
     // Attach toggle event listeners
-    document.getElementById('toggleBoverket').addEventListener('click', () => switchDatabase('boverket'));
-    document.getElementById('toggleCo2data').addEventListener('click', () => switchDatabase('co2data'));
+    // DISABLED: Toggle buttons are hidden, so event listeners are not needed
+    // document.getElementById('toggleBoverket').addEventListener('click', () => switchDatabase('boverket'));
+    // document.getElementById('toggleCo2data').addEventListener('click', () => switchDatabase('co2data'));
 
     // Fetch both APIs in parallel
     Promise.all([
@@ -1238,12 +1243,14 @@
           console.error('Boverket API Error:', err);
           return null;
         }),
-      fetch('/api/co2data')  // Use backend proxy to avoid CORS
-        .then(res => res.json())
-        .catch(err => {
-          console.error('co2data.fi API Error:', err);
-          return null;
-        })
+      // DISABLED: Finnish database not working in production
+      // fetch('/api/co2data')  // Use backend proxy to avoid CORS
+      //   .then(res => res.json())
+      //   .catch(err => {
+      //     console.error('co2data.fi API Error:', err);
+      //     return null;
+      //   })
+      Promise.resolve(null) // Return null instead of fetching co2data
     ]).then(([boverketData, co2dataFiData]) => {
       console.log('Boverket API Response:', boverketData);
       console.log('co2data.fi API Response:', co2dataFiData);
@@ -1314,35 +1321,40 @@
       }
 
       // Process co2data.fi data
+      // DISABLED: Finnish database is not being loaded, so skip processing
       if(co2dataFiData && co2dataFiData.Resources && Array.isArray(co2dataFiData.Resources)){
         const version = co2dataFiData.Version || 'Okänd version';
 
-        epdIndicator.className = 'api-indicator connected';
-        epdIndicator.innerHTML = `
-          <div class="api-status">
-            <span class="api-status-dot connected"></span>
-            <span>co2data.fi</span>
-          </div>
-          <div class="api-details">
-            ${co2dataFiData.Resources.length} resurser<br>
-            Ver: ${version}
-          </div>
-        `;
+        if(epdIndicator) {
+          epdIndicator.className = 'api-indicator connected';
+          epdIndicator.innerHTML = `
+            <div class="api-status">
+              <span class="api-status-dot connected"></span>
+              <span>co2data.fi</span>
+            </div>
+            <div class="api-details">
+              ${co2dataFiData.Resources.length} resurser<br>
+              Ver: ${version}
+            </div>
+          `;
+        }
 
         // Normalize and store co2data.fi resources
         window.co2dataResources = co2dataFiData.Resources.map(resource => normalizeCo2dataResource(resource));
 
         console.log(`✅ Loaded ${window.co2dataResources.length} co2data.fi resources`);
       } else {
-        epdIndicator.className = 'api-indicator error';
-        epdIndicator.innerHTML = `
-          <div class="api-status">
-            <span class="api-status-dot error"></span>
-            <span>co2data.fi</span>
-          </div>
-          <div class="api-details">Fel vid laddning</div>
-        `;
-        console.warn('❌ co2data.fi API failed or returned unexpected format');
+        if(epdIndicator) {
+          epdIndicator.className = 'api-indicator error';
+          epdIndicator.innerHTML = `
+            <div class="api-status">
+              <span class="api-status-dot error"></span>
+              <span>co2data.fi</span>
+            </div>
+            <div class="api-details">Fel vid laddning</div>
+          `;
+        }
+        console.log('ℹ️ co2data.fi database disabled');
         window.co2dataResources = [];
       }
 
@@ -1367,14 +1379,16 @@
         <div class="api-details">Anslutning misslyckades</div>
       `;
 
-      epdIndicator.className = 'api-indicator error';
-      epdIndicator.innerHTML = `
-        <div class="api-status">
-          <span class="api-status-dot error"></span>
-          <span>co2data.fi</span>
-        </div>
-        <div class="api-details">Anslutning misslyckades</div>
-      `;
+      if(epdIndicator) {
+        epdIndicator.className = 'api-indicator error';
+        epdIndicator.innerHTML = `
+          <div class="api-status">
+            <span class="api-status-dot error"></span>
+            <span>co2data.fi</span>
+          </div>
+          <div class="api-details">Anslutning misslyckades</div>
+        `;
+      }
 
       // Add generic "Luft" resource as fallback
       window.climateResources = [{
