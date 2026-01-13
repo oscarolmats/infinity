@@ -2192,7 +2192,7 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
   const actionTh = document.createElement('th'); actionTh.textContent = '';
   addResizeHandle(actionTh);
   headerTr.appendChild(actionTh);
-  
+
   // Get existing table headers to preserve dynamically added columns
   const existingTable = getTable();
   let allHeaders = [...headers];
@@ -2201,7 +2201,10 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
     // Add any new headers that aren't in the original headers
     const newHeaders = existingHeaders.slice(1); // Skip action column
     newHeaders.forEach(h => {
-      if(!headers.includes(h)){
+      // Use case-insensitive comparison and trim to avoid duplicates
+      const normalizedH = h.trim();
+      const alreadyExists = headers.some(existing => existing.trim() === normalizedH);
+      if(!alreadyExists){
         allHeaders.push(h);
       }
     });
@@ -2674,7 +2677,7 @@ function renderTableWithOptionalGrouping(rows){
     const actionTh = document.createElement('th'); actionTh.textContent = '';
     addResizeHandle(actionTh);
     headerTr.appendChild(actionTh);
-    
+
     // Get existing table headers to preserve dynamically added columns
     const existingTable = getTable();
     let allHeaders = [...headers];
@@ -2683,7 +2686,10 @@ function renderTableWithOptionalGrouping(rows){
       // Add any new headers that aren't in the original headers
       const newHeaders = existingHeaders.slice(1); // Skip action column
       newHeaders.forEach(h => {
-        if(!headers.includes(h)){
+        // Use case-insensitive comparison and trim to avoid duplicates
+        const normalizedH = h.trim();
+        const alreadyExists = headers.some(existing => existing.trim() === normalizedH);
+        if(!alreadyExists){
           allHeaders.push(h);
         }
       });
@@ -9825,7 +9831,11 @@ function loadProject(file){
               if(headerRow){
                 const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
                 lastHeaders = updatedHeaders;
-                console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
+                // Also update lastRows[0] to keep it in sync
+                if(lastRows && lastRows.length > 0){
+                  lastRows[0] = updatedHeaders;
+                }
+                console.log('📋 Updated lastHeaders and lastRows[0] after applying layers:', lastHeaders.length, 'columns');
               }
             }
           }
@@ -9899,7 +9909,11 @@ function loadProject(file){
               if(headerRow){
                 const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
                 lastHeaders = updatedHeaders;
-                console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
+                // Also update lastRows[0] to keep it in sync
+                if(lastRows && lastRows.length > 0){
+                  lastRows[0] = updatedHeaders;
+                }
+                console.log('📋 Updated lastHeaders and lastRows[0] after applying layers:', lastHeaders.length, 'columns');
               }
             }
           }
