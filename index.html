@@ -1235,30 +1235,39 @@
     // document.getElementById('toggleBoverket').addEventListener('click', () => switchDatabase('boverket'));
     // document.getElementById('toggleCo2data').addEventListener('click', () => switchDatabase('co2data'));
 
-    // Fetch both APIs in parallel
+    // Configure which version to use - change this to update to a new version
+    const BOVERKET_API_VERSION = '02.07.000'; // Change this to use a different version
+
+    // Fetch APIs in parallel: specified version + latest version check
     Promise.all([
-      fetch('https://api.boverket.se/klimatdatabas/api/Klimat/v2/GetAllResources/latest/sv/json')
+      fetch(`https://api.boverket.se/klimatdatabas/api/Klimat/v2/GetAllResources/${BOVERKET_API_VERSION}/sv/json`)
         .then(res => res.json())
         .catch(err => {
           console.error('Boverket API Error:', err);
           return null;
         }),
+      // Check for latest version
+      fetch('https://api.boverket.se/klimatdatabas/api/Klimat/v2/GetAllResources/latest/sv/json')
+        .then(res => res.json())
+        .catch(err => {
+          console.error('Boverket latest version check error:', err);
+          return null;
+        }),
       // DISABLED: Finnish database not working in production
-      // fetch('/api/co2data')  // Use backend proxy to avoid CORS
-      //   .then(res => res.json())
-      //   .catch(err => {
-      //     console.error('co2data.fi API Error:', err);
-      //     return null;
-      //   })
       Promise.resolve(null) // Return null instead of fetching co2data
-    ]).then(([boverketData, co2dataFiData]) => {
+    ]).then(([boverketData, latestVersionData, co2dataFiData]) => {
       console.log('Boverket API Response:', boverketData);
+      console.log('Latest version data:', latestVersionData);
       console.log('co2data.fi API Response:', co2dataFiData);
 
       // Process Boverket data
       if(boverketData && boverketData.Resources && Array.isArray(boverketData.Resources)){
         const version = boverketData.Version || 'Okänd version';
         const publishedDate = boverketData.PublishedDate ? new Date(boverketData.PublishedDate).toLocaleDateString('sv-SE') : 'Okänt datum';
+
+        // Check if there's a newer version available
+        const latestVersion = latestVersionData?.Version || null;
+        const hasUpdate = latestVersion && latestVersion !== version;
 
         apiIndicator.className = 'api-indicator connected';
         apiIndicator.innerHTML = `
@@ -1268,7 +1277,9 @@
           </div>
           <div class="api-details">
             ${boverketData.Resources.length} resurser<br>
-            Ver: ${version}
+            Ver: ${version}<br>
+            Uppdaterad: ${publishedDate}
+            ${hasUpdate ? `<br><span style="color: #ff9800; font-weight: bold;">⚠ Uppdatering finns: ${latestVersion}</span>` : ''}
           </div>
         `;
 
