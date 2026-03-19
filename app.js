@@ -3276,16 +3276,26 @@ function exportTableToExcel(){
     alert('Ingen tabell att exportera');
     return;
   }
-  
+
   if(!window.XLSX){
     alert('Excel-export biblioteket kunde inte laddas');
     return;
   }
-  
+
+  // Save current state of all groups
+  const allParents = Array.from(table.querySelectorAll('tbody tr.group-parent, tbody tr.layer-parent'));
+  const savedStates = allParents.map(parent => ({
+    element: parent,
+    wasOpen: parent.getAttribute('data-open') !== 'false'
+  }));
+
+  // Expand all groups for export
+  setAllGroups(true);
+
   // Create a workbook
   const wb = window.XLSX.utils.book_new();
-  
-  // Collect all visible data
+
+  // Collect all visible data (now all rows are visible due to expansion)
   const exportData = [];
   
   // Get headers
@@ -3434,6 +3444,14 @@ function exportTableToExcel(){
   
   // Write and download
   window.XLSX.writeFile(wb, filename);
+
+  // Restore original group states
+  savedStates.forEach(({element, wasOpen}) => {
+    const currentlyOpen = element.getAttribute('data-open') !== 'false';
+    if(currentlyOpen !== wasOpen){
+      toggleParentRow(element);
+    }
+  });
 }
 
 // Layer modal behavior
