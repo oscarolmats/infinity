@@ -3013,6 +3013,13 @@ if(groupBySelect){
     console.log('🔄 [groupBySelect.change] lastRows total count:', lastRows.length - 1, 'data rows');
     renderTableWithOptionalGrouping(lastRows);
     console.log('🔄 [groupBySelect.change] AFTER renderTable - layerData.size:', layerData.size);
+    if(layerData.size > 0){
+      setTimeout(() => {
+        cleanupOldBadgesAndLayers();
+        applySavedLayersAndClimate();
+        debouncedUpdateClimateSummary();
+      }, 50);
+    }
   });
 }
 
@@ -6327,10 +6334,21 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
         const layerChildOf = tr.getAttribute('data-layer-child-of');
         const signature = getRowSignature(rowData, layerChildOf);
         const beforeSize = layerData.size;
-        layerData.set(signature, { count, thicknesses, layerKey: existingLayerKey || layerKey });
+        const layerDataEntry = {
+          count,
+          thicknesses,
+          layerKey: existingLayerKey || layerKey,
+          layerNames: layerNames && layerNames.length > 0 ? layerNames : undefined
+        };
+        layerData.set(signature, layerDataEntry);
+        // Also save with null layerChildOf for groupBy changes
+        if(layerChildOf !== null){
+          const signatureNull = getRowSignature(rowData, null);
+          layerData.set(signatureNull, layerDataEntry);
+        }
         const afterSize = layerData.size;
         console.log('💾 [applyLayerSplit] SAVED layerData:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize, '- Signature:', signature.substring(0, 60));
-        console.log('💾 [applyLayerSplit] Layer data:', { count, thicknesses, layerKey: existingLayerKey || layerKey });
+        console.log('💾 [applyLayerSplit] Layer data:', { count, thicknesses, layerKey: existingLayerKey || layerKey, layerNames });
       }
     }
     
@@ -9810,61 +9828,11 @@ function loadProject(file){
       updateUndoRedoButtons();
       
       // Restore the table structure
-      if(hasCurrentExcelFile){
-        // Excel file is already open - render from current Excel data and apply saved mappings
-        console.log('🔄 Renderar tabell från aktuell Excel-fil och tillämpar sparade mappningar');
-
-        // If project has layer data, ensure "Skiktnamn" is in headers before rendering
-        if(layerData.size > 0 && !lastHeaders.includes('Skiktnamn')){
-          // Find where to insert "Skiktnamn" - before "Klimatresurs" if it exists, otherwise at end
-          const klimatIndex = lastHeaders.findIndex(h => h === 'Klimatresurs');
-          const insertIndex = klimatIndex !== -1 ? klimatIndex : lastHeaders.length;
-
-          lastHeaders.splice(insertIndex, 0, 'Skiktnamn');
-
-          // Also add empty cell to all rows in lastRows at the same position
-          lastRows.forEach(row => {
-            if(Array.isArray(row)){
-              row.splice(insertIndex, 0, '');
-            }
-          });
-
-          console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
-        }
-
-        renderTableWithOptionalGrouping(lastRows);
-
-        // Clean up old badges and layers before applying new ones
-        setTimeout(() => {
-          cleanupOldBadgesAndLayers();
-          applySavedLayersAndClimate();
-          debouncedUpdateClimateSummary();
-
-          // Update lastHeaders to include dynamically added columns like "Skiktnamn"
-          const table = getTable();
-          if(table){
-            const thead = table.querySelector('thead');
-            if(thead){
-              const headerRow = thead.querySelector('tr:first-child');
-              if(headerRow){
-                const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
-                lastHeaders = updatedHeaders;
-                // Also update lastRows[0] to keep it in sync
-                if(lastRows && lastRows.length > 0){
-                  lastRows[0] = updatedHeaders;
-                }
-                console.log('📋 Updated lastHeaders and lastRows[0] after applying layers:', lastHeaders.length, 'columns');
-              }
-            }
-          }
-        }, 100);
-
-        // Show info to user
-        const layerCount = layerData.size;
-        const climateCount = climateData.size;
-        alert(`Projekt laddat!\n\n${layerCount} skiktning${layerCount !== 1 ? 'ar' : ''} och ${climateCount} klimatmappning${climateCount !== 1 ? 'ar' : ''} från projektet har tillämpats på den öppna Excel-filen.\n\nOm Excel-filen har ändrats sedan projektet sparades, matchas åtgärderna baserat på radinnehåll (inte radnummer).`);
-      } else if(projectData.tableHTML){
-        // No Excel file open - restore table structure from project (version 1.2+)
+      // Always prefer saved tableHTML when available — it contains the exact correct state
+      // (Skiktnamn column, climate columns in correct positions). Only fall back to
+      // re-rendering from Excel when no tableHTML was saved (older projects or different Excel use case).
+      if(projectData.tableHTML){
+        // Saved table HTML available — restore exact state regardless of whether Excel is open
         console.log('🔄 Återställer sparad tabellstruktur från projekt');
         output.innerHTML = projectData.tableHTML;
 
@@ -9886,10 +9854,55 @@ function loadProject(file){
         // Re-attach event listeners to the restored table
         reattachTableEventListeners();
 
+        // tableHTML already contains the complete correct state (layer children with
+        // Skiktnamn values and climate TDs in correct positions) — no re-apply needed.
+
         // Update climate summary
         debouncedUpdateClimateSummary();
+
+        alert('Projekt laddat!');
+      } else if(hasCurrentExcelFile){
+        // No saved tableHTML but Excel is open — re-render from Excel and apply saved mappings
+        console.log('🔄 Renderar tabell från aktuell Excel-fil och tillämpar sparade mappningar');
+
+        // If project has layer data, ensure "Skiktnamn" is in headers before rendering
+        if(layerData.size > 0 && !lastHeaders.includes('Skiktnamn')){
+          const klimatIndex = lastHeaders.findIndex(h => h === 'Klimatresurs');
+          const insertIndex = klimatIndex !== -1 ? klimatIndex : lastHeaders.length;
+          lastHeaders.splice(insertIndex, 0, 'Skiktnamn');
+          lastRows.forEach(row => {
+            if(Array.isArray(row)) row.splice(insertIndex, 0, '');
+          });
+          console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
+        }
+
+        renderTableWithOptionalGrouping(lastRows);
+
+        setTimeout(() => {
+          cleanupOldBadgesAndLayers();
+          applySavedLayersAndClimate();
+          debouncedUpdateClimateSummary();
+
+          const table = getTable();
+          if(table){
+            const thead = table.querySelector('thead');
+            if(thead){
+              const headerRow = thead.querySelector('tr:first-child');
+              if(headerRow){
+                const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
+                lastHeaders = updatedHeaders;
+                if(lastRows && lastRows.length > 0) lastRows[0] = updatedHeaders;
+                console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
+              }
+            }
+          }
+        }, 100);
+
+        const layerCount = layerData.size;
+        const climateCount = climateData.size;
+        alert(`Projekt laddat!\n\n${layerCount} skiktning${layerCount !== 1 ? 'ar' : ''} och ${climateCount} klimatmappning${climateCount !== 1 ? 'ar' : ''} från projektet har tillämpats på den öppna Excel-filen.\n\nOm Excel-filen har ändrats sedan projektet sparades, matchas åtgärderna baserat på radinnehåll (inte radnummer).`);
       } else {
-        // Fallback for older project files - render table normally
+        // Fallback for older project files with no tableHTML and no Excel open
         console.log('🔄 Återställer tabell från rådata (äldre format)');
 
         // If project has layer data, ensure "Skiktnamn" is in headers before rendering
