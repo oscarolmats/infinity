@@ -3351,6 +3351,10 @@ function exportTableToExcel(){
     rows.forEach(tr => {
       // Skip hidden rows
       if(tr.style.display === 'none') return;
+      // Skip parent summary rows — but not layer children (which also inherit layer-parent class from clone)
+      const isLayerChild = tr.hasAttribute('data-layer-child-of');
+      if(tr.classList.contains('group-parent') && !isLayerChild) return;
+      if(tr.classList.contains('layer-parent') && !isLayerChild) return;
       
       const rowData = [];
       const cells = Array.from(tr.children);
