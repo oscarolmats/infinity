@@ -2087,81 +2087,63 @@ function openClimateForGroupKey(groupKey, table){
 function fillParentRowsWithCommonValues(tbody){
   if(!tbody) return;
 
-  // Handle group parents
-  const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
-  groupParents.forEach(parentTr => {
+  const SUM_ATTRS = ['data-sum-inbyggd-vikt','data-sum-inkopt-vikt','data-sum-klimat-a1a3','data-sum-klimat-a4','data-sum-klimat-a5'];
+
+  // Build group→children map in one O(n) pass to avoid per-group querySelectorAll
+  const childrenByGroup = new Map();
+  tbody.querySelectorAll('tr[data-group-child-of]').forEach(tr => {
+    const k = tr.getAttribute('data-group-child-of');
+    if(!childrenByGroup.has(k)) childrenByGroup.set(k, []);
+    childrenByGroup.get(k).push(tr);
+  });
+
+  // Handle group parents — read values from _originalRowData (no DOM textContent reads)
+  tbody.querySelectorAll('tr.group-parent').forEach(parentTr => {
     const groupKey = parentTr.getAttribute('data-group-key');
     if(!groupKey) return;
-
-    const children = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+    const children = childrenByGroup.get(groupKey) || [];
     if(children.length === 0) return;
-
-    const parentCells = Array.from(parentTr.children);
-
-    // For each cell in parent (skip first action cell)
+    const parentCells = parentTr.children;
     for(let i = 1; i < parentCells.length; i++){
       const parentCell = parentCells[i];
-
-      // Skip cells that already have content or are sum cells
-      if(parentCell.textContent.trim() !== '' ||
-         parentCell.hasAttribute('data-sum-inbyggd-vikt') ||
-         parentCell.hasAttribute('data-sum-inkopt-vikt') ||
-         parentCell.hasAttribute('data-sum-klimat-a1a3') ||
-         parentCell.hasAttribute('data-sum-klimat-a4') ||
-         parentCell.hasAttribute('data-sum-klimat-a5')) {
-        continue;
+      if(parentCell.textContent.trim() !== '' || SUM_ATTRS.some(a => parentCell.hasAttribute(a))) continue;
+      // Read from _originalRowData (index i-1 accounts for action cell offset)
+      const colIdx = i - 1;
+      let first = null; let allSame = true;
+      for(const child of children){
+        const val = child._originalRowData ? (child._originalRowData[colIdx] != null ? String(child._originalRowData[colIdx]).trim() : '') : '';
+        if(val === '') continue;
+        if(first === null) first = val;
+        else if(val !== first){ allSame = false; break; }
       }
-
-      // Get values from all children for this column
-      const childValues = children.map(child => {
-        const childCell = child.children[i];
-        return childCell ? childCell.textContent.trim() : '';
-      });
-
-      // Check if all children have the same non-empty value
-      const uniqueValues = [...new Set(childValues.filter(v => v !== ''))];
-      if(uniqueValues.length === 1){
-        parentCell.textContent = uniqueValues[0];
-      }
+      if(first !== null && allSame) parentCell.textContent = first;
     }
   });
 
-  // Handle layer parents
-  const layerParents = Array.from(tbody.querySelectorAll('tr.layer-parent'));
-  layerParents.forEach(parentTr => {
+  // Handle layer parents (only relevant when layering is active)
+  if(layerData.size === 0) return;
+  const childrenByLayer = new Map();
+  tbody.querySelectorAll('tr[data-parent-key]').forEach(tr => {
+    const k = tr.getAttribute('data-parent-key');
+    if(!childrenByLayer.has(k)) childrenByLayer.set(k, []);
+    childrenByLayer.get(k).push(tr);
+  });
+
+  tbody.querySelectorAll('tr.layer-parent').forEach(parentTr => {
     const layerKey = parentTr.getAttribute('data-layer-key');
     if(!layerKey) return;
-
-    const children = Array.from(tbody.querySelectorAll(`tr[data-parent-key="${CSS.escape(layerKey)}"]`));
+    const children = childrenByLayer.get(layerKey) || [];
     if(children.length === 0) return;
-
-    const parentCells = Array.from(parentTr.children);
-
-    // For each cell in parent (skip first action cell)
+    const parentCells = parentTr.children;
     for(let i = 1; i < parentCells.length; i++){
       const parentCell = parentCells[i];
-
-      // Skip cells that already have content or are sum cells
-      if(parentCell.textContent.trim() !== '' ||
-         parentCell.hasAttribute('data-sum-inbyggd-vikt') ||
-         parentCell.hasAttribute('data-sum-inkopt-vikt') ||
-         parentCell.hasAttribute('data-sum-klimat-a1a3') ||
-         parentCell.hasAttribute('data-sum-klimat-a4') ||
-         parentCell.hasAttribute('data-sum-klimat-a5')) {
-        continue;
-      }
-
-      // Get values from all children for this column
-      const childValues = children.map(child => {
+      if(parentCell.textContent.trim() !== '' || SUM_ATTRS.some(a => parentCell.hasAttribute(a))) continue;
+      const childValues = Array.from(children).map(child => {
         const childCell = child.children[i];
         return childCell ? childCell.textContent.trim() : '';
       });
-
-      // Check if all children have the same non-empty value
       const uniqueValues = [...new Set(childValues.filter(v => v !== ''))];
-      if(uniqueValues.length === 1){
-        parentCell.textContent = uniqueValues[0];
-      }
+      if(uniqueValues.length === 1) parentCell.textContent = uniqueValues[0];
     }
   });
 }
@@ -2334,16 +2316,17 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
   });
   table.appendChild(tbody);
 
-  // Apply saved layers and climate after table is fully assembled
-  const allRows = Array.from(tbody.querySelectorAll('tr[data-group-child-of]'));
-  allRows.forEach(tr => {
-    // Use stored original row data instead of reading from DOM
-    const rowData = tr._originalRowData;
-    if(rowData){
-      applySavedLayers(tr, rowData);
-      applySavedClimate(tr, rowData);
-    }
-  });
+  // Apply saved layers and climate after table is fully assembled (skip if maps are empty)
+  if(layerData.size > 0 || climateData.size > 0){
+    const allRows = Array.from(tbody.querySelectorAll('tr[data-group-child-of]'));
+    allRows.forEach(tr => {
+      const rowData = tr._originalRowData;
+      if(rowData){
+        if(layerData.size > 0) applySavedLayers(tr, rowData);
+        if(climateData.size > 0) applySavedClimate(tr, rowData);
+      }
+    });
+  }
   // Fill parent rows with common values from children
   fillParentRowsWithCommonValues(tbody);
   // Update visibility of group action buttons that depend on layering state
@@ -2354,57 +2337,45 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
   // Attach a mutation observer to keep visibility in sync when rows are layered after render
   ensureGroupVisibilityObserver(tbody);
   
-  // Set climate resource names for layer parents in group parents
-  const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
-  groupParents.forEach(parentTr => {
-    const groupKey = parentTr.getAttribute('data-group-key');
-    if(groupKey){
-      // Check if any child row is a layer parent and get its climate data
-      const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
-      let climateResourceName = '';
-      let climateInfoForParent = null;
+  // Set climate resource names and weight sums for group parents — only needed when data exists
+  if(layerData.size > 0 || climateData.size > 0){
+    const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
+    groupParents.forEach(parentTr => {
+      const groupKey = parentTr.getAttribute('data-group-key');
+      if(!groupKey) return;
 
-      for(const childTr of childRows) {
-        const rowData = childTr._originalRowData;
-        if(rowData) {
-          const baseSignature = getRowSignature(rowData, null);
-          if(layerData.has(baseSignature)) {
-            // This child row is a layer parent, check if it has climate data
-            const climateInfo = climateData.get(baseSignature);
-            if(climateInfo) {
-              climateResourceName = typeof climateInfo === 'string' ? climateInfo : climateInfo.name;
-              climateInfoForParent = climateInfo;
-              break; // Use the first layer parent's climate data
+      if(layerData.size > 0){
+        const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+        for(const childTr of childRows) {
+          const rowData = childTr._originalRowData;
+          if(rowData) {
+            const baseSignature = getRowSignature(rowData, null);
+            if(layerData.has(baseSignature)) {
+              const climateInfo = climateData.get(baseSignature);
+              if(climateInfo) {
+                const climateResourceName = typeof climateInfo === 'string' ? climateInfo : climateInfo.name;
+                const climateCell = parentTr.querySelector('td[data-climate-cell="true"]');
+                if(climateCell) climateCell.textContent = climateResourceName;
+                const isCustom = typeof climateInfo === 'object' && climateInfo.isCustom;
+                const climateTypeCell = parentTr.querySelector('td[data-climate-type-cell="true"]');
+                if(climateTypeCell) climateTypeCell.textContent = isCustom ? 'EPD' : 'Generisk klimatresurs';
+                break;
+              }
             }
           }
         }
       }
 
-      // Set climate resource name and type in parent row if found
-      if(climateResourceName && climateInfoForParent) {
-        const climateCell = parentTr.querySelector('td[data-climate-cell="true"]');
-        if(climateCell) {
-          climateCell.textContent = climateResourceName;
-        }
-
-        // Also set climate type
-        const isCustom = typeof climateInfoForParent === 'object' && climateInfoForParent.isCustom;
-        const climateType = isCustom ? 'EPD' : 'Generisk klimatresurs';
-        const climateTypeCell = parentTr.querySelector('td[data-climate-type-cell="true"]');
-        if(climateTypeCell) {
-          climateTypeCell.textContent = climateType;
-        }
-      }
-      
-      updateGroupWeightSums(groupKey, tbody);
-    }
-  });
+      if(climateData.size > 0) updateGroupWeightSums(groupKey, tbody);
+    });
+  }
   
   return table;
 }
 
 // Toggle visibility of group-level restore buttons depending on if any children are layered
 function updateGroupActionButtonsVisibility(tbody){
+  if(layerData.size === 0) return; // No layer data means no children can be layered
   const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
   groupParents.forEach(parentTr => {
     const key = parentTr.getAttribute('data-group-key');
@@ -2643,16 +2614,17 @@ function renderTableWithOptionalGrouping(rows){
     attachSorting(table);
     installHoverRowTracking(table);
     
-    // Apply saved layers and climate after table is fully assembled
-    const allRows = Array.from(tbody.querySelectorAll('tr'));
-    allRows.forEach(tr => {
-      // Use stored original row data instead of reading from DOM
-      const rowData = tr._originalRowData;
-      if(rowData){
-        applySavedLayers(tr, rowData);
-        applySavedClimate(tr, rowData);
-      }
-    });
+    // Apply saved layers and climate (skip if maps are empty)
+    if(layerData.size > 0 || climateData.size > 0){
+      const allRows = Array.from(tbody.querySelectorAll('tr'));
+      allRows.forEach(tr => {
+        const rowData = tr._originalRowData;
+        if(rowData){
+          if(layerData.size > 0) applySavedLayers(tr, rowData);
+          if(climateData.size > 0) applySavedClimate(tr, rowData);
+        }
+      });
+    }
 
   } else {
     const table = buildGroupedTable(headers, bodyRows, groupIdx);
