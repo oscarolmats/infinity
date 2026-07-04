@@ -2337,28 +2337,45 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
   // Attach a mutation observer to keep visibility in sync when rows are layered after render
   ensureGroupVisibilityObserver(tbody);
   
-  // Set climate resource names and weight sums for group parents — only needed when data exists
+  // Set climate resource names and weight sums for group parents — only needed when data exists.
+  // Build parent/children maps once (O(n)) and pass as pre-built refs to avoid per-group querySelectorAll.
   if(layerData.size > 0 || climateData.size > 0){
-    const groupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
-    groupParents.forEach(parentTr => {
-      const groupKey = parentTr.getAttribute('data-group-key');
-      if(!groupKey) return;
+    const _parentByKey = new Map();
+    const _allChildrenByGroup = new Map();
+    const _directChildrenByGroup = new Map();
+    tbody.querySelectorAll('tr').forEach(tr => {
+      if(tr.classList.contains('group-parent')){
+        _parentByKey.set(tr.getAttribute('data-group-key'), tr);
+        return;
+      }
+      const gk = tr.getAttribute('data-group-child-of');
+      if(!gk) return;
+      if(!_allChildrenByGroup.has(gk)) _allChildrenByGroup.set(gk, []);
+      _allChildrenByGroup.get(gk).push(tr);
+      if(!tr.hasAttribute('data-parent-key')){
+        if(!_directChildrenByGroup.has(gk)) _directChildrenByGroup.set(gk, []);
+        _directChildrenByGroup.get(gk).push(tr);
+      }
+    });
+
+    _parentByKey.forEach((parentTr, groupKey) => {
+      const allChildren = _allChildrenByGroup.get(groupKey) || [];
+      const directChildren = _directChildrenByGroup.get(groupKey) || [];
 
       if(layerData.size > 0){
-        const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
-        for(const childTr of childRows) {
+        for(const childTr of allChildren) {
           const rowData = childTr._originalRowData;
           if(rowData) {
             const baseSignature = getRowSignature(rowData, null);
             if(layerData.has(baseSignature)) {
               const climateInfo = climateData.get(baseSignature);
               if(climateInfo) {
-                const climateResourceName = typeof climateInfo === 'string' ? climateInfo : climateInfo.name;
-                const climateCell = parentTr.querySelector('td[data-climate-cell="true"]');
-                if(climateCell) climateCell.textContent = climateResourceName;
+                const name = typeof climateInfo === 'string' ? climateInfo : climateInfo.name;
+                const cc = parentTr.querySelector('td[data-climate-cell="true"]');
+                if(cc) cc.textContent = name;
                 const isCustom = typeof climateInfo === 'object' && climateInfo.isCustom;
-                const climateTypeCell = parentTr.querySelector('td[data-climate-type-cell="true"]');
-                if(climateTypeCell) climateTypeCell.textContent = isCustom ? 'EPD' : 'Generisk klimatresurs';
+                const tc = parentTr.querySelector('td[data-climate-type-cell="true"]');
+                if(tc) tc.textContent = isCustom ? 'EPD' : 'Generisk klimatresurs';
                 break;
               }
             }
@@ -2366,7 +2383,11 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
         }
       }
 
-      if(climateData.size > 0) updateGroupWeightSums(groupKey, tbody);
+      if(climateData.size > 0){
+        // Pass pre-built refs + skipGlobalUpdates=true to avoid redundant full-tbody scans inside
+        updateGroupWeightSums(groupKey, tbody, parentTr, directChildren, true);
+        updateParentClimateDisplay(groupKey, tbody, parentTr, allChildren);
+      }
     });
   }
   
@@ -8499,11 +8520,11 @@ function updateWeightAndImpactColumns(tr, headerTexts, inbyggdVikt, customResour
 }
 
 // Helper function to check if all children have the same climate resource and display it on parent
-function updateParentClimateDisplay(groupKey, tbody){
-  const parentTr = tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(groupKey)}"]`);
+function updateParentClimateDisplay(groupKey, tbody, parentTrOpt, childRowsOpt){
+  const parentTr = parentTrOpt || tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(groupKey)}"]`);
   if(!parentTr) return;
-  
-  const childRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
+
+  const childRows = childRowsOpt || Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]`));
   if(childRows.length === 0) return;
   
   // Check if all children have the same climate resource
@@ -8704,14 +8725,15 @@ function updateParentClimateDisplay(groupKey, tbody){
 }
 
 // Helper function to update weight sums for a group parent
-function updateGroupWeightSums(groupKey, tbody){
-  // console.log('🔍 [updateGroupWeightSums] Called with groupKey:', groupKey);
-  const parentTr = tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(groupKey)}"]`);
-  // console.log('🔍 [updateGroupWeightSums] Found parent:', !!parentTr);
+// parentTrOpt, directChildrenOpt: pre-built references to skip per-group querySelectorAll (batch mode)
+// skipGlobalUpdates: skip fillParentRowsWithCommonValues and updateParentClimateDisplay (call once outside the loop instead)
+function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, skipGlobalUpdates){
+  const parentTr = parentTrOpt || tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(groupKey)}"]`);
   if(!parentTr) return;
 
-  // Get all direct child rows (not grandchildren)
-  const directChildren = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]:not([data-parent-key])`));
+  const directChildren = directChildrenOpt !== undefined
+    ? directChildrenOpt
+    : Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(groupKey)}"]:not([data-parent-key])`));
   // console.log('🔍 [updateGroupWeightSums] Number of direct children:', directChildren.length);
 
   // Determine which rows to sum:
@@ -8881,10 +8903,10 @@ function updateGroupWeightSums(groupKey, tbody){
   }
   
   // Also update parent climate display (show climate resource data if all children have same)
-  updateParentClimateDisplay(groupKey, tbody);
-
-  // Fill parent row with common values from children
-  fillParentRowsWithCommonValues(tbody);
+  if(!skipGlobalUpdates){
+    updateParentClimateDisplay(groupKey, tbody);
+    fillParentRowsWithCommonValues(tbody);
+  }
 
   // Debug: Check what values are actually on the parent row after all updates
   // console.log('🔍 [DEBUG] Final parent row values after all updates:');
