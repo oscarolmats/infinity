@@ -1910,6 +1910,11 @@ function ensureColumnFilters(){
 function applyFilters(){
   const table = getTable(); if(!table) return;
 
+  // Fast path: if no filter is active, visibility is already correct from HTML/hide-children loop
+  const _globalQ = (filterInput && filterInput.value || '').toLowerCase().trim();
+  const _colInputs = ensureColumnFilters();
+  if(!_globalQ && !_colInputs.some(inp => inp.value.trim())) return;
+
   // Check if we should show progress bar for large datasets
   const tbody = table.querySelector('tbody');
   let shouldShowProgress = false;
@@ -1920,8 +1925,8 @@ function applyFilters(){
 
   // Function to perform the actual filtering
   function performFiltering() {
-    const globalQ = (filterInput && filterInput.value || '').toLowerCase().trim();
-    const colInputs = ensureColumnFilters();
+    const globalQ = _globalQ;
+    const colInputs = _colInputs;
     const colQueries = colInputs.map(inp => (inp.value || '').toLowerCase().trim());
     const rows = Array.from(table.querySelectorAll('tbody tr'));
 
@@ -2358,6 +2363,16 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       }
     });
 
+    // Pre-compute column indices once from allHeaders (O(1) per cell later instead of querySelector)
+    const _hIdx = (name) => { const i = allHeaders.indexOf(name); return i === -1 ? -1 : i + 1; };
+    const _batchColIdx = {
+      inbyggd:    _hIdx('Inbyggd vikt'),
+      inkopt:     _hIdx('Inköpt vikt'),
+      klimatA1A3: _hIdx('Klimatpåverkan A1-A3'),
+      klimatA4:   _hIdx('Klimatpåverkan A4'),
+      klimatA5:   _hIdx('Klimatpåverkan A5'),
+    };
+
     _parentByKey.forEach((parentTr, groupKey) => {
       const allChildren = _allChildrenByGroup.get(groupKey) || [];
       const directChildren = _directChildrenByGroup.get(groupKey) || [];
@@ -2385,7 +2400,7 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
 
       if(climateData.size > 0){
         // Pass pre-built refs + skipGlobalUpdates=true to avoid redundant full-tbody scans inside
-        updateGroupWeightSums(groupKey, tbody, parentTr, directChildren, true);
+        updateGroupWeightSums(groupKey, tbody, parentTr, directChildren, true, _batchColIdx);
         updateParentClimateDisplay(groupKey, tbody, parentTr, allChildren);
       }
     });
@@ -8727,7 +8742,8 @@ function updateParentClimateDisplay(groupKey, tbody, parentTrOpt, childRowsOpt){
 // Helper function to update weight sums for a group parent
 // parentTrOpt, directChildrenOpt: pre-built references to skip per-group querySelectorAll (batch mode)
 // skipGlobalUpdates: skip fillParentRowsWithCommonValues and updateParentClimateDisplay (call once outside the loop instead)
-function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, skipGlobalUpdates){
+// colIdxOpt: pre-computed {inbyggd, inkopt, klimatA1A3, klimatA4, klimatA5} column indices for O(1) cell access
+function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, skipGlobalUpdates, colIdxOpt){
   const parentTr = parentTrOpt || tbody.querySelector(`tr.group-parent[data-group-key="${CSS.escape(groupKey)}"]`);
   if(!parentTr) return;
 
@@ -8770,77 +8786,49 @@ function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, 
   let countKlimatA4 = 0;
   let countKlimatA5 = 0;
 
-  rowsToSum.forEach((childTr, index) => {
-    const inbyggdCell = childTr.querySelector('td[data-inbyggd-vikt-cell="true"]');
-    const inkoptCell = childTr.querySelector('td[data-inkopt-vikt-cell="true"]');
-    
-    if(inbyggdCell){
-      const val = parseNumberLike(inbyggdCell.textContent);
-      // console.log('🔍 [updateGroupWeightSums] Child', index, 'Inbyggd cell value:', inbyggdCell.textContent, 'Parsed:', val);
-      if(Number.isFinite(val)){
-        sumInbyggdVikt += val;
-        countInbyggd++;
-      }
-    }
-    
-    if(inkoptCell){
-      const val = parseNumberLike(inkoptCell.textContent);
-      // console.log('🔍 [updateGroupWeightSums] Child', index, 'Inkopt cell value:', inkoptCell.textContent, 'Parsed:', val);
-      if(Number.isFinite(val)){
-        sumInkoptVikt += val;
-        countInkopt++;
-      }
-    }
-    
-    // Look for climate impact cells (not emission factor cells)
-    const klimatA1A3Cell = childTr.querySelector('td[data-klimat-a1a3-cell="true"]');
-    if(klimatA1A3Cell){
-      const val = parseNumberLike(klimatA1A3Cell.textContent);
-      // console.log('🔍 [updateGroupWeightSums] Child', index, 'Klimatpåverkan A1-A3 cell value:', klimatA1A3Cell.textContent, 'Parsed:', val);
-      if(Number.isFinite(val)){
-        sumKlimatA1A3 += val;
-        countKlimatA1A3++;
-      }
-    }
-    
-    const klimatA4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"]');
-    if(klimatA4Cell){
-      const val = parseNumberLike(klimatA4Cell.textContent);
-      // console.log('🔍 [updateGroupWeightSums] Child', index, 'Klimatpåverkan A4 cell value:', klimatA4Cell.textContent, 'Parsed:', val);
-      if(Number.isFinite(val)){
-        sumKlimatA4 += val;
-        countKlimatA4++;
-      }
-    }
-    
-    const klimatA5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"]');
-    if(klimatA5Cell){
-      const val = parseNumberLike(klimatA5Cell.textContent);
-      // console.log('🔍 [updateGroupWeightSums] Child', index, 'Klimatpåverkan A5 cell value:', klimatA5Cell.textContent, 'Parsed:', val);
-      if(Number.isFinite(val)){
-        sumKlimatA5 += val;
-        countKlimatA5++;
-      }
-    }
+  // Use pre-computed column indices (O(1)) when available, fall back to querySelector
+  const _ci = colIdxOpt;
+  function _cell(tr, idx, attr){ return _ci && idx >= 0 ? tr.children[idx] : tr.querySelector(`td[${attr}="true"]`); }
+
+  rowsToSum.forEach(childTr => {
+    const inbyggdCell  = _cell(childTr, _ci && _ci.inbyggd,    'data-inbyggd-vikt-cell');
+    const inkoptCell   = _cell(childTr, _ci && _ci.inkopt,     'data-inkopt-vikt-cell');
+    const klimatA1A3Cell = _cell(childTr, _ci && _ci.klimatA1A3, 'data-klimat-a1a3-cell');
+    const klimatA4Cell = _cell(childTr, _ci && _ci.klimatA4,   'data-klimat-a4-cell');
+    const klimatA5Cell = _cell(childTr, _ci && _ci.klimatA5,   'data-klimat-a5-cell');
+
+    if(inbyggdCell){ const v = parseNumberLike(inbyggdCell.textContent); if(Number.isFinite(v)){ sumInbyggdVikt += v; countInbyggd++; } }
+    if(inkoptCell){  const v = parseNumberLike(inkoptCell.textContent);  if(Number.isFinite(v)){ sumInkoptVikt  += v; countInkopt++;  } }
+    if(klimatA1A3Cell){ const v = parseNumberLike(klimatA1A3Cell.textContent); if(Number.isFinite(v)){ sumKlimatA1A3 += v; countKlimatA1A3++; } }
+    if(klimatA4Cell){ const v = parseNumberLike(klimatA4Cell.textContent); if(Number.isFinite(v)){ sumKlimatA4 += v; countKlimatA4++; } }
+    if(klimatA5Cell){ const v = parseNumberLike(klimatA5Cell.textContent); if(Number.isFinite(v)){ sumKlimatA5 += v; countKlimatA5++; } }
   });
   
   // console.log('🔍 [updateGroupWeightSums] Sums - Inbyggd:', sumInbyggdVikt, 'count:', countInbyggd, 'Inkopt:', sumInkoptVikt, 'count:', countInkopt);
   // console.log('🔍 [updateGroupWeightSums] Climate Sums - A1-A3:', sumKlimatA1A3, 'A4:', sumKlimatA4, 'A5:', sumKlimatA5);
   
-  // Find the column indices for Inbyggd vikt and Inköpt vikt from headers
-  const table = parentTr.closest('table');
-  if(!table) return;
-  const thead = table.querySelector('thead');
-  if(!thead) return;
-  const headerRow = thead.querySelector('tr:first-child');
-  if(!headerRow) return;
-  
-  const headers = Array.from(headerRow.children).map(th => th.textContent);
-  const inbyggdViktColIndex = headers.findIndex(h => h === 'Inbyggd vikt');
-  const inkoptViktColIndex = headers.findIndex(h => h === 'Inköpt vikt');
-  const klimatA1A3ColIndex = headers.findIndex(h => h === 'Klimatpåverkan A1-A3');
-  const klimatA4ColIndex = headers.findIndex(h => h === 'Klimatpåverkan A4');
-  const klimatA5ColIndex = headers.findIndex(h => h === 'Klimatpåverkan A5');
+  // Use pre-computed indices when available, otherwise derive from thead
+  let inbyggdViktColIndex, inkoptViktColIndex, klimatA1A3ColIndex, klimatA4ColIndex, klimatA5ColIndex;
+  if(colIdxOpt){
+    inbyggdViktColIndex = colIdxOpt.inbyggd;
+    inkoptViktColIndex  = colIdxOpt.inkopt;
+    klimatA1A3ColIndex  = colIdxOpt.klimatA1A3;
+    klimatA4ColIndex    = colIdxOpt.klimatA4;
+    klimatA5ColIndex    = colIdxOpt.klimatA5;
+  } else {
+    const table = parentTr.closest('table');
+    if(!table) return;
+    const thead = table.querySelector('thead');
+    if(!thead) return;
+    const headerRow = thead.querySelector('tr:first-child');
+    if(!headerRow) return;
+    const headers = Array.from(headerRow.children).map(th => th.textContent);
+    inbyggdViktColIndex  = headers.findIndex(h => h === 'Inbyggd vikt');
+    inkoptViktColIndex   = headers.findIndex(h => h === 'Inköpt vikt');
+    klimatA1A3ColIndex   = headers.findIndex(h => h === 'Klimatpåverkan A1-A3');
+    klimatA4ColIndex     = headers.findIndex(h => h === 'Klimatpåverkan A4');
+    klimatA5ColIndex     = headers.findIndex(h => h === 'Klimatpåverkan A5');
+  }
   
   // console.log('🔍 [updateGroupWeightSums] Column indices - Inbyggd:', inbyggdViktColIndex, 'Inkopt:', inkoptViktColIndex);
   // console.log('🔍 [updateGroupWeightSums] Climate Column indices - A1-A3:', klimatA1A3ColIndex, 'A4:', klimatA4ColIndex, 'A5:', klimatA5ColIndex);
