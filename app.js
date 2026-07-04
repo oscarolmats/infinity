@@ -851,9 +851,10 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
 
             if(resource){
               console.log(`🌍 [applyLayerSplitWithKey] Found resource at index ${resourceIndex}:`, resource.Name);
-              // Set climateTarget and apply the resource
+              const previousClimateTarget = climateTarget;
               climateTarget = { type: 'row', rowEl: f };
               applyClimateResource(resource);
+              climateTarget = previousClimateTarget;
             } else {
               console.log(`⚠️ [applyLayerSplitWithKey] No resource found at index ${resourceIndex}`);
               applySavedClimate(f, childRowData);
@@ -2060,31 +2061,8 @@ function addResizeHandle(th){
 }
 
 // Attach simple sorting to non-grouped table
-function attachSorting(table){
-  const thead = table.querySelector('thead');
-  const tbody = table.querySelector('tbody');
-  if(!thead || !tbody) return;
-  const headerCells = Array.from(thead.querySelectorAll('th'));
-  headerCells.forEach((th, idx) => {
-    if(idx === 0) return; // skip action column
-    th.style.cursor = 'pointer';
-    th.addEventListener('click', () => {
-      const currentDir = th.classList.contains('ag-sort-asc') ? 'asc' : th.classList.contains('ag-sort-desc') ? 'desc' : null;
-      headerCells.forEach(h => { h.classList.remove('ag-sort-asc','ag-sort-desc'); });
-      const nextDir = currentDir === 'asc' ? 'desc' : 'asc';
-      th.classList.add(nextDir === 'asc' ? 'ag-sort-asc' : 'ag-sort-desc');
-      const rows = Array.from(tbody.querySelectorAll('tr'));
-      const parseMaybe = (v) => { const n = parseNumberLike(v); return Number.isFinite(n) ? n : v?.toString()?.toLowerCase() || ''; };
-      rows.sort((a, b) => {
-        const av = a.children[idx]?.textContent?.trim() || '';
-        const bv = b.children[idx]?.textContent?.trim() || '';
-        const pa = parseMaybe(av); const pb = parseMaybe(bv);
-        const cmp = pa > pb ? 1 : pa < pb ? -1 : 0;
-        return nextDir === 'asc' ? cmp : -cmp;
-      });
-      rows.forEach(r => tbody.appendChild(r));
-    });
-  });
+function attachSorting(_table){
+  // Sorting disabled — breaks parent-child row hierarchy for layered rows
 }
 
 // Helper: open correct climate modal for a group (handles layered groups)
