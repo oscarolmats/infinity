@@ -3075,6 +3075,14 @@ document.addEventListener('keydown', function(e){
     e.preventDefault();
     performRedo();
   }
+  // Escape closes any open modal
+  else if(e.key === 'Escape'){
+    if(layerModal && layerModal.style.display !== 'none') closeLayerModal();
+    else if(climateModal && climateModal.style.display !== 'none') closeClimateModal();
+    else if(altClimateModal && altClimateModal.style.display !== 'none') closeAltClimateModal();
+    else if(multiLayerClimateModal && multiLayerClimateModal.style.display !== 'none') closeMultiLayerClimateModal();
+    else if(manualFactorModal && manualFactorModal.style.display !== 'none') closeManualFactorModal();
+  }
 });
 
 function addNewRow(){
@@ -3870,7 +3878,6 @@ if(layerPasteBtn){
     alert('Skiktinställningar inklistrade!');
   });
 }
-if(layerModal){ layerModal.addEventListener('click', function(e){ if(e.target === layerModal) closeLayerModal(); }); }
 
 // Apply layer settings to selected rows
 if(applyLayerToSelectedBtn){
@@ -5092,11 +5099,9 @@ function closeAltClimateModal(){
   if(altClimateModal){ altClimateModal.style.display = 'none'; }
 }
 if(climateCancelBtn){ climateCancelBtn.addEventListener('click', closeClimateModal); }
-if(climateModal){ climateModal.addEventListener('click', function(e){ if(e.target === climateModal) closeClimateModal(); }); }
 
 // Alternative climate modal event listeners
 if(altClimateCancel){ altClimateCancel.addEventListener('click', closeAltClimateModal); }
-if(altClimateModal){ altClimateModal.addEventListener('click', function(e){ if(e.target === altClimateModal) closeAltClimateModal(); }); }
 
 // EPD source selection event listeners
 document.addEventListener('change', function(e) {
@@ -5867,11 +5872,6 @@ if(multiLayerClimateCancelBtn){
   multiLayerClimateCancelBtn.addEventListener('click', closeMultiLayerClimateModal);
 }
 
-if(multiLayerClimateModal){
-  multiLayerClimateModal.addEventListener('click', function(e){
-    if(e.target === multiLayerClimateModal) closeMultiLayerClimateModal();
-  });
-}
 
 if(multiLayerClimateApplyBtn){
   multiLayerClimateApplyBtn.addEventListener('click', function(){
@@ -6014,11 +6014,6 @@ if(manualFactorCancelBtn){
   manualFactorCancelBtn.addEventListener('click', closeManualFactorModal);
 }
 
-if(manualFactorModal){
-  manualFactorModal.addEventListener('click', function(e){
-    if(e.target === manualFactorModal) closeManualFactorModal();
-  });
-}
 
 if(manualFactorApplyBtn){
   manualFactorApplyBtn.addEventListener('click', function(){
