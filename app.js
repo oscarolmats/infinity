@@ -8,6 +8,11 @@ import { layerData, climateData, setRestoringState, undoStack, redoStack, maxUnd
 import { createStateManagement } from './src/state/stateManagement.js';
 
 // Helper function to create icon buttons
+function escHtml(s){
+  if(s==null)return'';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function createIconButton(type, title) {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -414,7 +419,7 @@ function reattachTableEventListeners(){
     const allRows = Array.from(tbody.querySelectorAll('tr'));
     const dataRows = lastRows.slice(1); // Skip header row
 
-    console.log('🔄 [reattach] Restoring _originalRowData for', allRows.length, 'rows from', dataRows.length, 'data rows');
+    // console.log('🔄 [reattach] Restoring _originalRowData for', allRows.length, 'rows from', dataRows.length, 'data rows');
 
     // Create a lookup map: description -> original row data (with trimmed values)
     const descriptionToRow = new Map();
@@ -442,16 +447,16 @@ function reattachTableEventListeners(){
 
       if(matchingRow){
         tr._originalRowData = matchingRow;
-        console.log('🔄 [reattach] Restored _originalRowData for row:', matchingRow[1]?.substring(0, 20), '- desc:', currentDesc.substring(0, 20));
+        // console.log('🔄 [reattach] Restored _originalRowData for row:', matchingRow[1]?.substring(0, 20), '- desc:', currentDesc.substring(0, 20));
       } else {
         // Fallback: use current DOM data if no match found
         tr._originalRowData = currentRowData;
-        console.log('⚠️ [reattach] No match in lastRows, using DOM data for:', currentRowData[1]?.substring(0, 20), '- desc:', currentDesc.substring(0, 20));
+        // console.log('⚠️ [reattach] No match in lastRows, using DOM data for:', currentRowData[1]?.substring(0, 20), '- desc:', currentDesc.substring(0, 20));
       }
     });
   } else {
     // Fallback if lastRows is not available
-    console.log('⚠️ [reattach] lastRows not available, using DOM data');
+    // console.log('⚠️ [reattach] lastRows not available, using DOM data');
     const allRows = Array.from(tbody.querySelectorAll('tr'));
     allRows.forEach(tr => {
       if(tr.classList.contains('group-parent')) return;
@@ -512,24 +517,24 @@ function applySavedLayers(tr, rowData){
   }
 
   // console.log('🔄 [applySavedLayers] Checking row:', {
-  //   signature: signature.substring(0, 60),
-  //   hasSaved: !!saved,
-  //   layerChildOf: layerChildOf?.substring(0, 20) || 'none',
-  //   rowName: rowData[1]?.substring(0, 30),
-  //   savedThicknesses: saved?.thicknesses
-  // });
+//   //   signature: signature.substring(0, 60),
+//   //   hasSaved: !!saved,
+//   //   layerChildOf: layerChildOf?.substring(0, 20) || 'none',
+//   //   rowName: rowData[1]?.substring(0, 30),
+//   //   savedThicknesses: saved?.thicknesses
+//   // });
 
   if(saved){
     // console.log('✅ [applySavedLayers] Found saved layer data:', {
-    //   count: saved.count,
-    //   layerKey: saved.layerKey?.substring(0, 30),
-    //   hasSharedKeys: !!saved.sharedLayerKeys,
-    //   sharedKeys: saved.sharedLayerKeys?.map(k => k?.substring(0, 30)),
-    //   hasLayerNames: !!saved.layerNames,
-    //   layerNames: saved.layerNames,
-    //   hasMixedLayerConfigs: !!saved.mixedLayerConfigs,
-    //   mixedLayerConfigs: saved.mixedLayerConfigs
-    // });
+//     //   count: saved.count,
+//     //   layerKey: saved.layerKey?.substring(0, 30),
+//     //   hasSharedKeys: !!saved.sharedLayerKeys,
+//     //   sharedKeys: saved.sharedLayerKeys?.map(k => k?.substring(0, 30)),
+//     //   hasLayerNames: !!saved.layerNames,
+//     //   layerNames: saved.layerNames,
+//     //   hasMixedLayerConfigs: !!saved.mixedLayerConfigs,
+//     //   mixedLayerConfigs: saved.mixedLayerConfigs
+//     // });
 
     // Trigger layer split with saved parameters
     const tempCount = saved.count;
@@ -557,17 +562,17 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
   const table = tr.closest('table');
 
   // console.log('🔧 [applyLayerSplitWithKey] Called with:', {
-  //   count,
-  //   thicknesses,
-  //   layerKey: layerKey?.substring(0, 30),
-  //   isNested,
-  //   hasSharedKeys: !!sharedLayerKeys,
-  //   sharedKeys: sharedLayerKeys?.map(k => k?.substring(0, 30)),
-  //   hasLayerNames: layerNames.length > 0,
-  //   layerNames,
-  //   hasMixedLayerConfigs: mixedLayerConfigs.length > 0,
-  //   mixedLayerConfigs
-  // });
+//   //   count,
+//   //   thicknesses,
+//   //   layerKey: layerKey?.substring(0, 30),
+//   //   isNested,
+//   //   hasSharedKeys: !!sharedLayerKeys,
+//   //   sharedKeys: sharedLayerKeys?.map(k => k?.substring(0, 30)),
+//   //   hasLayerNames: layerNames.length > 0,
+//   //   layerNames,
+//   //   hasMixedLayerConfigs: mixedLayerConfigs.length > 0,
+//   //   mixedLayerConfigs
+//   // });
 
   // IMPORTANT: Save layer data to Map BEFORE modifying anything
   // This uses the ORIGINAL _originalRowData (before names are changed for mixed layers)
@@ -842,7 +847,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
           const type = climateTypes && climateTypes[layerIndex] ? climateTypes[layerIndex] : 'boverket';
           const factor = climateFactors && climateFactors[layerIndex] ? climateFactors[layerIndex] : null;
 
-          console.log(`🌍 [applyLayerSplitWithKey] Applying copied climate to layer ${layerIndex}:`, {resourceId, type, factor});
+          // console.log(`🌍 [applyLayerSplitWithKey] Applying copied climate to layer ${layerIndex}:`, {resourceId, type, factor});
 
           if(resourceId && window.climateResources){
             // Look up the resource object from the global climateResources array
@@ -850,13 +855,13 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
             const resource = window.climateResources[resourceIndex];
 
             if(resource){
-              console.log(`🌍 [applyLayerSplitWithKey] Found resource at index ${resourceIndex}:`, resource.Name);
+              // console.log(`🌍 [applyLayerSplitWithKey] Found resource at index ${resourceIndex}:`, resource.Name);
               const previousClimateTarget = climateTarget;
               climateTarget = { type: 'row', rowEl: f };
               applyClimateResource(resource);
               climateTarget = previousClimateTarget;
             } else {
-              console.log(`⚠️ [applyLayerSplitWithKey] No resource found at index ${resourceIndex}`);
+              // console.log(`⚠️ [applyLayerSplitWithKey] No resource found at index ${resourceIndex}`);
               applySavedClimate(f, childRowData);
             }
           } else {
@@ -905,7 +910,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
         if(material1LayerKey){
           const material2LayerKey = material1LayerKey + '_mat2';
           material2Row.setAttribute('data-layer-key', material2LayerKey);
-          console.log('🔑 [applyLayerSplitWithKey] Set Material 2 key:', material2LayerKey);
+          // console.log('🔑 [applyLayerSplitWithKey] Set Material 2 key:', material2LayerKey);
         }
 
         // Mark both as mixed layers
@@ -962,7 +967,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
             const updatedMat1Data = getRowDataFromTr(targetLayer);
             if(updatedMat1Data){
               targetLayer._originalRowData = updatedMat1Data;
-              console.log('🔄 [applyLayerSplitWithKey] Updated Material 1 _originalRowData');
+              // console.log('🔄 [applyLayerSplitWithKey] Updated Material 1 _originalRowData');
             }
           }
         }
@@ -975,7 +980,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
 
         // Insert Material 2 right after Material 1
         tbody.insertBefore(material2Row, targetLayer.nextSibling);
-        console.log('✅ [applyLayerSplitWithKey] Created Material 2 row for mixed layer:', mixedLayerConfig.layerIndex);
+        // console.log('✅ [applyLayerSplitWithKey] Created Material 2 row for mixed layer:', mixedLayerConfig.layerIndex);
 
         // IMPORTANT: Update Material 2's _originalRowData AFTER it's been inserted into DOM
         // This ensures getRowDataFromTr can find the table headers
@@ -983,12 +988,12 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
           const updatedMat2Data = getRowDataFromTr(material2Row);
           if(updatedMat2Data){
             material2Row._originalRowData = updatedMat2Data;
-            console.log('🔄 [applyLayerSplitWithKey] Updated Material 2 _originalRowData with unique name');
+            // console.log('🔄 [applyLayerSplitWithKey] Updated Material 2 _originalRowData with unique name');
           } else {
-            console.log('❌ [applyLayerSplitWithKey] Failed to get Material 2 rowData from TR');
+            // console.log('❌ [applyLayerSplitWithKey] Failed to get Material 2 rowData from TR');
           }
         } else {
-          console.log('⚠️ [applyLayerSplitWithKey] Material 2 has no _originalRowData to update');
+          // console.log('⚠️ [applyLayerSplitWithKey] Material 2 has no _originalRowData to update');
         }
 
         // IMPORTANT: Apply saved climate to Material 2 first (in case it was restored)
@@ -996,7 +1001,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
         const material2RowData = material2Row._originalRowData;
         if(material2RowData){
           applySavedClimate(material2Row, material2RowData);
-          console.log('🔄 [applyLayerSplitWithKey] Applied saved climate to Material 2');
+          // console.log('🔄 [applyLayerSplitWithKey] Applied saved climate to Material 2');
         }
 
         // Apply climate resources to both materials
@@ -1004,7 +1009,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
           const material1ClimateResource = climateResources[targetLayerIndex];
           if(material1ClimateResource && material1ClimateResource !== ''){
             // Material 1 should already have climate applied by applySavedClimate
-            console.log('🌍 [applyLayerSplitWithKey] Material 1 climate handled by applySavedClimate');
+            // console.log('🌍 [applyLayerSplitWithKey] Material 1 climate handled by applySavedClimate');
           }
         }
 
@@ -1021,7 +1026,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
 
           if(!isNaN(resourceIndex2) && window.climateResources && window.climateResources[resourceIndex2]){
             const resource2 = window.climateResources[resourceIndex2];
-            console.log('🌍 [applyLayerSplitWithKey] Applying climate resource to Material 2:', resource2.Name);
+            // console.log('🌍 [applyLayerSplitWithKey] Applying climate resource to Material 2:', resource2.Name);
 
             // Apply climate to Material 2
             const savedClimateTarget = climateTarget;
@@ -1062,7 +1067,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
               mat1VolumeCell.textContent = String(mat1Volume);
               mat2VolumeCell.textContent = String(mat2Volume);
 
-              console.log('📊 [applyLayerSplitWithKey] Mixed layer volumes - Mat1:', mat1Volume, 'm³ (' + mixedLayerConfig.material1.percent + '%), Mat2:', mat2Volume, 'm³ (' + mixedLayerConfig.material2.percent + '%)');
+              // console.log('📊 [applyLayerSplitWithKey] Mixed layer volumes - Mat1:', mat1Volume, 'm³ (' + mixedLayerConfig.material1.percent + '%), Mat2:', mat2Volume, 'm³ (' + mixedLayerConfig.material2.percent + '%)');
 
               // Recalculate weights and climate impacts for both materials using new volumes
               const inbyggdViktIndex = headerTexts.findIndex(h => h === 'Inbyggd vikt');
@@ -1218,7 +1223,7 @@ function updateLayerParentSums(parentTr, tbody){
 
   // Get all layer children
   const layerChildren = Array.from(tbody.querySelectorAll(`tr[data-parent-key="${CSS.escape(layerKey)}"]`));
-  console.log('🔍 [updateLayerParentSums] Updating sums for layer parent, children count:', layerChildren.length);
+  // console.log('🔍 [updateLayerParentSums] Updating sums for layer parent, children count:', layerChildren.length);
 
   if(layerChildren.length === 0) return;
 
@@ -1241,15 +1246,15 @@ function updateLayerParentSums(parentTr, tbody){
     const klimatA4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"]');
     const klimatA5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"]');
 
-    console.log(`🔍 [updateLayerParentSums] Child ${childIndex + 1}:`, {
-      hasInbyggdCell: !!inbyggdCell,
-      hasInkoptCell: !!inkoptCell,
-      hasKlimatA1A3Cell: !!klimatA1A3Cell,
-      hasKlimatA4Cell: !!klimatA4Cell,
-      hasKlimatA5Cell: !!klimatA5Cell,
-      inbyggdValue: inbyggdCell?.textContent,
-      klimatA1A3Value: klimatA1A3Cell?.textContent
-    });
+    // console.log(`🔍 [updateLayerParentSums] Child ${childIndex + 1}:`, {
+//       hasInbyggdCell: !!inbyggdCell,
+//       hasInkoptCell: !!inkoptCell,
+//       hasKlimatA1A3Cell: !!klimatA1A3Cell,
+//       hasKlimatA4Cell: !!klimatA4Cell,
+//       hasKlimatA5Cell: !!klimatA5Cell,
+//       inbyggdValue: inbyggdCell?.textContent,
+//       klimatA1A3Value: klimatA1A3Cell?.textContent
+//     });
 
     if(inbyggdCell){
       const val = parseNumberLike(inbyggdCell.textContent);
@@ -1315,11 +1320,11 @@ function updateLayerParentSums(parentTr, tbody){
 
   // Add missing cells if needed
   const neededCells = maxColIndex + 1;
-  console.log('🔧 [updateLayerParentSums] Cell check:', {
-    currentCells: parentCells.length,
-    neededCells: neededCells,
-    willAddCells: parentCells.length < neededCells
-  });
+  // console.log('🔧 [updateLayerParentSums] Cell check:', {
+//     currentCells: parentCells.length,
+//     neededCells: neededCells,
+//     willAddCells: parentCells.length < neededCells
+//   });
 
   while(parentCells.length < neededCells){
     const td = document.createElement('td');
@@ -1329,7 +1334,7 @@ function updateLayerParentSums(parentTr, tbody){
   }
 
   if(parentCells.length !== parentTr.children.length){
-    console.log('⚠️ [updateLayerParentSums] Cell count mismatch after adding cells!');
+    // console.log('⚠️ [updateLayerParentSums] Cell count mismatch after adding cells!');
   }
 
   // Update parent cells with sums
@@ -1351,19 +1356,19 @@ function updateLayerParentSums(parentTr, tbody){
     const newValue = countKlimatA1A3 > 0 ? sumKlimatA1A3.toFixed(2) : '';
     cell.textContent = newValue;
     cell.setAttribute('data-sum-klimat-a1a3', 'true');
-    console.log('🔧 [updateLayerParentSums] A1-A3 cell update:', {
-      colIndex: klimatA1A3ColIndex,
-      oldValue: oldValue,
-      newValue: newValue,
-      cellElement: cell,
-      parentCellsLength: parentCells.length
-    });
+    // console.log('🔧 [updateLayerParentSums] A1-A3 cell update:', {
+//       colIndex: klimatA1A3ColIndex,
+//       oldValue: oldValue,
+//       newValue: newValue,
+//       cellElement: cell,
+//       parentCellsLength: parentCells.length
+//     });
   } else {
-    console.log('⚠️ [updateLayerParentSums] A1-A3 cell NOT found!', {
-      colIndex: klimatA1A3ColIndex,
-      parentCellsLength: parentCells.length,
-      cellExists: !!parentCells[klimatA1A3ColIndex]
-    });
+    // console.log('⚠️ [updateLayerParentSums] A1-A3 cell NOT found!', {
+//       colIndex: klimatA1A3ColIndex,
+//       parentCellsLength: parentCells.length,
+//       cellExists: !!parentCells[klimatA1A3ColIndex]
+//     });
   }
 
   if(klimatA4ColIndex !== -1 && parentCells[klimatA4ColIndex]){
@@ -1378,7 +1383,7 @@ function updateLayerParentSums(parentTr, tbody){
     cell.setAttribute('data-sum-klimat-a5', 'true');
   }
 
-  console.log('✅ [updateLayerParentSums] Updated parent sums - Inbyggd:', sumInbyggdVikt.toFixed(2), 'Inkopt:', sumInkoptVikt.toFixed(2), 'A1-A3:', sumKlimatA1A3.toFixed(2), 'A4:', sumKlimatA4.toFixed(2), 'A5:', sumKlimatA5.toFixed(2));
+  // console.log('✅ [updateLayerParentSums] Updated parent sums - Inbyggd:', sumInbyggdVikt.toFixed(2), 'Inkopt:', sumInkoptVikt.toFixed(2), 'A1-A3:', sumKlimatA1A3.toFixed(2), 'A4:', sumKlimatA4.toFixed(2), 'A5:', sumKlimatA5.toFixed(2));
 
   // Fill parent row with common values from children
   fillParentRowsWithCommonValues(tbody);
@@ -1387,11 +1392,11 @@ function updateLayerParentSums(parentTr, tbody){
   setTimeout(() => {
     const verifyCell = parentCells[klimatA1A3ColIndex];
     if(verifyCell){
-      console.log('🔍 [updateLayerParentSums] Verifying A1-A3 cell after 0ms:', {
-        currentValue: verifyCell.textContent,
-        expectedValue: sumKlimatA1A3.toFixed(2),
-        matches: verifyCell.textContent === sumKlimatA1A3.toFixed(2)
-      });
+      // console.log('🔍 [updateLayerParentSums] Verifying A1-A3 cell after 0ms:', {
+//         currentValue: verifyCell.textContent,
+//         expectedValue: sumKlimatA1A3.toFixed(2),
+//         matches: verifyCell.textContent === sumKlimatA1A3.toFixed(2)
+//       });
     }
   }, 0);
 }
@@ -1411,24 +1416,24 @@ function applySavedClimate(tr, rowData){
     const signatureWithoutGroup = getRowSignature(rowData, null);
     climateInfo = climateData.get(signatureWithoutGroup);
     if(climateInfo){
-      console.log('✅ [applySavedClimate] Found climate data with null signature (grouping changed or Excel file changed)');
+      // console.log('✅ [applySavedClimate] Found climate data with null signature (grouping changed or Excel file changed)');
     }
   }
 
-  console.log('🌍 [applySavedClimate] Checking row:', {
-    signature: signature.substring(0, 60),
-    hasClimateInfo: !!climateInfo,
-    layerKey: layerKey?.substring(0, 20) || 'none',
-    layerChildOf: layerChildOf?.substring(0, 20) || 'none',
-    usingKey: layerKey ? 'layer-key' : 'layer-child-of',
-    rowName: rowData[1]?.substring(0, 30)
-  });
+  // console.log('🌍 [applySavedClimate] Checking row:', {
+//     signature: signature.substring(0, 60),
+//     hasClimateInfo: !!climateInfo,
+//     layerKey: layerKey?.substring(0, 20) || 'none',
+//     layerChildOf: layerChildOf?.substring(0, 20) || 'none',
+//     usingKey: layerKey ? 'layer-key' : 'layer-child-of',
+//     rowName: rowData[1]?.substring(0, 30)
+//   });
 
   if(climateInfo){
-    console.log('✅ [applySavedClimate] Found climate data:', {
-      resourceName: climateInfo.resource?.resourceName || 'N/A',
-      type: climateInfo.type
-    });
+    // console.log('✅ [applySavedClimate] Found climate data:', {
+//       resourceName: climateInfo.resource?.resourceName || 'N/A',
+//       type: climateInfo.type
+//     });
     const table = getTable(); if(!table) return;
     const thead = table.querySelector('thead'); if(!thead) return;
     
@@ -1568,41 +1573,41 @@ function applySavedClimate(tr, rowData){
     const volumeColIndex = allHeaders.findIndex(h => String(h).toLowerCase() === 'volume');
     const netAreaColIndex = allHeaders.findIndex(h => String(h).toLowerCase() === 'net area');
     
-    console.log('🔍 Beräknar vikt - Unit:', conversionUnit, 'Factor:', conversionFactor, 'Waste:', wasteFactor);
-    console.log('🔍 Column indices - Volume:', volumeColIndex, 'NetArea:', netAreaColIndex);
-    console.log('🔍 Headers:', allHeaders);
+    // console.log('🔍 Beräknar vikt - Unit:', conversionUnit, 'Factor:', conversionFactor, 'Waste:', wasteFactor);
+    // console.log('🔍 Column indices - Volume:', volumeColIndex, 'NetArea:', netAreaColIndex);
+    // console.log('🔍 Headers:', allHeaders);
 
     if(conversionFactor !== 'N/A' && Number.isFinite(parseFloat(conversionFactor))){
       const factor = parseFloat(conversionFactor);
       const cells = Array.from(tr.children);
 
-      console.log('🔍 Factor is valid:', factor);
-      console.log('🔍 Cells count:', cells.length);
+      // console.log('🔍 Factor is valid:', factor);
+      // console.log('🔍 Cells count:', cells.length);
 
       // Normalize unit to handle both kg/m3 and kg/m³ (with superscript)
       const normalizedUnit = String(conversionUnit).replace(/[²³]/g, function(match){
         return match === '²' ? '2' : '3';
       });
-      console.log('🔍 Normalized unit:', normalizedUnit);
+      // console.log('🔍 Normalized unit:', normalizedUnit);
 
       if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
         // Inbyggd vikt = Omräkningsfaktor × Volume
         const volumeCell = cells[volumeColIndex];
-        console.log('🔍 Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
+        // console.log('🔍 Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
         if(volumeCell){
           const volume = parseNumberLike(volumeCell.textContent);
-          console.log('🔍 Parsed volume:', volume);
+          // console.log('🔍 Parsed volume:', volume);
           if(Number.isFinite(volume)){
             // Volume from cell is already the correct volume (after layering if applicable)
             const isMixedLayer = tr.hasAttribute('data-mixed-layer');
             inbyggdVikt = factor * volume;
-            console.log('✅ Inbyggd vikt calculated:', {
-              isMixedLayer,
-              factor,
-              volume,
-              inbyggdVikt,
-              rowName: tr.querySelector('td:nth-child(2)')?.textContent?.substring(0, 50)
-            });
+            // console.log('✅ Inbyggd vikt calculated:', {
+//               isMixedLayer,
+//               factor,
+//               volume,
+//               inbyggdVikt,
+//               rowName: tr.querySelector('td:nth-child(2)')?.textContent?.substring(0, 50)
+//             });
           }
         }
       } else if(normalizedUnit === 'kg/m2' && netAreaColIndex !== -1){
@@ -2223,199 +2228,110 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
     groups.get(key).push(r);
   });
 
+  // SVG strings for inline HTML buttons (same shapes as createIconButton)
+  const _SVG = {
+    layer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="10" width="18" height="5" rx="1"/><rect x="3" y="17" width="18" height="5" rx="1"/></svg>',
+    climate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    epd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="18" x2="15" y2="18"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+  };
+  const _TOGGLE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>';
+  function _ib(cls, title, action, svgKey, style){
+    const s = style ? ` style="${style}"` : '';
+    return `<button type="button" class="icon-btn ${cls}" title="${title}" data-action="${action}"${s}>${_SVG[svgKey]}</button>`;
+  }
+
+  const hasNetArea = idxNetArea !== -1;
+  const hasVolume = idxVolume !== -1;
+  const hasCount = idxCount !== -1;
+
+  const rowDataStore = [];
+  let tbodyHtml = '';
+
   groups.forEach((rows, key) => {
     let sumNetArea = 0, sumVolume = 0, sumCount = 0;
-    const hasNetArea = idxNetArea !== -1;
-    const hasVolume = idxVolume !== -1;
-    const hasCount = idxCount !== -1;
     rows.forEach(r => {
       if(hasNetArea){ const n = parseNumberLike(r[idxNetArea]); if(Number.isFinite(n)) sumNetArea += n; }
       if(hasVolume){ const n = parseNumberLike(r[idxVolume]); if(Number.isFinite(n)) sumVolume += n; }
       if(hasCount){ const n = parseNumberLike(r[idxCount]); if(Number.isFinite(n)) sumCount += n; }
     });
 
-    const parentTr = document.createElement('tr');
-    parentTr.className = 'group-parent';
-    parentTr.setAttribute('data-group-key', String(key));
-    parentTr.setAttribute('data-open', 'false'); // Start collapsed by default
-    // Create one cell per column so sums align under headers
-    // Parent action cell (group layer)
-    const actionTd = document.createElement('td');
-    const groupBtn = createIconButton('layer', 'Skikta grupp');
-    groupBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openLayerModal({ type: 'group', key: String(key) }); });
-    actionTd.appendChild(groupBtn);
+    const ek = escHtml(key);
 
-    const groupClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
-    groupClimateBtn.addEventListener('click', function(ev){
-      ev.stopPropagation();
-      // Check if this group has been layered (has layer children with layer keys)
-      const table = groupBtn.closest('table');
-      if(table){
-        const tbody = table.querySelector('tbody');
-        if(tbody){
-          const layerRows = Array.from(tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(String(key))}"][data-layer-key]`));
-          if(layerRows.length > 0){
-            // Group is layered, open multi-layer climate modal
-            // console.log('🔍 Opening multi-layer climate modal for layered group:', key);
-            saveState(); // Save state before opening climate modal
-            openMultiLayerClimateModal(String(key));
-            return;
-          }
-        }
-      }
-      // Group is not layered, open regular climate modal
-      openClimateModal({ type: 'group', key: String(key) });
-    });
-    actionTd.appendChild(groupClimateBtn);
-    
-    const groupAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
-    groupAltClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'group', key: key }); });
-    actionTd.appendChild(groupAltClimateBtn);
-
-  // Add edit and restore layering buttons for group
-  const editBtn = createIconButton('edit', 'Redigera skiktning');
-  editBtn.style.marginLeft = '6px';
-  // Hidden by default; shown when gruppen har skiktade barn
-  editBtn.style.display = 'none';
-  editBtn.addEventListener('click', function(ev){
-    ev.stopPropagation();
-    openLayerModal({ type: 'group', key: String(key) });
-  });
-  actionTd.appendChild(editBtn);
-
-  const copyBtn = createIconButton('copy', 'Kopiera skiktning');
-  copyBtn.style.marginLeft = '6px';
-  // Hidden by default; shown when gruppen har skiktade barn
-  copyBtn.style.display = 'none';
-  copyBtn.addEventListener('click', function(ev){
-    ev.stopPropagation();
-    copyLayerSettings({ type: 'group', key: String(key) });
-  });
-  actionTd.appendChild(copyBtn);
-
-  const restoreBtn = createIconButton('close', 'Återställ skiktning');
-  restoreBtn.style.marginLeft = '6px';
-  // Hidden by default; shown when gruppen har skiktade barn
-  restoreBtn.style.display = 'none';
-  restoreBtn.addEventListener('click', function(ev){
-    ev.stopPropagation();
-    const table = groupBtn.closest('table');
-    if(!table) return;
-    const tbody = table.querySelector('tbody');
-    if(!tbody) return;
-    removeLayeringForGroup(String(key), tbody);
-  });
-  actionTd.appendChild(restoreBtn);
-
-    parentTr.appendChild(actionTd);
+    let parentCells = '';
     for(let i = 0; i < allHeaders.length; i++){
-      const td = document.createElement('td');
       if(i === idxType){
-        const toggle = document.createElement('span'); toggle.className = 'group-toggle';
-        toggle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>';
-        td.appendChild(toggle);
-        const label = document.createElement('span');
-        label.textContent = (key || '(tom)') + ' (' + rows.length + ')';
-        td.appendChild(label);
+        parentCells += `<td><span class="group-toggle">${_TOGGLE_SVG}</span><span>${escHtml(key || '(tom)')} (${rows.length})</span></td>`;
       } else if(hasNetArea && i === idxNetArea){
-        td.textContent = String(sumNetArea);
+        parentCells += `<td>${escHtml(String(sumNetArea))}</td>`;
       } else if(hasVolume && i === idxVolume){
-        td.textContent = String(sumVolume);
+        parentCells += `<td>${escHtml(String(sumVolume))}</td>`;
       } else if(hasCount && i === idxCount){
-        td.textContent = String(sumCount);
+        parentCells += `<td>${escHtml(String(sumCount))}</td>`;
       } else if(i === idxInbyggdVikt){
-        // Mark as placeholder - will be calculated after rows are added
-        td.setAttribute('data-sum-inbyggd-vikt', 'true');
-        td.textContent = '';
+        parentCells += `<td data-sum-inbyggd-vikt="true"></td>`;
       } else if(i === idxInkoptVikt){
-        // Mark as placeholder - will be calculated after rows are added
-        td.setAttribute('data-sum-inkopt-vikt', 'true');
-        td.textContent = '';
+        parentCells += `<td data-sum-inkopt-vikt="true"></td>`;
       } else if(allHeaders[i] === 'Klimatpåverkan A1-A3'){
-        // Mark as placeholder - will be calculated after rows are added
-        td.setAttribute('data-sum-klimat-a1a3', 'true');
-        td.textContent = '';
+        parentCells += `<td data-sum-klimat-a1a3="true"></td>`;
       } else if(allHeaders[i] === 'Klimatpåverkan A4'){
-        // Mark as placeholder - will be calculated after rows are added
-        td.setAttribute('data-sum-klimat-a4', 'true');
-        td.textContent = '';
+        parentCells += `<td data-sum-klimat-a4="true"></td>`;
       } else if(allHeaders[i] === 'Klimatpåverkan A5'){
-        // Mark as placeholder - will be calculated after rows are added
-        td.setAttribute('data-sum-klimat-a5', 'true');
-        td.textContent = '';
+        parentCells += `<td data-sum-klimat-a5="true"></td>`;
       } else if(allHeaders[i] === 'Klimatresurs'){
-        // Mark as placeholder - will be filled by applySavedClimate
-        td.setAttribute('data-climate-cell', 'true');
-        td.textContent = '';
+        parentCells += `<td data-climate-cell="true"></td>`;
       } else if(allHeaders[i] === 'Klimatresurs typ'){
-        // Mark as placeholder - will be filled by applySavedClimate
-        td.setAttribute('data-climate-type-cell', 'true');
-        td.textContent = '';
+        parentCells += `<td data-climate-type-cell="true"></td>`;
       } else {
-        td.textContent = '';
+        parentCells += `<td></td>`;
       }
-      parentTr.appendChild(td);
     }
-    tbody.appendChild(parentTr);
+
+    const actionBtns =
+      _ib('layer-btn',   'Skikta grupp',       'layer',   'layer') +
+      _ib('climate-btn', 'Mappa klimatresurs',  'climate', 'climate') +
+      _ib('epd-btn',     'Mappa till EPD',      'epd',     'epd') +
+      _ib('edit-btn',    'Redigera skiktning',  'edit',    'edit',  'display:none;margin-left:6px') +
+      _ib('copy-btn',    'Kopiera skiktning',   'copy',    'copy',  'display:none;margin-left:6px') +
+      _ib('close-btn',   'Återställ skiktning', 'restore', 'close', 'display:none;margin-left:6px');
+
+    tbodyHtml += `<tr class="group-parent" data-group-key="${ek}" data-open="false"><td>${actionBtns}</td>${parentCells}</tr>`;
 
     rows.forEach(r => {
-      const tr = document.createElement('tr'); tr.setAttribute('data-group-child-of', String(key));
-      // Store original row data as a custom property for later use
-      tr._originalRowData = r;
-      
-      // Row action cell - child rows under parent rows should NOT get any buttons
-      const actionTd = document.createElement('td');
-      // Do not add any buttons for child rows
-
-      tr.appendChild(actionTd);
-      // Add cells for original data
-      r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
-      // Add empty cells for any new columns that were added dynamically
-      // Including climate columns with proper data attributes
+      const rowIdx = rowDataStore.length;
+      rowDataStore.push(r);
+      let childCells = '<td></td>';
+      r.forEach(c => { childCells += `<td>${escHtml(c!=null?String(c):'')}</td>`; });
       for(let i = r.length; i < allHeaders.length; i++){
-        const headerName = allHeaders[i];
-        const td = document.createElement('td');
-        td.textContent = '';
-        // Mark cells with data attributes so they can be found and updated by applySavedClimate
-        if(headerName === 'Klimatresurs'){
-          td.setAttribute('data-climate-cell', 'true');
-          // Mark as placeholder - will be filled by applySavedClimate
-          td.setAttribute('data-climate-cell', 'true');
-          td.textContent = '';
-        } else if(headerName === 'Klimatresurs typ'){
-          td.setAttribute('data-climate-type-cell', 'true');
-          td.textContent = '';
-        } else if(headerName === 'Omräkningsfaktor'){
-          td.setAttribute('data-factor-cell', 'true');
-        } else if(headerName === 'Omräkningsfaktor enhet'){
-          td.setAttribute('data-unit-cell', 'true');
-        } else if(headerName === 'Spillfaktor'){
-          td.setAttribute('data-waste-cell', 'true');
-        } else if(headerName === 'Emissionsfaktor A1-A3'){
-          td.setAttribute('data-A1_A3-cell', 'true');
-        } else if(headerName === 'Emissionsfaktor A4'){
-          td.setAttribute('data-A4-cell', 'true');
-        } else if(headerName === 'Emissionsfaktor A5'){
-          td.setAttribute('data-A5-cell', 'true');
-        } else if(headerName === 'Inbyggd vikt'){
-          td.setAttribute('data-inbyggd-vikt-cell', 'true');
-        } else if(headerName === 'Inköpt vikt'){
-          td.setAttribute('data-inkopt-vikt-cell', 'true');
-        } else if(headerName === 'Klimatpåverkan A1-A3'){
-          td.setAttribute('data-klimat-a1a3-cell', 'true');
-        } else if(headerName === 'Klimatpåverkan A4'){
-          td.setAttribute('data-klimat-a4-cell', 'true');
-        } else if(headerName === 'Klimatpåverkan A5'){
-          td.setAttribute('data-klimat-a5-cell', 'true');
-        }
-        tr.appendChild(td);
+        const h = allHeaders[i];
+        if(h === 'Klimatresurs')            childCells += '<td data-climate-cell="true"></td>';
+        else if(h === 'Klimatresurs typ')   childCells += '<td data-climate-type-cell="true"></td>';
+        else if(h === 'Omräkningsfaktor')   childCells += '<td data-factor-cell="true"></td>';
+        else if(h === 'Omräkningsfaktor enhet') childCells += '<td data-unit-cell="true"></td>';
+        else if(h === 'Spillfaktor')        childCells += '<td data-waste-cell="true"></td>';
+        else if(h === 'Emissionsfaktor A1-A3') childCells += '<td data-A1_A3-cell="true"></td>';
+        else if(h === 'Emissionsfaktor A4') childCells += '<td data-A4-cell="true"></td>';
+        else if(h === 'Emissionsfaktor A5') childCells += '<td data-A5-cell="true"></td>';
+        else if(h === 'Inbyggd vikt')       childCells += '<td data-inbyggd-vikt-cell="true"></td>';
+        else if(h === 'Inköpt vikt')        childCells += '<td data-inkopt-vikt-cell="true"></td>';
+        else if(h === 'Klimatpåverkan A1-A3') childCells += '<td data-klimat-a1a3-cell="true"></td>';
+        else if(h === 'Klimatpåverkan A4')  childCells += '<td data-klimat-a4-cell="true"></td>';
+        else if(h === 'Klimatpåverkan A5')  childCells += '<td data-klimat-a5-cell="true"></td>';
+        else                                childCells += '<td></td>';
       }
-      tbody.appendChild(tr);
+      tbodyHtml += `<tr data-group-child-of="${ek}" data-row-idx="${rowIdx}" style="display:none">${childCells}</tr>`;
     });
-
-    
   });
 
+  tbody.innerHTML = tbodyHtml;
+
+  // Restore _originalRowData in one O(n) pass using stored array
+  tbody.querySelectorAll('tr[data-row-idx]').forEach(tr => {
+    const idx = parseInt(tr.getAttribute('data-row-idx'), 10);
+    if(!isNaN(idx)) tr._originalRowData = rowDataStore[idx];
+  });
   table.appendChild(tbody);
 
   // Apply saved layers and climate after table is fully assembled
@@ -2543,16 +2459,16 @@ function ensureGroupVisibilityObserver(tbody){
   tbody._groupVisibilityObserver = obs;
 }
 
-function populateGroupBy(headers){
+function populateGroupBy(headers, rawRows = null){
   if(!groupBySelect) return;
   const previous = groupBySelect.value;
   groupBySelect.innerHTML = '';
   const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = '(ingen)';
   groupBySelect.appendChild(noneOpt);
-  
-  // Get all rows to check if columns contain only numbers
+
+  // Use provided raw rows, or fall back to DOM rows
   const table = getTable();
-  const allRows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
+  const allRows = rawRows || (table ? Array.from(table.querySelectorAll('tbody tr')) : []);
   
   headers.forEach((h, idx) => {
     // Skip if this is a numeric-only column
@@ -2584,36 +2500,36 @@ function populateGroupBy(headers){
 
 function isNumericOnlyColumn(rows, columnIndex){
   if(rows.length === 0) return false;
-  
-  // Check more rows to get a better sample (up to 20 rows or all rows if fewer)
+
   const sampleRows = rows.slice(0, Math.min(20, rows.length));
   let numericCount = 0;
   let totalCount = 0;
   let uniqueValues = new Set();
-  
+
   for(const row of sampleRows){
-    const cells = Array.from(row.children);
-    // Make sure we have enough cells and account for action column
-    if(cells.length <= columnIndex + 1) continue;
-    
-    const cell = cells[columnIndex + 1]; // +1 to account for action column
-    
-    if(cell){
-      const cellText = cell.textContent.trim();
-      // Remove layer indicators and badges for clean text
-      const cleanText = cellText
-        .replace(/^\[Skikt \d+\/\d+\]\s*/, '')
-        .replace(/\s*\[\d+\s+skikt\]\s*$/, '')
-        .replace(/\s*\(\d+\)\s*$/, '')
-        .trim();
-      
-      if(cleanText !== ''){
-        totalCount++;
-        uniqueValues.add(cleanText);
-        const num = parseNumberLike(cleanText);
-        if(Number.isFinite(num)){
-          numericCount++;
-        }
+    // Support both DOM rows and raw data arrays
+    let cellText;
+    if(Array.isArray(row)){
+      cellText = row[columnIndex] != null ? String(row[columnIndex]).trim() : '';
+    } else {
+      const cells = Array.from(row.children);
+      if(cells.length <= columnIndex + 1) continue;
+      const cell = cells[columnIndex + 1]; // +1 for action column
+      cellText = cell ? cell.textContent.trim() : '';
+    }
+
+    const cleanText = cellText
+      .replace(/^\[Skikt \d+\/\d+\]\s*/, '')
+      .replace(/\s*\[\d+\s+skikt\]\s*$/, '')
+      .replace(/\s*\(\d+\)\s*$/, '')
+      .trim();
+
+    if(cleanText !== ''){
+      totalCount++;
+      uniqueValues.add(cleanText);
+      const num = parseNumberLike(cleanText);
+      if(Number.isFinite(num)){
+        numericCount++;
       }
     }
   }
@@ -2644,6 +2560,12 @@ function renderTableWithOptionalGrouping(rows){
     const headers = rows[0];
     lastHeaders = headers; // Store headers for project save/load
     const bodyRows = rows.slice(1);
+
+    // Populate groupBy from raw data before building the table to avoid double render
+    if(groupBySelect){
+      populateGroupBy(headers, bodyRows);
+    }
+
     const selected = groupBySelect ? groupBySelect.value : '';
     const groupIdx = selected === '' ? -1 : parseInt(selected, 10);
 
@@ -2676,68 +2598,45 @@ function renderTableWithOptionalGrouping(rows){
     allHeaders.forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; th.dataset.colIndex = String(i); addResizeHandle(th); headerTr.appendChild(th); });
     thead.appendChild(headerTr); table.appendChild(thead);
     const tbody = document.createElement('tbody');
+    const _ungroupedStore = [];
+    const _ungroupedSVG = {
+      layer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="10" width="18" height="5" rx="1"/><rect x="3" y="17" width="18" height="5" rx="1"/></svg>',
+      climate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+      epd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="18" x2="15" y2="18"/></svg>'
+    };
+    const _uActionBtns =
+      `<button type="button" class="icon-btn layer-btn" title="Skikta" data-action="layer">${_ungroupedSVG.layer}</button>` +
+      `<button type="button" class="icon-btn climate-btn" title="Mappa klimatresurs" data-action="climate">${_ungroupedSVG.climate}</button>` +
+      `<button type="button" class="icon-btn epd-btn" title="Mappa till EPD" data-action="epd">${_ungroupedSVG.epd}</button>`;
+    let ungroupedHtml = '';
     bodyRows.forEach(r => {
-      const tr = document.createElement('tr');
-      // Store original row data as a custom property for later use
-      tr._originalRowData = r;
-      
-      const actionTd = document.createElement('td');
-      const rowBtn = createIconButton('layer', 'Skikta');
-      rowBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openLayerModal({ type: 'row', rowEl: tr }); });
-      actionTd.appendChild(rowBtn);
-
-      const rowClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
-      rowClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openClimateModal({ type: 'row', rowEl: tr }); });
-      actionTd.appendChild(rowClimateBtn);
-
-      const rowAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
-      rowAltClimateBtn.addEventListener('click', function(ev){ ev.stopPropagation(); openAltClimateModal({ type: 'row', rowEl: tr }); });
-      actionTd.appendChild(rowAltClimateBtn);
-
-      tr.appendChild(actionTd);
-      // Add cells for original data
-      r.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
-      // Add empty cells for any new columns that were added dynamically
-      // Including climate columns with proper data attributes
+      const rowIdx = _ungroupedStore.length;
+      _ungroupedStore.push(r);
+      let cells = `<td>${_uActionBtns}</td>`;
+      r.forEach(c => { cells += `<td>${escHtml(c!=null?String(c):'')}</td>`; });
       for(let i = r.length; i < allHeaders.length; i++){
-        const headerName = allHeaders[i];
-        const td = document.createElement('td');
-        td.textContent = '';
-        // Mark cells with data attributes so they can be found and updated by applySavedClimate
-        if(headerName === 'Klimatresurs'){
-          td.setAttribute('data-climate-cell', 'true');
-          // Mark as placeholder - will be filled by applySavedClimate
-          td.setAttribute('data-climate-cell', 'true');
-          td.textContent = '';
-        } else if(headerName === 'Klimatresurs typ'){
-          td.setAttribute('data-climate-type-cell', 'true');
-          td.textContent = '';
-        } else if(headerName === 'Omräkningsfaktor'){
-          td.setAttribute('data-factor-cell', 'true');
-        } else if(headerName === 'Omräkningsfaktor enhet'){
-          td.setAttribute('data-unit-cell', 'true');
-        } else if(headerName === 'Spillfaktor'){
-          td.setAttribute('data-waste-cell', 'true');
-        } else if(headerName === 'Emissionsfaktor A1-A3'){
-          td.setAttribute('data-A1_A3-cell', 'true');
-        } else if(headerName === 'Emissionsfaktor A4'){
-          td.setAttribute('data-A4-cell', 'true');
-        } else if(headerName === 'Emissionsfaktor A5'){
-          td.setAttribute('data-A5-cell', 'true');
-        } else if(headerName === 'Inbyggd vikt'){
-          td.setAttribute('data-inbyggd-vikt-cell', 'true');
-        } else if(headerName === 'Inköpt vikt'){
-          td.setAttribute('data-inkopt-vikt-cell', 'true');
-        } else if(headerName === 'Klimatpåverkan A1-A3'){
-          td.setAttribute('data-klimat-a1a3-cell', 'true');
-        } else if(headerName === 'Klimatpåverkan A4'){
-          td.setAttribute('data-klimat-a4-cell', 'true');
-        } else if(headerName === 'Klimatpåverkan A5'){
-          td.setAttribute('data-klimat-a5-cell', 'true');
-        }
-        tr.appendChild(td);
+        const h = allHeaders[i];
+        if(h === 'Klimatresurs')            cells += '<td data-climate-cell="true"></td>';
+        else if(h === 'Klimatresurs typ')   cells += '<td data-climate-type-cell="true"></td>';
+        else if(h === 'Omräkningsfaktor')   cells += '<td data-factor-cell="true"></td>';
+        else if(h === 'Omräkningsfaktor enhet') cells += '<td data-unit-cell="true"></td>';
+        else if(h === 'Spillfaktor')        cells += '<td data-waste-cell="true"></td>';
+        else if(h === 'Emissionsfaktor A1-A3') cells += '<td data-A1_A3-cell="true"></td>';
+        else if(h === 'Emissionsfaktor A4') cells += '<td data-A4-cell="true"></td>';
+        else if(h === 'Emissionsfaktor A5') cells += '<td data-A5-cell="true"></td>';
+        else if(h === 'Inbyggd vikt')       cells += '<td data-inbyggd-vikt-cell="true"></td>';
+        else if(h === 'Inköpt vikt')        cells += '<td data-inkopt-vikt-cell="true"></td>';
+        else if(h === 'Klimatpåverkan A1-A3') cells += '<td data-klimat-a1a3-cell="true"></td>';
+        else if(h === 'Klimatpåverkan A4')  cells += '<td data-klimat-a4-cell="true"></td>';
+        else if(h === 'Klimatpåverkan A5')  cells += '<td data-klimat-a5-cell="true"></td>';
+        else                                cells += '<td></td>';
       }
-      tbody.appendChild(tr);
+      ungroupedHtml += `<tr data-row-idx="${rowIdx}">${cells}</tr>`;
+    });
+    tbody.innerHTML = ungroupedHtml;
+    tbody.querySelectorAll('tr[data-row-idx]').forEach(tr => {
+      const idx = parseInt(tr.getAttribute('data-row-idx'), 10);
+      if(!isNaN(idx)) tr._originalRowData = _ungroupedStore[idx];
     });
     table.appendChild(tbody);
     output.innerHTML = ''; output.appendChild(table);
@@ -2755,23 +2654,10 @@ function renderTableWithOptionalGrouping(rows){
       }
     });
 
-    // Populate group by options after table is created
-    if(groupBySelect){
-      const previousValue = groupBySelect.value;
-      populateGroupBy(headers);
-      // If populateGroupBy changed the value to default "Type", re-render with grouping
-      if(groupBySelect.value !== previousValue && groupBySelect.value !== ''){
-        renderTableWithOptionalGrouping(rows);
-        return;
-      }
-    }
   } else {
     const table = buildGroupedTable(headers, bodyRows, groupIdx);
     output.innerHTML = ''; output.appendChild(table);
     installHoverRowTracking(table);
-
-    // Populate group by options after table is created
-    if(groupBySelect){ populateGroupBy(headers); }
   }
   ensureColumnFilters();
   applyFilters();
@@ -2781,21 +2667,24 @@ function renderTableWithOptionalGrouping(rows){
   if(table){
     const tbody = table.querySelector('tbody');
     if(tbody){
-      // Hide all group children
-      const groupChildren = tbody.querySelectorAll('tr[data-group-child-of]');
-      groupChildren.forEach(child => {
-        const parentKey = child.getAttribute('data-group-child-of');
-        const parent = tbody.querySelector(`tr[data-group-key="${CSS.escape(parentKey)}"]`);
+      // Build parent lookup maps once (O(n)) instead of querySelector per child (O(n²))
+      const groupParentMap = new Map();
+      tbody.querySelectorAll('tr[data-group-key]').forEach(p =>
+        groupParentMap.set(p.getAttribute('data-group-key'), p));
+
+      const layerParentMap = new Map();
+      tbody.querySelectorAll('tr[data-layer-key]').forEach(p =>
+        layerParentMap.set(p.getAttribute('data-layer-key'), p));
+
+      tbody.querySelectorAll('tr[data-group-child-of]').forEach(child => {
+        const parent = groupParentMap.get(child.getAttribute('data-group-child-of'));
         if(parent && parent.getAttribute('data-open') === 'false'){
           child.style.display = 'none';
         }
       });
-      
-      // Hide all layer children
-      const layerChildren = tbody.querySelectorAll('tr[data-parent-key]');
-      layerChildren.forEach(child => {
-        const parentKey = child.getAttribute('data-parent-key');
-        const parent = tbody.querySelector(`tr[data-layer-key="${CSS.escape(parentKey)}"]`);
+
+      tbody.querySelectorAll('tr[data-parent-key]').forEach(child => {
+        const parent = layerParentMap.get(child.getAttribute('data-parent-key'));
         if(parent && parent.getAttribute('data-open') === 'false'){
           child.style.display = 'none';
         }
@@ -2810,33 +2699,23 @@ function renderTableWithOptionalGrouping(rows){
   updateAllClimateMappingIndicators();
 
   // DEBUG: Check attributes after rendering
-  console.log('🔍 [After Render] Checking layer children attributes:');
+  // console.log('🔍 [After Render] Checking layer children attributes:');
   if(table && table.querySelector('tbody')){
     const layerChildren = table.querySelectorAll('tbody tr[data-layer-child-of]');
     layerChildren.forEach((child, idx) => {
       if(idx < 5) { // Only log first 5 to avoid spam
-        console.log(`  Child ${idx}:`, {
-          layerChildOf: child.getAttribute('data-layer-child-of')?.substring(0, 20),
-          layerKey: child.getAttribute('data-layer-key')?.substring(0, 20) || 'NONE',
-          groupChildOf: child.getAttribute('data-group-child-of')?.substring(0, 20) || 'none'
-        });
+        // console.log(`  Child ${idx}:`, {
+//           layerChildOf: child.getAttribute('data-layer-child-of')?.substring(0, 20),
+//           layerKey: child.getAttribute('data-layer-key')?.substring(0, 20) || 'NONE',
+//           groupChildOf: child.getAttribute('data-group-child-of')?.substring(0, 20) || 'none'
+//         });
       }
     });
-    console.log(`  Total layer children: ${layerChildren.length}`);
+    // console.log(`  Total layer children: ${layerChildren.length}`);
   }
 
   // DEBUG: Check what's in the climate data map
-  console.log('🔍 [After Render] climateData Map contains', climateData.size, 'entries');
-  let climateEntryCount = 0;
-  climateData.forEach((value, key) => {
-    if(climateEntryCount < 3) { // Only log first 3 to avoid spam
-      console.log(`  Climate entry ${climateEntryCount}:`, {
-        signature: key.substring(0, 60),
-        resourceName: value.resource?.resourceName || 'N/A'
-      });
-    }
-    climateEntryCount++;
-  });
+  // console.log('🔍 [After Render] climateData Map contains', climateData.size, 'entries');
   
     // Save initial state after table is rendered (but not during restore)
     if(!isRestoringState && undoStack.length === 0){
@@ -2985,12 +2864,12 @@ if(toggleAllBtn){
 if(groupBySelect){
   groupBySelect.addEventListener('change', function(){
     if(!lastRows){ return; }
-    console.log('🔄 [groupBySelect.change] BEFORE renderTable - layerData.size:', layerData.size);
-    console.log('🔄 [groupBySelect.change] layerData keys:', Array.from(layerData.keys()).map(k => k.substring(0, 80)));
-    console.log('🔄 [groupBySelect.change] lastRows sample (first 3 data rows):', lastRows.slice(1, 4).map(r => r.slice(0, 4)));
-    console.log('🔄 [groupBySelect.change] lastRows total count:', lastRows.length - 1, 'data rows');
+    // console.log('🔄 [groupBySelect.change] BEFORE renderTable - layerData.size:', layerData.size);
+    // console.log('🔄 [groupBySelect.change] layerData keys:', Array.from(layerData.keys()).map(k => k.substring(0, 80)));
+    // console.log('🔄 [groupBySelect.change] lastRows sample (first 3 data rows):', lastRows.slice(1, 4).map(r => r.slice(0, 4)));
+    // console.log('🔄 [groupBySelect.change] lastRows total count:', lastRows.length - 1, 'data rows');
     renderTableWithOptionalGrouping(lastRows);
-    console.log('🔄 [groupBySelect.change] AFTER renderTable - layerData.size:', layerData.size);
+    // console.log('🔄 [groupBySelect.change] AFTER renderTable - layerData.size:', layerData.size);
     if(layerData.size > 0){
       setTimeout(() => {
         cleanupOldBadgesAndLayers();
@@ -3455,45 +3334,45 @@ function exportTableToExcel(){
 function openLayerModal(target){
   layerTarget = target;
 
-  console.log('🔍 [openLayerModal] Called with target:', target);
+  // console.log('🔍 [openLayerModal] Called with target:', target);
 
   // Pre-fill with existing values if editing an already layered item
   if(target.type === 'row' && target.rowEl){
     // For a single row, check if it's a layer parent
     const layerKey = target.rowEl.getAttribute('data-layer-key');
-    console.log('🔍 [openLayerModal] Layer key:', layerKey);
-    console.log('🔍 [openLayerModal] Has _originalRowData:', !!target.rowEl._originalRowData);
-    console.log('🔍 [openLayerModal] layerData.size:', layerData.size);
+    // console.log('🔍 [openLayerModal] Layer key:', layerKey);
+    // console.log('🔍 [openLayerModal] Has _originalRowData:', !!target.rowEl._originalRowData);
+    // console.log('🔍 [openLayerModal] layerData.size:', layerData.size);
 
     if(layerKey){
       // This row is already layered, get its layer data
       const rowData = target.rowEl._originalRowData || getRowDataFromTr(target.rowEl);
-      console.log('🔍 [openLayerModal] Row data:', rowData ? rowData.slice(0, 3) : 'null');
+      // console.log('🔍 [openLayerModal] Row data:', rowData ? rowData.slice(0, 3) : 'null');
 
       if(rowData){
         const layerChildOf = target.rowEl.getAttribute('data-layer-child-of');
         const signature = getRowSignature(rowData, layerChildOf);
         let saved = layerData.get(signature);
-        console.log('🔍 [openLayerModal] LayerChildOf:', layerChildOf);
-        console.log('🔍 [openLayerModal] Signature:', signature.substring(0, 60));
-        console.log('🔍 [openLayerModal] Saved data found:', !!saved);
+        // console.log('🔍 [openLayerModal] LayerChildOf:', layerChildOf);
+        // console.log('🔍 [openLayerModal] Signature:', signature.substring(0, 60));
+        // console.log('🔍 [openLayerModal] Saved data found:', !!saved);
 
         // If not found, try without the layerChildOf suffix (for backwards compatibility)
         if(!saved && layerChildOf){
           const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
           saved = layerData.get(signatureWithoutLayerChildOf);
-          console.log('🔍 [openLayerModal] Trying without layerChildOf suffix');
-          console.log('🔍 [openLayerModal] Saved data found (2nd attempt):', !!saved);
+          // console.log('🔍 [openLayerModal] Trying without layerChildOf suffix');
+          // console.log('🔍 [openLayerModal] Saved data found (2nd attempt):', !!saved);
         }
 
         if(!saved){
-          console.log('🔍 [openLayerModal] Available signatures in layerData:');
+          // console.log('🔍 [openLayerModal] Available signatures in layerData:');
           layerData.forEach((_value, key) => {
-            console.log('  -', key.substring(0, 60));
+            // console.log('  -', key.substring(0, 60));
           });
         }
         if(saved){
-          console.log('🔍 [openLayerModal] Saved data:', saved);
+          // console.log('🔍 [openLayerModal] Saved data:', saved);
           if(layerCountInput) layerCountInput.value = saved.count;
           if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
 
@@ -3508,7 +3387,7 @@ function openLayerModal(target){
       updateLayerNamesContainer();
     }
   } else if(target.type === 'group' && target.key){
-    console.log('🔍 [openLayerModal] Opening group modal for key:', target.key);
+    // console.log('🔍 [openLayerModal] Opening group modal for key:', target.key);
     // Find existing layer data for this group
     const table = getTable();
     if(table){
@@ -3516,38 +3395,38 @@ function openLayerModal(target){
       if(tbody){
         // First, try to find a layer parent within this group (for already-layered groups)
         const layerParentInGroup = tbody.querySelector(`tr[data-group-child-of="${CSS.escape(target.key)}"][data-layer-key]`);
-        console.log('🔍 [openLayerModal] Layer parent in group found:', !!layerParentInGroup);
+        // console.log('🔍 [openLayerModal] Layer parent in group found:', !!layerParentInGroup);
 
         if(layerParentInGroup){
           // Group is already layered - get data from one of the layer parents within the group
           const rowData = layerParentInGroup._originalRowData || getRowDataFromTr(layerParentInGroup);
-          console.log('🔍 [openLayerModal] Row data from layer parent:', !!rowData);
-          console.log('🔍 [openLayerModal] Has _originalRowData:', !!layerParentInGroup._originalRowData);
+          // console.log('🔍 [openLayerModal] Row data from layer parent:', !!rowData);
+          // console.log('🔍 [openLayerModal] Has _originalRowData:', !!layerParentInGroup._originalRowData);
           if(rowData){
             // Use the layer parent's data-group-child-of as the signature key
             const groupChildOf = layerParentInGroup.getAttribute('data-group-child-of');
             const signature = getRowSignature(rowData, groupChildOf);
             let saved = layerData.get(signature);
-            console.log('🔍 [openLayerModal] GroupChildOf:', groupChildOf);
-            console.log('🔍 [openLayerModal] Row data (first 6 cols):', rowData.slice(0, 6));
-            console.log('🔍 [openLayerModal] Full signature:', signature);
-            console.log('🔍 [openLayerModal] Saved layer data found:', !!saved);
+            // console.log('🔍 [openLayerModal] GroupChildOf:', groupChildOf);
+            // console.log('🔍 [openLayerModal] Row data (first 6 cols):', rowData.slice(0, 6));
+            // console.log('🔍 [openLayerModal] Full signature:', signature);
+            // console.log('🔍 [openLayerModal] Saved layer data found:', !!saved);
 
             // If not found, try without the layerChildOf suffix (for backwards compatibility)
             if(!saved && groupChildOf){
               const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
               saved = layerData.get(signatureWithoutLayerChildOf);
-              console.log('🔍 [openLayerModal] Trying without layerChildOf suffix:', signatureWithoutLayerChildOf);
-              console.log('🔍 [openLayerModal] Saved layer data found (2nd attempt):', !!saved);
+              // console.log('🔍 [openLayerModal] Trying without layerChildOf suffix:', signatureWithoutLayerChildOf);
+              // console.log('🔍 [openLayerModal] Saved layer data found (2nd attempt):', !!saved);
             }
 
-            console.log('🔍 [openLayerModal] layerData.size:', layerData.size);
+            // console.log('🔍 [openLayerModal] layerData.size:', layerData.size);
             if(!saved){
-              console.log('🔍 [openLayerModal] Available signatures in layerData (first 3):');
+              // console.log('🔍 [openLayerModal] Available signatures in layerData (first 3):');
               let count = 0;
               layerData.forEach((_value, key) => {
                 if(count < 3){
-                  console.log('  Full signature:', key);
+                  // console.log('  Full signature:', key);
                   count++;
                 }
               });
@@ -3565,14 +3444,14 @@ function openLayerModal(target){
         } else {
           // Not yet layered, or try the old method for backwards compatibility
           const firstChild = tbody.querySelector(`tr[data-layer-child-of="${CSS.escape(target.key)}"]`);
-          console.log('🔍 [openLayerModal] First child found (legacy):', !!firstChild);
+          // console.log('🔍 [openLayerModal] First child found (legacy):', !!firstChild);
           if(firstChild){
             const rowData = firstChild._originalRowData || getRowDataFromTr(firstChild);
-            console.log('🔍 [openLayerModal] Row data found:', !!rowData);
+            // console.log('🔍 [openLayerModal] Row data found:', !!rowData);
             if(rowData){
               const signature = getRowSignature(rowData, target.key);
               const saved = layerData.get(signature);
-              console.log('🔍 [openLayerModal] Saved layer data found:', !!saved, 'Signature:', signature);
+              // console.log('🔍 [openLayerModal] Saved layer data found:', !!saved, 'Signature:', signature);
               if(saved){
                 if(layerCountInput) layerCountInput.value = saved.count;
                 if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
@@ -3584,7 +3463,7 @@ function openLayerModal(target){
               }
             }
           } else {
-            console.log('🔍 [openLayerModal] No existing layer data found, clearing inputs');
+            // console.log('🔍 [openLayerModal] No existing layer data found, clearing inputs');
             // Not yet layered, clear the inputs
             if(layerCountInput) layerCountInput.value = '2';
             if(layerThicknessesInput) layerThicknessesInput.value = '';
@@ -3634,7 +3513,7 @@ function openLayerModal(target){
   if(layerPasteBtn){
     const shouldShow = !!copiedLayerSettings;
     layerPasteBtn.style.display = shouldShow ? '' : 'none';
-    console.log('🔍 [openLayerModal] Paste button visibility:', shouldShow, 'copiedLayerSettings:', !!copiedLayerSettings);
+    // console.log('🔍 [openLayerModal] Paste button visibility:', shouldShow, 'copiedLayerSettings:', !!copiedLayerSettings);
   }
 
   if(layerModal){ layerModal.style.display = 'flex'; }
@@ -3656,7 +3535,7 @@ let selectedRowsForLayering = new Set(); // Track selected rows for bulk layerin
 
 // Function to copy layer settings
 function copyLayerSettings(target){
-  console.log('🔍 [copyLayerSettings] Called with target:', target);
+  // console.log('🔍 [copyLayerSettings] Called with target:', target);
 
   let layerDataToCopy = null;
 
@@ -3666,13 +3545,13 @@ function copyLayerSettings(target){
       const layerChildOf = target.rowEl.getAttribute('data-layer-child-of');
       const signature = getRowSignature(rowData, layerChildOf);
       layerDataToCopy = layerData.get(signature);
-      console.log('🔍 [copyLayerSettings] Found layer data for row:', !!layerDataToCopy);
+      // console.log('🔍 [copyLayerSettings] Found layer data for row:', !!layerDataToCopy);
 
       // If not found, try without the layerChildOf suffix (for backwards compatibility)
       if(!layerDataToCopy && layerChildOf){
         const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
         layerDataToCopy = layerData.get(signatureWithoutLayerChildOf);
-        console.log('🔍 [copyLayerSettings] Trying without layerChildOf suffix, found:', !!layerDataToCopy);
+        // console.log('🔍 [copyLayerSettings] Trying without layerChildOf suffix, found:', !!layerDataToCopy);
       }
     }
   } else if(target.type === 'group' && target.key){
@@ -3688,13 +3567,13 @@ function copyLayerSettings(target){
             const groupChildOf = layerParentInGroup.getAttribute('data-group-child-of');
             const signature = getRowSignature(rowData, groupChildOf);
             layerDataToCopy = layerData.get(signature);
-            console.log('🔍 [copyLayerSettings] Found layer data for group:', !!layerDataToCopy);
+            // console.log('🔍 [copyLayerSettings] Found layer data for group:', !!layerDataToCopy);
 
             // If not found, try without the layerChildOf suffix (for backwards compatibility)
             if(!layerDataToCopy && groupChildOf){
               const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
               layerDataToCopy = layerData.get(signatureWithoutLayerChildOf);
-              console.log('🔍 [copyLayerSettings] Trying without layerChildOf suffix, found:', !!layerDataToCopy);
+              // console.log('🔍 [copyLayerSettings] Trying without layerChildOf suffix, found:', !!layerDataToCopy);
             }
           }
         }
@@ -3704,7 +3583,7 @@ function copyLayerSettings(target){
 
   if(layerDataToCopy){
     copiedLayerSettings = JSON.parse(JSON.stringify(layerDataToCopy)); // Deep copy
-    console.log('✅ [copyLayerSettings] Copied settings:', copiedLayerSettings);
+    // console.log('✅ [copyLayerSettings] Copied settings:', copiedLayerSettings);
 
     // Show checkboxes and apply button
     showLayerSelectionCheckboxes();
@@ -3712,7 +3591,7 @@ function copyLayerSettings(target){
 
     alert('Skiktinställningar kopierade! Markera rader och tryck på "Applicera skiktning på valda".');
   } else {
-    console.log('⚠️ [copyLayerSettings] No layer data found to copy');
+    // console.log('⚠️ [copyLayerSettings] No layer data found to copy');
     alert('Inga skiktinställningar att kopiera.');
   }
 }
@@ -3724,11 +3603,11 @@ function showLayerSelectionCheckboxes(){
   const tbody = table.querySelector('tbody');
   if(!tbody) return;
 
-  console.log('📋 [showLayerSelectionCheckboxes] Adding checkboxes to applicable rows');
+  // console.log('📋 [showLayerSelectionCheckboxes] Adding checkboxes to applicable rows');
 
   let checkboxCount = 0;
   const allRows = Array.from(tbody.querySelectorAll('tr'));
-  console.log(`📋 [showLayerSelectionCheckboxes] Examining ${allRows.length} rows`);
+  // console.log(`📋 [showLayerSelectionCheckboxes] Examining ${allRows.length} rows`);
 
   allRows.forEach((tr, index) => {
     const isGroupParent = tr.classList.contains('group-parent');
@@ -3737,18 +3616,18 @@ function showLayerSelectionCheckboxes(){
 
     // Only show checkboxes on group-parent rows
     if(!isGroupParent){
-      console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (not group-parent) - ${rowDesc}`);
+      // console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (not group-parent) - ${rowDesc}`);
       return;
     }
 
     if(!groupKey){
-      console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (no group-key) - ${rowDesc}`);
+      // console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (no group-key) - ${rowDesc}`);
       return;
     }
 
     const actionTd = tr.querySelector('td:first-child');
     if(!actionTd){
-      console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (no action TD) - ${rowDesc}`);
+      // console.log(`⏭️ [showLayerSelectionCheckboxes] Row ${index}: SKIP (no action TD) - ${rowDesc}`);
       return;
     }
 
@@ -3774,11 +3653,11 @@ function showLayerSelectionCheckboxes(){
       });
       actionTd.insertBefore(checkbox, actionTd.firstChild);
       checkboxCount++;
-      console.log(`✅ [showLayerSelectionCheckboxes] Row ${index}: ADDED checkbox to group-parent - ${groupKey}`);
+      // console.log(`✅ [showLayerSelectionCheckboxes] Row ${index}: ADDED checkbox to group-parent - ${groupKey}`);
     }
   });
 
-  console.log(`📋 [showLayerSelectionCheckboxes] Total checkboxes added: ${checkboxCount}`);
+  // console.log(`📋 [showLayerSelectionCheckboxes] Total checkboxes added: ${checkboxCount}`);
 }
 
 // Function to hide checkboxes
@@ -3808,7 +3687,7 @@ function updateApplyLayerButton(){
     applyLayerToSelectedBtn.style.display = 'none';
   }
 
-  console.log('🔄 [updateApplyLayerButton] Button visible:', hasCopiedSettings, 'Selected:', selectedRowsForLayering.size);
+  // console.log('🔄 [updateApplyLayerButton] Button visible:', hasCopiedSettings, 'Selected:', selectedRowsForLayering.size);
 }
 
 if(layerCancelBtn){ layerCancelBtn.addEventListener('click', closeLayerModal); }
@@ -3819,7 +3698,7 @@ if(layerPasteBtn){
       return;
     }
 
-    console.log('🔄 [pasteLayerSettings] Pasting settings:', copiedLayerSettings);
+    // console.log('🔄 [pasteLayerSettings] Pasting settings:', copiedLayerSettings);
 
     // Fill in the layer count and thicknesses
     if(layerCountInput) layerCountInput.value = copiedLayerSettings.count;
@@ -3875,7 +3754,7 @@ if(applyLayerToSelectedBtn){
       return;
     }
 
-    console.log('🔄 [applyLayerToSelected] Applying to', selectedRowsForLayering.size, 'rows');
+    // console.log('🔄 [applyLayerToSelected] Applying to', selectedRowsForLayering.size, 'rows');
 
     saveState(); // Save state for undo
 
@@ -3898,10 +3777,10 @@ if(applyLayerToSelectedBtn){
         const climateTypes = copiedLayerSettings.climateTypes || [];
         const climateFactors = copiedLayerSettings.climateFactors || [];
 
-        console.log('📋 [applyLayerToSelected] Copied climate settings:');
-        console.log('  Resources:', JSON.stringify(climateResources));
-        console.log('  Types:', JSON.stringify(climateTypes));
-        console.log('  Factors:', JSON.stringify(climateFactors));
+        // console.log('📋 [applyLayerToSelected] Copied climate settings:');
+        // console.log('  Resources:', JSON.stringify(climateResources));
+        // console.log('  Types:', JSON.stringify(climateTypes));
+        // console.log('  Factors:', JSON.stringify(climateFactors));
 
         // Check if this is a group parent row
         const isGroupParent = tr.classList.contains('group-parent');
@@ -3909,7 +3788,7 @@ if(applyLayerToSelectedBtn){
 
         if(groupKey){
           // First, remove any existing layering for this group
-          console.log('🔄 [applyLayerToSelected] Removing existing layering for group:', groupKey);
+          // console.log('🔄 [applyLayerToSelected] Removing existing layering for group:', groupKey);
           removeLayeringForGroup(groupKey, tbody);
 
           // Also clear any climate data for all rows in the group
@@ -3925,17 +3804,17 @@ if(applyLayerToSelectedBtn){
             }
           });
 
-          console.log('🔄 [applyLayerToSelected] Applying to group:', groupKey, 'rows:', groupRows.length);
+          // console.log('🔄 [applyLayerToSelected] Applying to group:', groupKey, 'rows:', groupRows.length);
 
           groupRows.forEach((groupRow, idx) => {
             const rowDesc = groupRow.querySelector('td:nth-child(4)')?.textContent?.substring(0, 40);
-            console.log(`  🔄 [applyLayerToSelected] Row ${idx+1}/${groupRows.length}: ${rowDesc}`);
+            // console.log(`  🔄 [applyLayerToSelected] Row ${idx+1}/${groupRows.length}: ${rowDesc}`);
             applyLayerSplitToRow(groupRow, tbody, count, thicknesses, layerNames, mixedLayerConfigs, climateResources, climateTypes, climateFactors);
-            console.log(`  ✅ [applyLayerToSelected] Completed row ${idx+1}`);
+            // console.log(`  ✅ [applyLayerToSelected] Completed row ${idx+1}`);
           });
         } else {
           // Apply to single row
-          console.log('🔄 [applyLayerToSelected] Applying to single row');
+          // console.log('🔄 [applyLayerToSelected] Applying to single row');
           applyLayerSplitToRow(tr, tbody, count, thicknesses, layerNames, mixedLayerConfigs, climateResources, climateTypes, climateFactors);
         }
 
@@ -5580,7 +5459,7 @@ function showAllLayersSelection(){
     searchInput.dataset.layerKey = info.layerKey; // Use layerKey instead of layerNum for unique identification
     searchInput.dataset.layerNum = info.layerNum; // Keep layerNum for backward compatibility
 
-    console.log(`🏗️ [Modal Build] Creating climate input for ${info.isMat2 ? 'Material 2' : 'Material 1'}, layerKey:`, info.layerKey);
+    // console.log(`🏗️ [Modal Build] Creating climate input for ${info.isMat2 ? 'Material 2' : 'Material 1'}, layerKey:`, info.layerKey);
 
     // Pre-fill with existing resource if any
     if(info.existingResource){
@@ -5787,38 +5666,38 @@ function applyAllLayerResources(){
   const { layerRows, groupKey, selectedResources, selectedNames, uniqueLayers } = multiLayerClimateTarget;
   
   // Now using layerKey directly instead of layer numbers
-  console.log('🔍 [applyAllLayerResources] selectedResources keys:', Array.from(selectedResources.keys()));
-  console.log('🔍 [applyAllLayerResources] selectedNames keys:', Array.from(selectedNames.keys()));
-  console.log('🔍 [applyAllLayerResources] Processing', layerRows.length, 'layer rows');
+  // console.log('🔍 [applyAllLayerResources] selectedResources keys:', Array.from(selectedResources.keys()));
+  // console.log('🔍 [applyAllLayerResources] selectedNames keys:', Array.from(selectedNames.keys()));
+  // console.log('🔍 [applyAllLayerResources] Processing', layerRows.length, 'layer rows');
 
   // Apply the appropriate resource and name to each layer row based on its layer key
   layerRows.forEach((row, idx) => {
     const layerKey = row.dataset.layerKey || '';
     const isMat2 = layerKey.endsWith('_mat2');
-    console.log(`\n🔍 [applyAllLayerResources] Row ${idx + 1}/${layerRows.length} ${isMat2 ? '(Material 2)' : '(Material 1/Regular)'}`);
-    console.log('  Full layerKey:', layerKey);
+    // console.log(`\n🔍 [applyAllLayerResources] Row ${idx + 1}/${layerRows.length} ${isMat2 ? '(Material 2)' : '(Material 1/Regular)'}`);
+    // console.log('  Full layerKey:', layerKey);
 
     if(layerKey){
       // Apply layer name if provided (using exact layerKey match)
       if(selectedNames && selectedNames.has(layerKey)){
         const layerName = selectedNames.get(layerKey);
-        console.log('  📝 Applying layer name:', layerName);
+        // console.log('  📝 Applying layer name:', layerName);
         updateLayerBadge(row, layerName);
       } else {
-        console.log('  📝 No layer name in selectedNames for this key');
+        // console.log('  📝 No layer name in selectedNames for this key');
       }
 
       // Apply climate resource if provided (using exact layerKey match)
       const resource = selectedResources.get(layerKey);
       if(resource){
-        console.log('  ✅ FOUND resource:', resource.Name, '- calling applyClimateResource()');
+        // console.log('  ✅ FOUND resource:', resource.Name, '- calling applyClimateResource()');
         climateTarget = { type: 'row', rowEl: row };
         applyClimateResource(resource);
       } else {
-        console.log('  ❌ NO resource found in selectedResources Map for this key');
+        // console.log('  ❌ NO resource found in selectedResources Map for this key');
       }
     } else {
-      console.log('  ⚠️ Row has no layerKey attribute!');
+      // console.log('  ⚠️ Row has no layerKey attribute!');
     }
   });
   
@@ -5864,59 +5743,59 @@ if(multiLayerClimateApplyBtn){
     
     layerInfo.forEach(info => {
       const isMat2 = info.isMat2;
-      console.log(`\n🔍 [Collect] Processing ${isMat2 ? 'Material 2' : 'Material 1/Regular'}, layerKey:`, info.layerKey);
+      // console.log(`\n🔍 [Collect] Processing ${isMat2 ? 'Material 2' : 'Material 1/Regular'}, layerKey:`, info.layerKey);
 
       // Get layer name input using layerKey for unique identification
       const nameInput = multiLayerClimateContent.querySelector(`input[data-name-input="true"][data-layer-key="${CSS.escape(info.layerKey)}"]`);
-      console.log(`  📝 Name input found:`, !!nameInput, nameInput ? `value="${nameInput.value}"` : '');
+      // console.log(`  📝 Name input found:`, !!nameInput, nameInput ? `value="${nameInput.value}"` : '');
       if(nameInput && !info.isMat2){ // Only allow name changes for non-mat2 layers
         const layerName = nameInput.value.trim();
         if(layerName){
           selectedNames.set(info.layerKey, layerName);
-          console.log(`  ✅ Added to selectedNames:`, layerName);
+          // console.log(`  ✅ Added to selectedNames:`, layerName);
         }
       }
 
       // Get climate resource input using layerKey
       const selector = `input[data-layer-key="${CSS.escape(info.layerKey)}"]:not([data-name-input])`;
-      console.log(`  🔍 Climate input selector:`, selector);
+      // console.log(`  🔍 Climate input selector:`, selector);
       const searchInput = multiLayerClimateContent.querySelector(selector);
-      console.log(`  🌍 Climate input found:`, !!searchInput, searchInput ? `value="${searchInput.value}"` : '');
+      // console.log(`  🌍 Climate input found:`, !!searchInput, searchInput ? `value="${searchInput.value}"` : '');
       if(!searchInput){
-        console.log(`  ❌ No climate input found - RETURNING EARLY`);
+        // console.log(`  ❌ No climate input found - RETURNING EARLY`);
         return;
       }
 
       const resourceName = searchInput.value.trim();
       if(!resourceName){
-        console.log(`  ⏭️ Skipping - no resource name entered`);
+        // console.log(`  ⏭️ Skipping - no resource name entered`);
         return;
       }
 
-      console.log(`  🔍 Resource name entered: "${resourceName}"`);
+      // console.log(`  🔍 Resource name entered: "${resourceName}"`);
 
       // Find the resource by name or index
       let resourceIndex = searchInput.dataset.selectedIndex;
-      console.log(`  🔢 selectedIndex attribute:`, resourceIndex);
+      // console.log(`  🔢 selectedIndex attribute:`, resourceIndex);
       if(resourceIndex !== undefined){
         const resource = window.climateResources[resourceIndex];
         if(resource){
           selectedResources.set(info.layerKey, resource);
-          console.log(`  ✅ Added resource to Map by INDEX: "${resource.Name}" for key:`, info.layerKey);
+          // console.log(`  ✅ Added resource to Map by INDEX: "${resource.Name}" for key:`, info.layerKey);
         } else {
-          console.log(`  ⚠️ No resource found at index ${resourceIndex}`);
+          // console.log(`  ⚠️ No resource found at index ${resourceIndex}`);
         }
       } else {
         // Try to find exact match by name
         const resource = window.climateResources.find(r => r.Name === resourceName);
         if(resource){
           selectedResources.set(info.layerKey, resource);
-          console.log(`  ✅ Added resource to Map by NAME: "${resource.Name}" for key:`, info.layerKey);
+          // console.log(`  ✅ Added resource to Map by NAME: "${resource.Name}" for key:`, info.layerKey);
         } else {
           const layerLabel = info.isMat2 ? `Skikt ${info.layerNum} - Material 2` : `Skikt ${info.layerNum}`;
           alert(`Kunde inte hitta klimatresurs för ${layerLabel}: "${resourceName}"\nVälj från sökresultaten.`);
           hasError = true;
-          console.log(`  ❌ Resource not found by name: "${resourceName}"`);
+          // console.log(`  ❌ Resource not found by name: "${resourceName}"`);
         }
       }
     });
@@ -5929,15 +5808,15 @@ if(multiLayerClimateApplyBtn){
     }
 
     // DEBUG: Log what was collected
-    console.log('🗺️ [Apply] selectedResources Map contents:', selectedResources.size, 'entries');
+    // console.log('🗺️ [Apply] selectedResources Map contents:', selectedResources.size, 'entries');
     selectedResources.forEach((resource, key) => {
       const isMat2 = key.endsWith('_mat2');
-      console.log(`  ${isMat2 ? '🔵 Material 2' : '🔴 Material 1/Regular'} - Key: ${key}, Resource: ${resource.Name}`);
+      // console.log(`  ${isMat2 ? '🔵 Material 2' : '🔴 Material 1/Regular'} - Key: ${key}, Resource: ${resource.Name}`);
     });
-    console.log('📝 [Apply] selectedNames Map contents:', selectedNames.size, 'entries');
+    // console.log('📝 [Apply] selectedNames Map contents:', selectedNames.size, 'entries');
     selectedNames.forEach((name, key) => {
       const isMat2 = key.endsWith('_mat2');
-      console.log(`  ${isMat2 ? '🔵 Material 2' : '🔴 Material 1/Regular'} - Key: ${key}, Name: ${name}`);
+      // console.log(`  ${isMat2 ? '🔵 Material 2' : '🔴 Material 1/Regular'} - Key: ${key}, Name: ${name}`);
     });
 
     // Update the target with selections
@@ -6033,20 +5912,20 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
     // IMPORTANT: Preserve _originalRowData from source row BEFORE applying climate
     if(srcTr._originalRowData){
       clone._originalRowData = srcTr._originalRowData;
-      console.log('📋 [cloneRowWithMultiplier] Copied _originalRowData from source');
+      // console.log('📋 [cloneRowWithMultiplier] Copied _originalRowData from source');
     }
 
     // IMPORTANT: Set data-layer-child-of BEFORE applying climate so the signature matches during save
     if(layerChildOfKey){
       clone.setAttribute('data-layer-child-of', layerChildOfKey);
-      console.log('🔑 [cloneRowWithMultiplier] Set data-layer-child-of BEFORE climate:', layerChildOfKey.substring(0, 30));
+      // console.log('🔑 [cloneRowWithMultiplier] Set data-layer-child-of BEFORE climate:', layerChildOfKey.substring(0, 30));
     }
 
     // IMPORTANT: Set unique data-layer-key BEFORE applying climate (for group layers)
     // This ensures each child in a group layer gets unique climate data
     if(uniqueLayerKey){
       clone.setAttribute('data-layer-key', uniqueLayerKey);
-      console.log('🔑 [cloneRowWithMultiplier] Set data-layer-key BEFORE climate:', uniqueLayerKey.substring(0, 30));
+      // console.log('🔑 [cloneRowWithMultiplier] Set data-layer-key BEFORE climate:', uniqueLayerKey.substring(0, 30));
     }
     
     // FIRST: Read the tds before modifying anything
@@ -6204,11 +6083,11 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
         // Set climateTarget to the clone and apply the resource
         const originalClimateTarget = climateTarget;
         climateTarget = { type: 'row', rowEl: clone };
-        console.log('🌍 [cloneRowWithMultiplier] Applying Boverket climate resource to layer:', layerIndex, 'resource:', resource.Name);
+        // console.log('🌍 [cloneRowWithMultiplier] Applying Boverket climate resource to layer:', layerIndex, 'resource:', resource.Name);
         applyClimateResource(resource);
         climateTarget = originalClimateTarget; // Restore original target
         
-        console.log('✅ [cloneRowWithMultiplier] Boverket climate resource applied to layer:', layerIndex);
+        // console.log('✅ [cloneRowWithMultiplier] Boverket climate resource applied to layer:', layerIndex);
         }
       } else if(climateType === 'epd'){
         // Apply EPD climate resource
@@ -6234,10 +6113,10 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
           // Use the existing applyCustomClimateResource function
           const originalClimateTarget = climateTarget;
           climateTarget = { type: 'row', rowEl: clone };
-          console.log('🌍 [cloneRowWithMultiplier] Applying EPD climate resource to layer:', layerIndex, 'epd:', epdData.name);
+          // console.log('🌍 [cloneRowWithMultiplier] Applying EPD climate resource to layer:', layerIndex, 'epd:', epdData.name);
           applyCustomClimateResource(customResource);
           climateTarget = originalClimateTarget; // Restore original target
-          console.log('✅ [cloneRowWithMultiplier] EPD climate resource applied to layer:', layerIndex);
+          // console.log('✅ [cloneRowWithMultiplier] EPD climate resource applied to layer:', layerIndex);
           
           // console.log('✅ [LayerSplit] EPD climate resource applied to layer:', layerIndex);
         }
@@ -6245,7 +6124,7 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
         // Apply custom climate resource
         // For now, we'll mark this layer for later manual climate mapping
         // The user can use the "Mappa till EPD" button after layering
-        console.log('🔍 [cloneRowWithMultiplier] Layer', layerIndex, 'marked for custom climate mapping');
+        // console.log('🔍 [cloneRowWithMultiplier] Layer', layerIndex, 'marked for custom climate mapping');
       }
     }
         
@@ -6324,8 +6203,8 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
           layerData.set(signatureNull, layerDataEntry);
         }
         const afterSize = layerData.size;
-        console.log('💾 [applyLayerSplit] SAVED layerData:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize, '- Signature:', signature.substring(0, 60));
-        console.log('💾 [applyLayerSplit] Layer data:', { count, thicknesses, layerKey: existingLayerKey || layerKey, layerNames });
+        // console.log('💾 [applyLayerSplit] SAVED layerData:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize, '- Signature:', signature.substring(0, 60));
+        // console.log('💾 [applyLayerSplit] Layer data:', { count, thicknesses, layerKey: existingLayerKey || layerKey, layerNames });
       }
     }
     
@@ -6459,13 +6338,13 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
       const hasKlimatA1A3 = !!f.querySelector('td[data-klimat-a1a3-cell="true"]');
       const inbyggdValue = f.querySelector('td[data-inbyggd-vikt-cell="true"]')?.textContent;
       const klimatValue = f.querySelector('td[data-klimat-a1a3-cell="true"]')?.textContent;
-      console.log(`🔍 [splitRow] Child ${idx + 1} AFTER insert:`, {
-        hasInbyggdCell: hasInbyggd,
-        hasKlimatA1A3Cell: hasKlimatA1A3,
-        inbyggdValue: inbyggdValue,
-        klimatA1A3Value: klimatValue,
-        dataParentKey: f.getAttribute('data-parent-key')
-      });
+      // console.log(`🔍 [splitRow] Child ${idx + 1} AFTER insert:`, {
+//         hasInbyggdCell: hasInbyggd,
+//         hasKlimatA1A3Cell: hasKlimatA1A3,
+//         inbyggdValue: inbyggdValue,
+//         klimatA1A3Value: klimatValue,
+//         dataParentKey: f.getAttribute('data-parent-key')
+//       });
     });
 
     // Update parent row's Volume to show sum of all layers (AFTER creating children)
@@ -6650,16 +6529,16 @@ function openGroupParentByKey(groupKey, tbody){
         if(layerChildOf !== null){
           const signatureWithoutGroup = getRowSignature(rowData, null);
           layerData.set(signatureWithoutGroup, layerDataToSave);
-          console.log('💾 [applyLayerSplit] GROUP SAVED with BOTH signatures - with group (' + layerChildOf + ') and without (null), thicknesses:', thicknesses);
+          // console.log('💾 [applyLayerSplit] GROUP SAVED with BOTH signatures - with group (' + layerChildOf + ') and without (null), thicknesses:', thicknesses);
         } else {
-          console.log('💾 [applyLayerSplit] GROUP SAVED with signature (layerChildOf=null), thicknesses:', thicknesses);
+          // console.log('💾 [applyLayerSplit] GROUP SAVED with signature (layerChildOf=null), thicknesses:', thicknesses);
         }
 
         const afterSize = layerData.size;
-        console.log('💾 [applyLayerSplit] GROUP SAVED layerData:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize);
-        console.log('💾 [applyLayerSplit] Group layer data:', { count, thicknesses, layerKey: rowLayerKey, sharedLayerKeys: rowLayerKeys, layerNames });
-        console.log('💾 [applyLayerSplit] FULL rowData being saved:', rowData);
-        console.log('💾 [applyLayerSplit] FULL signature:', signatureWithGroup);
+        // console.log('💾 [applyLayerSplit] GROUP SAVED layerData:', rowData[1]?.substring(0,10), '- Has _originalRowData:', hasOriginal, '- LayerChild:', layerChildOf?.substring(0,10) || 'none', '- Size:', beforeSize, '→', afterSize);
+        // console.log('💾 [applyLayerSplit] Group layer data:', { count, thicknesses, layerKey: rowLayerKey, sharedLayerKeys: rowLayerKeys, layerNames });
+        // console.log('💾 [applyLayerSplit] FULL rowData being saved:', rowData);
+        // console.log('💾 [applyLayerSplit] FULL signature:', signatureWithGroup);
       }
       
       // Even split if no thicknesses provided
@@ -6933,10 +6812,10 @@ function openGroupParentByKey(groupKey, tbody){
       if(material1LayerKey){
         const material2LayerKey = material1LayerKey + '_mat2';
         material2Row.setAttribute('data-layer-key', material2LayerKey);
-        console.log('🔑 [MixedLayer] Set unique keys:');
-        console.log('  Mat1 (full):', material1LayerKey);
-        console.log('  Mat2 (full):', material2LayerKey);
-        console.log('  Mat2 has _mat2 suffix:', material2LayerKey.endsWith('_mat2'));
+        // console.log('🔑 [MixedLayer] Set unique keys:');
+        // console.log('  Mat1 (full):', material1LayerKey);
+        // console.log('  Mat2 (full):', material2LayerKey);
+        // console.log('  Mat2 has _mat2 suffix:', material2LayerKey.endsWith('_mat2'));
       }
 
       // Mark both rows as mixed layers to prevent re-processing
@@ -6970,7 +6849,7 @@ function openGroupParentByKey(groupKey, tbody){
           cell.textContent = '';
         }
       });
-      console.log('🧹 [MixedLayer] Cleared climate cells from Material 2');
+      // console.log('🧹 [MixedLayer] Cleared climate cells from Material 2');
 
       // Update layer names in the dedicated column for both materials
       const headerTexts = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
@@ -7003,14 +6882,14 @@ function openGroupParentByKey(groupKey, tbody){
           const updatedMat1Data = getRowDataFromTr(targetLayer);
           if(updatedMat1Data){
             targetLayer._originalRowData = updatedMat1Data;
-            console.log('🔄 [MixedLayer] Updated Material 1 _originalRowData with new layer name');
+            // console.log('🔄 [MixedLayer] Updated Material 1 _originalRowData with new layer name');
           }
         }
         if(material2Row._originalRowData){
           const updatedMat2Data = getRowDataFromTr(material2Row);
           if(updatedMat2Data){
             material2Row._originalRowData = updatedMat2Data;
-            console.log('🔄 [MixedLayer] Updated Material 2 _originalRowData with new layer name');
+            // console.log('🔄 [MixedLayer] Updated Material 2 _originalRowData with new layer name');
           }
         }
       }
@@ -7072,8 +6951,8 @@ function openGroupParentByKey(groupKey, tbody){
             mat1VolumeCell.textContent = String(mat1Volume);
             mat2VolumeCell.textContent = String(mat2Volume);
 
-            console.log('🔧 [MixedLayer] Set material 1 volume to:', mat1Volume, 'm³');
-            console.log('🔧 [MixedLayer] Set material 2 volume to:', mat2Volume, 'm³');
+            // console.log('🔧 [MixedLayer] Set material 1 volume to:', mat1Volume, 'm³');
+            // console.log('🔧 [MixedLayer] Set material 2 volume to:', mat2Volume, 'm³');
 
             // IMPORTANT: Material 1 already had climate applied with the FULL volume
             // Now we need to recalculate inbyggd vikt with the PROPORTIONED volume
@@ -7125,12 +7004,12 @@ function openGroupParentByKey(groupKey, tbody){
                 if(mat1A4ImpactCell) mat1A4ImpactCell.textContent = String(newMat1InbyggdVikt * mat1A4Factor);
                 if(mat1A5ImpactCell) mat1A5ImpactCell.textContent = String(newMat1InbyggdVikt * mat1A5Factor);
 
-                console.log('🔄 [MixedLayer] Recalculated Material 1 inbyggd vikt:', {
-                  factor: mat1Factor,
-                  oldVolume: 71.232, // approximate full volume
-                  newVolume: mat1Volume,
-                  newInbyggdVikt: newMat1InbyggdVikt
-                });
+                // console.log('🔄 [MixedLayer] Recalculated Material 1 inbyggd vikt:', {
+//                   factor: mat1Factor,
+//                   oldVolume: 71.232, // approximate full volume
+//                   newVolume: mat1Volume,
+//                   newInbyggdVikt: newMat1InbyggdVikt
+//                 });
               }
             }
             
@@ -7169,7 +7048,7 @@ function openGroupParentByKey(groupKey, tbody){
       const mat2ActionTd = material2Row.querySelector('td:first-child');
       if(mat2ActionTd){
         mat2ActionTd.innerHTML = '';
-        console.log('🧹 [MixedLayer] Cleared action buttons from Material 2 (no event listeners needed)');
+        // console.log('🧹 [MixedLayer] Cleared action buttons from Material 2 (no event listeners needed)');
       }
       
       // Apply climate resources to each material separately
@@ -7193,7 +7072,7 @@ function openGroupParentByKey(groupKey, tbody){
         }
       }
       
-      console.log('🔍 [MixedLayer] Material 2 climate resource value:', material2ClimateResource);
+      // console.log('🔍 [MixedLayer] Material 2 climate resource value:', material2ClimateResource);
       if(material2ClimateResource && material2ClimateResource !== ''){
         // Handle both "boverket:123" and "123" formats
         let resourceIndex2;
@@ -7204,23 +7083,23 @@ function openGroupParentByKey(groupKey, tbody){
           // Format is just "123"
           resourceIndex2 = parseInt(material2ClimateResource);
         }
-        console.log('🔍 [MixedLayer] Parsed resource index:', resourceIndex2);
+        // console.log('🔍 [MixedLayer] Parsed resource index:', resourceIndex2);
 
         if(!isNaN(resourceIndex2) && window.climateResources && window.climateResources[resourceIndex2]){
           const resource2 = window.climateResources[resourceIndex2];
-          console.log('🌍 [MixedLayer] Applying climate resource to material 2:', resource2.Name);
+          // console.log('🌍 [MixedLayer] Applying climate resource to material 2:', resource2.Name);
 
           const originalClimateTarget = climateTarget;
           climateTarget = { type: 'row', rowEl: material2Row };
           applyClimateResource(resource2);
           climateTarget = originalClimateTarget;
 
-          console.log('✅ [MixedLayer] Climate resource applied to material 2');
+          // console.log('✅ [MixedLayer] Climate resource applied to material 2');
         } else {
-          console.log('❌ [MixedLayer] Invalid resource index or resource not found');
+          // console.log('❌ [MixedLayer] Invalid resource index or resource not found');
         }
       } else {
-        console.log('⚠️ [MixedLayer] No climate resource specified for Material 2');
+        // console.log('⚠️ [MixedLayer] No climate resource specified for Material 2');
       }
       
       // Insert material2Row right after targetLayer
@@ -7333,7 +7212,7 @@ function openGroupParentByKey(groupKey, tbody){
   // IMPORTANT: Update all layer parent sums AFTER filters and AFTER climate data has been applied
   // This ensures all children have their climate data when we sum them up
   const allLayerParents = Array.from(tbody.querySelectorAll('tr.layer-parent'));
-  console.log('🔄 [applyLayerSplit] Updating sums for', allLayerParents.length, 'layer parents');
+  // console.log('🔄 [applyLayerSplit] Updating sums for', allLayerParents.length, 'layer parents');
   allLayerParents.forEach(parentTr => {
     updateLayerParentSums(parentTr, tbody);
   });
@@ -7341,7 +7220,7 @@ function openGroupParentByKey(groupKey, tbody){
   // IMPORTANT: Also update all GROUP parent sums after layering
   // This ensures group parents show correct totals that include the new layer children
   const allGroupParents = Array.from(tbody.querySelectorAll('tr.group-parent'));
-  console.log('🔄 [applyLayerSplit] Updating sums for', allGroupParents.length, 'group parents');
+  // console.log('🔄 [applyLayerSplit] Updating sums for', allGroupParents.length, 'group parents');
   allGroupParents.forEach(groupParentTr => {
     const groupKey = groupParentTr.getAttribute('data-group-key');
     if(groupKey){
@@ -7518,9 +7397,9 @@ function updateClimateMappingIndicator(row) {
   
   // Check if row has climate cells
   const hasClimateCell = row.querySelector('td[data-climate-cell="true"]');
-  const hasCustomClimateCell = row.querySelector('td[data-climate-cell="true"]') && 
-                               row.querySelector('td[data-climate-cell="true"]').textContent && 
-                               !row.querySelector('td[data-climate-cell="true"]').textContent.includes('Boverket');
+  const hasCustomClimateCell = hasClimateCell &&
+                               hasClimateCell.textContent &&
+                               !hasClimateCell.textContent.includes('Boverket');
   
   // Determine mapping type based on climate data
   const rowData = row._originalRowData || getRowDataFromTr(row);
@@ -7586,12 +7465,13 @@ function updateClimateButtonTexts(row, hasBoverket = false, hasCustom = false) {
 
 // Function to update all climate mapping indicators in the table
 function updateAllClimateMappingIndicators() {
+  if(climateData.size === 0) return;
   const table = getTable();
   if(!table) return;
-  
+
   const tbody = table.querySelector('tbody');
   if(!tbody) return;
-  
+
   const allRows = Array.from(tbody.querySelectorAll('tr'));
   allRows.forEach(updateClimateMappingIndicator);
 }
@@ -7840,21 +7720,21 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
       if(normalizedUnit === 'kg/m3' && volumeColIndex !== -1){
         // Inbyggd vikt = Omräkningsfaktor × Volume
         const volumeCell = cells[volumeColIndex];
-        console.log('🔍 [applyClimate] Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
+        // console.log('🔍 [applyClimate] Volume cell:', volumeCell?.textContent, 'at index:', volumeColIndex);
         if(volumeCell){
           const volume = parseNumberLike(volumeCell.textContent);
-          console.log('🔍 [applyClimate] Parsed volume:', volume);
+          // console.log('🔍 [applyClimate] Parsed volume:', volume);
           if(Number.isFinite(volume)){
             // Volume from cell is already the correct volume (after layering if applicable)
             const isMixedLayer = tr.hasAttribute('data-mixed-layer');
             inbyggdVikt = factor * volume;
-            console.log('✅ [applyClimate] Inbyggd vikt calculated:', {
-              isMixedLayer,
-              factor,
-              volume,
-              inbyggdVikt,
-              rowName: tr.querySelector('td:nth-child(2)')?.textContent?.substring(0, 50)
-            });
+            // console.log('✅ [applyClimate] Inbyggd vikt calculated:', {
+//               isMixedLayer,
+//               factor,
+//               volume,
+//               inbyggdVikt,
+//               rowName: tr.querySelector('td:nth-child(2)')?.textContent?.substring(0, 50)
+//             });
           }
         }
       } else if(normalizedUnit === 'kg/m2' && netAreaColIndex !== -1){
@@ -7963,17 +7843,17 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
       const layerChildOf = tr.getAttribute('data-layer-child-of');
       const signatureKey = layerKey || layerChildOf;
       const signature = getRowSignature(rowData, signatureKey);
-      console.log('💾 [climateData.set] Saving climate data:', {
-        signature: signature.substring(0, 60),
-        layerKey: layerKey?.substring(0, 20) || 'none',
-        layerChildOf: layerChildOf?.substring(0, 20) || 'none',
-        usingKey: layerKey ? 'layer-key' : 'layer-child-of',
-        resourceName,
-        rowName: rowData[1]?.substring(0, 30),
-        mapSizeBefore: climateData.size
-      });
+      // console.log('💾 [climateData.set] Saving climate data:', {
+//         signature: signature.substring(0, 60),
+//         layerKey: layerKey?.substring(0, 20) || 'none',
+//         layerChildOf: layerChildOf?.substring(0, 20) || 'none',
+//         usingKey: layerKey ? 'layer-key' : 'layer-child-of',
+//         resourceName,
+//         rowName: rowData[1]?.substring(0, 30),
+//         mapSizeBefore: climateData.size
+//       });
       climateData.set(signature, { name: resourceName, factor: conversionFactor, unit: conversionUnit, waste: wasteFactor, a1a3: a1a3Conservative, a4: a4Value, a5: a5Value });
-      console.log('✅ [climateData.set] Saved! Map size now:', climateData.size);
+      // console.log('✅ [climateData.set] Saved! Map size now:', climateData.size);
     }
   }
   
@@ -8157,15 +8037,15 @@ function applyCustomClimateResource(customResource){
     const layerChildOf = tr.getAttribute('data-layer-child-of');
     const signatureKey = layerKey || layerChildOf;
     const signature = getRowSignature(rowData, signatureKey);
-    console.log('💾 [climateData.set] Saving EPD climate data:', {
-      signature: signature.substring(0, 60),
-      layerKey: layerKey?.substring(0, 20) || 'none',
-      layerChildOf: layerChildOf?.substring(0, 20) || 'none',
-      usingKey: layerKey ? 'layer-key' : 'layer-child-of',
-      resourceName: customResource.name,
-      rowName: rowData[1]?.substring(0, 30),
-      mapSizeBefore: climateData.size
-    });
+    // console.log('💾 [climateData.set] Saving EPD climate data:', {
+//       signature: signature.substring(0, 60),
+//       layerKey: layerKey?.substring(0, 20) || 'none',
+//       layerChildOf: layerChildOf?.substring(0, 20) || 'none',
+//       usingKey: layerKey ? 'layer-key' : 'layer-child-of',
+//       resourceName: customResource.name,
+//       rowName: rowData[1]?.substring(0, 30),
+//       mapSizeBefore: climateData.size
+//     });
     climateData.set(signature, {
       name: customResource.name,
       factor: customResource.factor,
@@ -8178,7 +8058,7 @@ function applyCustomClimateResource(customResource){
       // Store original Boverket data for reduction calculation
       originalBoverket: tr._originalBoverketClimate
     });
-    console.log('✅ [climateData.set] Saved! Map size now:', climateData.size);
+    // console.log('✅ [climateData.set] Saved! Map size now:', climateData.size);
     
     // Update parent row's weight sums if this row belongs to a group
     const groupKey = tr.getAttribute('data-group-child-of');
@@ -8292,13 +8172,13 @@ function applyCustomClimateToRow(tr, customResource, headerRow){
   // Store original data on the row element for later retrieval
   tr._originalBoverketClimate = originalBoverketData;
 
-  console.log('💾 [applyCustomClimateToRow] Saved original Boverket data:', {
-    name: originalBoverketData.name,
-    hasImpactData: !!(originalBoverketData.a1a3Impact || originalBoverketData.a4Impact || originalBoverketData.a5Impact),
-    a1a3Impact: originalBoverketData.a1a3Impact,
-    a4Impact: originalBoverketData.a4Impact,
-    a5Impact: originalBoverketData.a5Impact
-  });
+  // console.log('💾 [applyCustomClimateToRow] Saved original Boverket data:', {
+//     name: originalBoverketData.name,
+//     hasImpactData: !!(originalBoverketData.a1a3Impact || originalBoverketData.a4Impact || originalBoverketData.a5Impact),
+//     a1a3Impact: originalBoverketData.a1a3Impact,
+//     a4Impact: originalBoverketData.a4Impact,
+//     a5Impact: originalBoverketData.a5Impact
+//   });
 
   // Ensure row has enough cells to match header
   const currentCells = Array.from(tr.children);
@@ -8874,7 +8754,7 @@ function updateGroupWeightSums(groupKey, tbody){
     if(isLayerParent && layerKey){
       // This direct child is layered - sum its layer children instead
       const layerChildren = Array.from(tbody.querySelectorAll(`tr[data-parent-key="${CSS.escape(layerKey)}"]`));
-      console.log('🔍 [updateGroupWeightSums] Direct child is layer-parent, adding', layerChildren.length, 'layer children');
+      // console.log('🔍 [updateGroupWeightSums] Direct child is layer-parent, adding', layerChildren.length, 'layer children');
       rowsToSum.push(...layerChildren);
     } else {
       // This direct child is not layered - sum it directly
@@ -8882,7 +8762,7 @@ function updateGroupWeightSums(groupKey, tbody){
     }
   });
 
-  console.log('🔍 [updateGroupWeightSums] Total rows to sum:', rowsToSum.length);
+  // console.log('🔍 [updateGroupWeightSums] Total rows to sum:', rowsToSum.length);
 
   let sumInbyggdVikt = 0;
   let sumInkoptVikt = 0;
@@ -9238,25 +9118,25 @@ function updateClimateSummary(){
 
       // ALWAYS check children for original Boverket data (regardless of visibility)
       // This ensures reduction is calculated even when groups are collapsed
-      console.log('🔍 [updateClimateSummary] Checking children for parent:', {
-        layerKey: layerKey?.substring(0, 30),
-        groupKey: groupKey?.substring(0, 30),
-        childrenCount: childrenList.length,
-        hasVisibleChildren: hasVisibleChildren
-      });
+      // console.log('🔍 [updateClimateSummary] Checking children for parent:', {
+//         layerKey: layerKey?.substring(0, 30),
+//         groupKey: groupKey?.substring(0, 30),
+//         childrenCount: childrenList.length,
+//         hasVisibleChildren: hasVisibleChildren
+//       });
 
       childrenList.forEach(child => {
         if(child._originalBoverketClimate){
           const orig = child._originalBoverketClimate;
-          console.log('🔍 [updateClimateSummary] Found originalBoverket in child:', {
-            childName: child._originalRowData?.[1]?.substring(0, 30) || 'unknown',
-            a1a3Impact: orig.a1a3Impact,
-            a4Impact: orig.a4Impact,
-            a5Impact: orig.a5Impact,
-            isFiniteA1A3: Number.isFinite(orig.a1a3Impact),
-            isFiniteA4: Number.isFinite(orig.a4Impact),
-            isFiniteA5: Number.isFinite(orig.a5Impact)
-          });
+          // console.log('🔍 [updateClimateSummary] Found originalBoverket in child:', {
+//             childName: child._originalRowData?.[1]?.substring(0, 30) || 'unknown',
+//             a1a3Impact: orig.a1a3Impact,
+//             a4Impact: orig.a4Impact,
+//             a5Impact: orig.a5Impact,
+//             isFiniteA1A3: Number.isFinite(orig.a1a3Impact),
+//             isFiniteA4: Number.isFinite(orig.a4Impact),
+//             isFiniteA5: Number.isFinite(orig.a5Impact)
+//           });
           if(orig.a1a3Impact && Number.isFinite(orig.a1a3Impact)){
             totalBoverketA1A3 += orig.a1a3Impact;
             hasReductionData = true;
@@ -9349,16 +9229,16 @@ function updateClimateSummary(){
   });
   const epdPercent = totalClimateCount > 0 ? ((epdCount / totalClimateCount) * 100) : 0;
 
-  console.log('🔍 [updateClimateSummary] Reduction data:', {
-    hasReductionData,
-    totalBoverket: totalBoverket.toFixed(2),
-    totalEPD: total.toFixed(2),
-    reductionKg: reductionKg.toFixed(2),
-    reductionPercent: reductionPercent.toFixed(1) + '%',
-    epdCount,
-    totalClimateCount,
-    epdPercent: epdPercent.toFixed(1) + '%'
-  });
+  // console.log('🔍 [updateClimateSummary] Reduction data:', {
+//     hasReductionData,
+//     totalBoverket: totalBoverket.toFixed(2),
+//     totalEPD: total.toFixed(2),
+//     reductionKg: reductionKg.toFixed(2),
+//     reductionPercent: reductionPercent.toFixed(1) + '%',
+//     epdCount,
+//     totalClimateCount,
+//     epdPercent: epdPercent.toFixed(1) + '%'
+//   });
   
   
   // Update summary display
@@ -9419,10 +9299,53 @@ function updateClimateSummary(){
 output.addEventListener('input', function(e){ const t = e.target; if(t && t.closest && t.closest('thead') && t.tagName === 'INPUT'){ applyFilters(); } });
 
 // Centralized event listener for toggling parent rows
+// Delegated handler for icon buttons built with data-action (grouped and ungrouped tables).
+// Individual onclick handlers set by reattachTableEventListeners (undo/redo) call stopPropagation
+// so they take precedence after a state restore; this handler fires during normal rendering.
+output.addEventListener('click', function(e){
+  const btn = e.target.closest('button[data-action]');
+  if(!btn) return;
+  const action = btn.dataset.action;
+  const tr = btn.closest('tr');
+  if(!tr) return;
+  const isGroupParent = tr.classList.contains('group-parent');
+  const isLayerParent = tr.classList.contains('layer-parent');
+  const groupKey = tr.getAttribute('data-group-key');
+  const layerKey = tr.getAttribute('data-layer-key');
+  const tbl = tr.closest('table');
+  const tbd = tbl ? tbl.querySelector('tbody') : null;
+  if(action === 'layer'){
+    if(isGroupParent && groupKey)      openLayerModal({ type: 'group', key: String(groupKey) });
+    else if(isLayerParent && layerKey) openLayerModal({ type: 'group', key: String(layerKey) });
+    else                               openLayerModal({ type: 'row', rowEl: tr });
+  } else if(action === 'climate'){
+    if(isGroupParent && groupKey)      openClimateForGroupKey(String(groupKey), tbl);
+    else if(isLayerParent && layerKey) openClimateModal({ type: 'group', key: String(layerKey) });
+    else                               openClimateModal({ type: 'row', rowEl: tr });
+  } else if(action === 'epd'){
+    if(isGroupParent && groupKey)      openAltClimateModal({ type: 'group', key: String(groupKey) });
+    else if(isLayerParent && layerKey) openAltClimateModal({ type: 'group', key: String(layerKey) });
+    else                               openAltClimateModal({ type: 'row', rowEl: tr });
+  } else if(action === 'edit'){
+    if(isGroupParent && groupKey)      openLayerModal({ type: 'group', key: String(groupKey) });
+    else if(isLayerParent && layerKey) openLayerModal({ type: 'group', key: String(layerKey) });
+    else                               openLayerModal({ type: 'row', rowEl: tr });
+  } else if(action === 'copy'){
+    if(isGroupParent && groupKey)      copyLayerSettings({ type: 'group', key: String(groupKey) });
+    else if(isLayerParent && layerKey) copyLayerSettings({ type: 'group', key: String(layerKey) });
+    else                               copyLayerSettings({ type: 'row', rowEl: tr });
+  } else if(action === 'restore'){
+    if(tbd){
+      if(isGroupParent && groupKey) removeLayeringForGroup(String(groupKey), tbd);
+      else if(isLayerParent)        removeLayeringForRow(tr, tbd);
+    }
+  }
+});
+
 output.addEventListener('click', function(e){
   // Find if the click was on a parent row (group-parent or layer-parent)
   const parentTr = e.target && e.target.closest && (
-    e.target.closest('tr.group-parent') || 
+    e.target.closest('tr.group-parent') ||
     e.target.closest('tr.layer-parent')
   );
   
@@ -9697,24 +9620,24 @@ function loadProject(file){
 
       if(hasCurrentExcelFile){
         // Keep the current Excel file - only apply layers and climate mappings from project
-        console.log('📊 Excel-fil redan öppen, behåller aktuell fil och tillämpar endast skiktningar och mappningar');
+        // console.log('📊 Excel-fil redan öppen, behåller aktuell fil och tillämpar endast skiktningar och mappningar');
       } else {
         // No Excel file open - restore both Excel data and mappings from project
-        console.log('📊 Ingen Excel-fil öppen, återställer Excel-data från projekt');
+        // console.log('📊 Ingen Excel-fil öppen, återställer Excel-data från projekt');
         originalFileName = projectData.originalFileName || 'unknown';
         lastHeaders = projectData.headers;
         lastRows = [projectData.headers, ...projectData.rows];
       }
       
       // Clear existing data
-      console.log('🔍 [loadProject] Clearing layerData and climateData. LayerData size before:', layerData.size, 'ClimateData size before:', climateData.size);
+      // console.log('🔍 [loadProject] Clearing layerData and climateData. LayerData size before:', layerData.size, 'ClimateData size before:', climateData.size);
       layerData.clear();
       climateData.clear();
-      console.log('🔍 [loadProject] After clear - LayerData size:', layerData.size, 'ClimateData size:', climateData.size);
+      // console.log('🔍 [loadProject] After clear - LayerData size:', layerData.size, 'ClimateData size:', climateData.size);
       
       // Restore layer data
       if(projectData.layerData && Array.isArray(projectData.layerData)){
-        console.log('🔍 [loadProject] Restoring layerData, items:', projectData.layerData.length);
+        // console.log('🔍 [loadProject] Restoring layerData, items:', projectData.layerData.length);
         projectData.layerData.forEach(item => {
           layerData.set(item.key, {
             count: item.count,
@@ -9728,14 +9651,14 @@ function loadProject(file){
             climateFactors: item.climateFactors || undefined
           });
         });
-        console.log('🔍 [loadProject] After layerData restore - size:', layerData.size);
+        // console.log('🔍 [loadProject] After layerData restore - size:', layerData.size);
       } else {
-        console.log('🔍 [loadProject] No layerData to restore');
+        // console.log('🔍 [loadProject] No layerData to restore');
       }
       
       // Restore climate data
       if(projectData.climateData && Array.isArray(projectData.climateData)){
-        console.log('🔍 [loadProject] Restoring climateData, items:', projectData.climateData.length);
+        // console.log('🔍 [loadProject] Restoring climateData, items:', projectData.climateData.length);
         projectData.climateData.forEach(item => {
           // Handle both old format (string) and new format (object)
           if(typeof item.resourceName === 'string' && !item.factor){
@@ -9756,9 +9679,9 @@ function loadProject(file){
             });
           }
         });
-        console.log('🔍 [loadProject] After climateData restore - size:', climateData.size);
+        // console.log('🔍 [loadProject] After climateData restore - size:', climateData.size);
       } else {
-        console.log('🔍 [loadProject] No climateData to restore');
+        // console.log('🔍 [loadProject] No climateData to restore');
       }
       
       // Restore undo/redo stacks (if available)
@@ -9810,7 +9733,7 @@ function loadProject(file){
       // re-rendering from Excel when no tableHTML was saved (older projects or different Excel use case).
       if(projectData.tableHTML){
         // Saved table HTML available — restore exact state regardless of whether Excel is open
-        console.log('🔄 Återställer sparad tabellstruktur från projekt');
+        // console.log('🔄 Återställer sparad tabellstruktur från projekt');
         output.innerHTML = projectData.tableHTML;
 
         // Update lastHeaders to match the restored table (includes dynamic columns like "Skiktnamn")
@@ -9823,7 +9746,7 @@ function loadProject(file){
               // Extract headers from restored table (skip first action column)
               const restoredHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
               lastHeaders = restoredHeaders;
-              console.log('📋 Updated lastHeaders from restored table:', lastHeaders.length, 'columns');
+              // console.log('📋 Updated lastHeaders from restored table:', lastHeaders.length, 'columns');
             }
           }
         }
@@ -9840,7 +9763,7 @@ function loadProject(file){
         alert('Projekt laddat!');
       } else if(hasCurrentExcelFile){
         // No saved tableHTML but Excel is open — re-render from Excel and apply saved mappings
-        console.log('🔄 Renderar tabell från aktuell Excel-fil och tillämpar sparade mappningar');
+        // console.log('🔄 Renderar tabell från aktuell Excel-fil och tillämpar sparade mappningar');
 
         // If project has layer data, ensure "Skiktnamn" is in headers before rendering
         if(layerData.size > 0 && !lastHeaders.includes('Skiktnamn')){
@@ -9850,7 +9773,7 @@ function loadProject(file){
           lastRows.forEach(row => {
             if(Array.isArray(row)) row.splice(insertIndex, 0, '');
           });
-          console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
+          // console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
         }
 
         renderTableWithOptionalGrouping(lastRows);
@@ -9869,7 +9792,7 @@ function loadProject(file){
                 const updatedHeaders = Array.from(headerRow.children).slice(1).map(th => th.textContent);
                 lastHeaders = updatedHeaders;
                 if(lastRows && lastRows.length > 0) lastRows[0] = updatedHeaders;
-                console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
+                // console.log('📋 Updated lastHeaders after applying layers:', lastHeaders.length, 'columns');
               }
             }
           }
@@ -9880,7 +9803,7 @@ function loadProject(file){
         alert(`Projekt laddat!\n\n${layerCount} skiktning${layerCount !== 1 ? 'ar' : ''} och ${climateCount} klimatmappning${climateCount !== 1 ? 'ar' : ''} från projektet har tillämpats på den öppna Excel-filen.\n\nOm Excel-filen har ändrats sedan projektet sparades, matchas åtgärderna baserat på radinnehåll (inte radnummer).`);
       } else {
         // Fallback for older project files with no tableHTML and no Excel open
-        console.log('🔄 Återställer tabell från rådata (äldre format)');
+        // console.log('🔄 Återställer tabell från rådata (äldre format)');
 
         // If project has layer data, ensure "Skiktnamn" is in headers before rendering
         if(layerData.size > 0 && !lastHeaders.includes('Skiktnamn')){
@@ -9897,7 +9820,7 @@ function loadProject(file){
             }
           });
 
-          console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
+          // console.log('📋 Added "Skiktnamn" to lastHeaders and lastRows before rendering');
         }
 
         renderTableWithOptionalGrouping(lastRows);
@@ -9921,7 +9844,7 @@ function loadProject(file){
                 if(lastRows && lastRows.length > 0){
                   lastRows[0] = updatedHeaders;
                 }
-                console.log('📋 Updated lastHeaders and lastRows[0] after applying layers:', lastHeaders.length, 'columns');
+                // console.log('📋 Updated lastHeaders and lastRows[0] after applying layers:', lastHeaders.length, 'columns');
               }
             }
           }
@@ -9993,3 +9916,4 @@ loadEpdFiles().then((result) => {
     `;
   }
 });
+
