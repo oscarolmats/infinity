@@ -2756,14 +2756,6 @@ if(groupBySelect){
     // console.log('🔄 [groupBySelect.change] lastRows sample (first 3 data rows):', lastRows.slice(1, 4).map(r => r.slice(0, 4)));
     // console.log('🔄 [groupBySelect.change] lastRows total count:', lastRows.length - 1, 'data rows');
     renderTableWithOptionalGrouping(lastRows);
-    // console.log('🔄 [groupBySelect.change] AFTER renderTable - layerData.size:', layerData.size);
-    if(layerData.size > 0){
-      setTimeout(() => {
-        cleanupOldBadgesAndLayers();
-        applySavedLayersAndClimate();
-        debouncedUpdateClimateSummary();
-      }, 50);
-    }
   });
 }
 
