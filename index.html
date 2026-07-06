@@ -133,7 +133,8 @@
     /* Layer child rows - visually nested under parent */
     tbody tr[data-layer-child-of] td { background-color: #f0f2fc; }
     tbody tr[data-layer-child-of].zebra-odd td { background-color: #e8ebf9; }
-    tbody tr[data-layer-child-of] td:first-child { box-shadow: inset 3px 0 0 0 rgba(63, 81, 181, 0.45); }
+    tbody tr[data-layer-child-of] td:first-child { box-shadow: inset 5px 0 0 0 #7986cb; }
+    tbody tr[data-layer-child-of] td:nth-child(2) { padding-left: 16px; }
 
     /* Icon buttons */
     .icon-btn {
@@ -273,12 +274,22 @@
 
     .progress-bar-fill {
       height: 8px;
-      background: linear-gradient(90deg, #4caf50, #8bc34a);
+      background: linear-gradient(90deg, #43a047, #66bb6a, #43a047);
+      background-size: 200% 100%;
       width: 0%;
-      transition: width 0.3s ease;
-      animation: progress-pulse 2s ease-in-out infinite;
+      transition: width 0.25s ease;
       border-radius: 4px;
       margin-bottom: 15px;
+      animation: progress-shimmer 1.2s linear infinite;
+    }
+    .progress-bar-fill.progress-animating {
+      animation: progress-advance var(--progress-duration, 3s) cubic-bezier(0.05, 0, 0.15, 1) forwards,
+                 progress-shimmer 1.2s linear infinite;
+    }
+    .progress-bar-fill.progress-done {
+      animation: none;
+      width: 100% !important;
+      transition: width 0.2s ease;
     }
 
     .progress-bar-container {
@@ -301,11 +312,20 @@
       font-size: 13px;
       color: #666;
       margin-top: 10px;
+      min-height: 1.2em;
     }
 
-    @keyframes progress-pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.8; }
+    @keyframes progress-advance {
+      0%   { width: 0%; }
+      25%  { width: 55%; }
+      60%  { width: 78%; }
+      85%  { width: 87%; }
+      100% { width: 92%; }
+    }
+
+    @keyframes progress-shimmer {
+      0%   { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
     }
     
     .api-indicator {

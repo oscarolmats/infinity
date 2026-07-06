@@ -704,9 +704,19 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       const actionTd = clone.querySelector('td:first-child');
       if(actionTd){
         actionTd.innerHTML = ''; // Clear old buttons - child rows get no buttons
-        // Do not add any buttons for child rows
       }
-      
+      // Remove inherited toggle + layer label from first data cell
+      const firstDataTd = clone.querySelector('td:nth-child(2)');
+      if(firstDataTd){
+        firstDataTd.querySelector('.group-toggle')?.remove();
+        firstDataTd.querySelectorAll('span').forEach(s => {
+          if(s.textContent.includes('skikt')) s.remove();
+        });
+      }
+      // Remove parent-row attributes/classes inherited from source row
+      clone.removeAttribute('data-open');
+      clone.classList.remove('layer-parent', 'group-parent');
+
       clone.classList.add('is-new');
       // Try to scale numeric cells for Net Area, Volume, Count
       const headerTexts = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
@@ -841,36 +851,42 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       // Apply climate to this child row
       const childRowData = f._originalRowData;
       if(childRowData){
-        // First try to apply copied climate settings if provided
-        if(climateResources && climateResources.length > layerIndex){
-          const resourceId = climateResources[layerIndex];
-          const type = climateTypes && climateTypes[layerIndex] ? climateTypes[layerIndex] : 'boverket';
-          const factor = climateFactors && climateFactors[layerIndex] ? climateFactors[layerIndex] : null;
+        // Fast path: if climate data already exists in the map (e.g. during re-grouping after a split),
+        // use applySavedClimate (O(1) lookup + minimal DOM writes) instead of the heavy
+        // performClimateResourceMapping path (full recomputation from the API resource object).
+        const _ck = f.getAttribute('data-layer-key') || f.getAttribute('data-layer-child-of');
+        const _hasSaved = climateData.has(getRowSignature(childRowData, _ck)) ||
+          (_ck !== null && climateData.has(getRowSignature(childRowData, null)));
 
-          // console.log(`🌍 [applyLayerSplitWithKey] Applying copied climate to layer ${layerIndex}:`, {resourceId, type, factor});
+        if(_hasSaved){
+          applySavedClimate(f, childRowData, true);
+        } else if(climateResources && climateResources.length > layerIndex){
+          const resourceId = climateResources[layerIndex];
 
           if(resourceId && window.climateResources){
-            // Look up the resource object from the global climateResources array
             const resourceIndex = parseInt(resourceId, 10);
             const resource = window.climateResources[resourceIndex];
 
             if(resource){
-              // console.log(`🌍 [applyLayerSplitWithKey] Found resource at index ${resourceIndex}:`, resource.Name);
               const previousClimateTarget = climateTarget;
               climateTarget = { type: 'row', rowEl: f };
-              applyClimateResource(resource);
+              _batchClimateActive = true;
+              const _bTable = f.closest('table');
+              if(_bTable){
+                const _bThead = _bTable.querySelector('thead');
+                const _bTbody = _bTable.querySelector('tbody');
+                if(_bThead && _bTbody) performClimateResourceMapping(resource, climateTarget, _bTable, _bThead, _bTbody);
+              }
+              _batchClimateActive = false;
               climateTarget = previousClimateTarget;
             } else {
-              // console.log(`⚠️ [applyLayerSplitWithKey] No resource found at index ${resourceIndex}`);
-              applySavedClimate(f, childRowData);
+              applySavedClimate(f, childRowData, true);
             }
           } else {
-            // If resource is null/undefined, try saved climate as fallback
-            applySavedClimate(f, childRowData);
+            applySavedClimate(f, childRowData, true);
           }
         } else {
-          // No copied climate settings, use saved climate
-          applySavedClimate(f, childRowData);
+          applySavedClimate(f, childRowData, true);
         }
 
         // Only check for nested layers if this is NOT already a nested restoration
@@ -1028,11 +1044,29 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
             const resource2 = window.climateResources[resourceIndex2];
             // console.log('🌍 [applyLayerSplitWithKey] Applying climate resource to Material 2:', resource2.Name);
 
-            // Apply climate to Material 2
-            const savedClimateTarget = climateTarget;
-            climateTarget = { type: 'row', rowEl: material2Row };
-            applyClimateResource(resource2);
-            climateTarget = savedClimateTarget;
+            // Fast path: use saved climate if already in map (re-grouping)
+            const _ck2 = material2Row.getAttribute('data-layer-key') || material2Row.getAttribute('data-layer-child-of');
+            const _mat2RowData = material2Row._originalRowData;
+            const _hasSaved2 = _mat2RowData && (
+              climateData.has(getRowSignature(_mat2RowData, _ck2)) ||
+              (_ck2 !== null && climateData.has(getRowSignature(_mat2RowData, null)))
+            );
+
+            if(_hasSaved2){
+              applySavedClimate(material2Row, _mat2RowData, true);
+            } else {
+              const savedClimateTarget = climateTarget;
+              climateTarget = { type: 'row', rowEl: material2Row };
+              _batchClimateActive = true;
+              const _bTable2 = material2Row.closest('table');
+              if(_bTable2){
+                const _bThead2 = _bTable2.querySelector('thead');
+                const _bTbody2 = _bTable2.querySelector('tbody');
+                if(_bThead2 && _bTbody2) performClimateResourceMapping(resource2, climateTarget, _bTable2, _bThead2, _bTbody2);
+              }
+              _batchClimateActive = false;
+              climateTarget = savedClimateTarget;
+            }
           }
         }
 
@@ -1113,9 +1147,6 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
 
   // Call splitRowWithKey to create the layer children
   splitRowWithKey(tr, layerKey);
-
-  // Note: Don't update parent sums here - they will be updated in bulk after all layers are restored
-  // This is because climate data might not be fully applied yet for all children
 }
 
 // Remove layering for a single row parent and restore it
@@ -1240,11 +1271,13 @@ function updateLayerParentSums(parentTr, tbody){
   let countKlimatA5 = 0;
 
   layerChildren.forEach((childTr, childIndex) => {
-    const inbyggdCell = childTr.querySelector('td[data-inbyggd-vikt-cell="true"]');
-    const inkoptCell = childTr.querySelector('td[data-inkopt-vikt-cell="true"]');
-    const klimatA1A3Cell = childTr.querySelector('td[data-klimat-a1a3-cell="true"]');
-    const klimatA4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"]');
-    const klimatA5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"]');
+    // Also match data-sum-* variants: a child that is itself a layer-parent has its value
+    // stored under data-sum-inbyggd-vikt rather than data-inbyggd-vikt-cell
+    const inbyggdCell = childTr.querySelector('td[data-inbyggd-vikt-cell="true"], td[data-sum-inbyggd-vikt="true"]');
+    const inkoptCell = childTr.querySelector('td[data-inkopt-vikt-cell="true"], td[data-sum-inkopt-vikt="true"]');
+    const klimatA1A3Cell = childTr.querySelector('td[data-klimat-a1a3-cell="true"], td[data-sum-klimat-a1a3="true"]');
+    const klimatA4Cell = childTr.querySelector('td[data-klimat-a4-cell="true"], td[data-sum-klimat-a4="true"]');
+    const klimatA5Cell = childTr.querySelector('td[data-klimat-a5-cell="true"], td[data-sum-klimat-a5="true"]');
 
     // console.log(`🔍 [updateLayerParentSums] Child ${childIndex + 1}:`, {
 //       hasInbyggdCell: !!inbyggdCell,
@@ -1385,6 +1418,19 @@ function updateLayerParentSums(parentTr, tbody){
 
   // console.log('✅ [updateLayerParentSums] Updated parent sums - Inbyggd:', sumInbyggdVikt.toFixed(2), 'Inkopt:', sumInkoptVikt.toFixed(2), 'A1-A3:', sumKlimatA1A3.toFixed(2), 'A4:', sumKlimatA4.toFixed(2), 'A5:', sumKlimatA5.toFixed(2));
 
+  // Clear climate detail columns in parent — per-layer values don't belong on the summary row
+  const DETAIL_COLS_TO_CLEAR = [
+    'Klimatresurs', 'Klimatresurs typ', 'Omräkningsfaktor', 'Omräkningsfaktor enhet',
+    'Spillfaktor', 'Emissionsfaktor A1-A3', 'Emissionsfaktor A4', 'Emissionsfaktor A5'
+  ];
+  DETAIL_COLS_TO_CLEAR.forEach(colName => {
+    const idx = headers.findIndex(h => h === colName);
+    if(idx !== -1 && parentCells[idx]){
+      parentCells[idx].textContent = '';
+      parentCells[idx].setAttribute('data-layer-parent-cleared', 'true');
+    }
+  });
+
   // Fill parent row with common values from children
   fillParentRowsWithCommonValues(tbody);
 
@@ -1400,6 +1446,10 @@ function updateLayerParentSums(parentTr, tbody){
     }
   }, 0);
 }
+
+// When true, continueApplyClimateResource skips per-row post-actions
+// (applyFilters, updateClimateMappingIndicator etc.) so the caller can batch them.
+let _batchClimateActive = false;
 
 // Cached column-index context for applySavedClimate — rebuilt on each new table render
 let _climateColCtx = null;
@@ -1820,7 +1870,7 @@ function applyFilters(){
 
   // Show progress bar with callback if needed, otherwise just run filtering
   if(shouldShowProgress) {
-    showProgressBar('Filtrerar data...', performFiltering);
+    showProgressBar('Filtrerar data...', performFiltering, 1500);
   } else {
     performFiltering();
   }
@@ -1950,7 +2000,7 @@ function fillParentRowsWithCommonValues(tbody){
     const parentCells = parentTr.children;
     for(let i = 1; i < parentCells.length; i++){
       const parentCell = parentCells[i];
-      if(parentCell.textContent.trim() !== '' || SUM_ATTRS.some(a => parentCell.hasAttribute(a))) continue;
+      if(parentCell.textContent.trim() !== '' || SUM_ATTRS.some(a => parentCell.hasAttribute(a)) || parentCell.hasAttribute('data-layer-parent-cleared')) continue;
       const childValues = Array.from(children).map(child => {
         const childCell = child.children[i];
         return childCell ? childCell.textContent.trim() : '';
@@ -2142,6 +2192,10 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       }
     });
     if(climateData.size > 0){ updateAllClimateMappingIndicators(); recomputeZebraStripes(); }
+    // Update layer-parent sums once for all parents (bulk, after all climate has been restored)
+    if(layerData.size > 0){
+      tbody.querySelectorAll('tr.layer-parent').forEach(p => updateLayerParentSums(p, tbody));
+    }
   }
   // Fill parent rows with common values from children
   fillParentRowsWithCommonValues(tbody);
@@ -2464,6 +2518,9 @@ function renderTableWithOptionalGrouping(rows){
         }
       });
       if(climateData.size > 0){ updateAllClimateMappingIndicators(); recomputeZebraStripes(); }
+      if(layerData.size > 0){
+        tbody.querySelectorAll('tr.layer-parent').forEach(p => updateLayerParentSums(p, tbody));
+      }
     }
 
   } else {
@@ -2540,7 +2597,7 @@ function renderTableWithOptionalGrouping(rows){
 
   // Show progress bar with callback if needed, otherwise just run rendering
   if(shouldShowProgress) {
-    showProgressBar('Grupperar data...', performRendering);
+    showProgressBar('Grupperar data...', performRendering, 5000);
   } else {
     performRendering();
   }
@@ -5159,7 +5216,7 @@ if(layerApplyBtn){
     showProgressBar('Skiktar objekt...', () => {
       applyLayerSplit(count, thicknesses, mixedLayerConfigs, layerNames, climateResources, climateTypes, climateFactors);
       closeLayerModal();
-    });
+    }, 3000);
   });
 }
 
@@ -5816,8 +5873,18 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
     const actionTd = clone.querySelector('td:first-child');
     if(actionTd){
       actionTd.innerHTML = ''; // Clear old buttons
-      // No buttons needed for layer child rows
     }
+    // Remove any inherited toggle + layer label from the first data cell
+    const cloneFirstDataTd = clone.querySelector('td:nth-child(2)');
+    if(cloneFirstDataTd){
+      cloneFirstDataTd.querySelector('.group-toggle')?.remove();
+      cloneFirstDataTd.querySelectorAll('span').forEach(s => {
+        if(s.textContent.includes('skikt')) s.remove();
+      });
+    }
+    // Remove parent-row attributes/classes inherited from the source row
+    clone.removeAttribute('data-open');
+    clone.classList.remove('layer-parent', 'group-parent');
 
     clone.classList.add('is-new');
 
@@ -5991,14 +6058,15 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
         const resource = window.climateResources[resourceIndex];
           // console.log('🌍 [LayerSplit] Applying Boverket climate resource to layer:', layerIndex, 'resource:', resource.Name);
         
-        // Use the existing applyClimateResource function
-        // Set climateTarget to the clone and apply the resource
+        // Use performClimateResourceMapping directly (synchronous, no progress bar/rAF)
         const originalClimateTarget = climateTarget;
         climateTarget = { type: 'row', rowEl: clone };
         // console.log('🌍 [cloneRowWithMultiplier] Applying Boverket climate resource to layer:', layerIndex, 'resource:', resource.Name);
-        applyClimateResource(resource);
-        climateTarget = originalClimateTarget; // Restore original target
-        
+        _batchClimateActive = true;
+        performClimateResourceMapping(resource, climateTarget, tableRef, tableRef.querySelector('thead'), tableRef.querySelector('tbody'));
+        _batchClimateActive = false;
+        climateTarget = originalClimateTarget;
+
         // console.log('✅ [cloneRowWithMultiplier] Boverket climate resource applied to layer:', layerIndex);
         }
       } else if(climateType === 'epd'){
@@ -6977,9 +7045,11 @@ function openGroupParentByKey(groupKey, tbody){
           
           const originalClimateTarget = climateTarget;
           climateTarget = { type: 'row', rowEl: targetLayer };
-          applyClimateResource(resource1);
+          _batchClimateActive = true;
+          performClimateResourceMapping(resource1, climateTarget, table, table.querySelector('thead'), tbody);
+          _batchClimateActive = false;
           climateTarget = originalClimateTarget;
-          
+
           // console.log('✅ [MixedLayer] Climate resource applied to material 1');
         }
       }
@@ -7003,7 +7073,9 @@ function openGroupParentByKey(groupKey, tbody){
 
           const originalClimateTarget = climateTarget;
           climateTarget = { type: 'row', rowEl: material2Row };
-          applyClimateResource(resource2);
+          _batchClimateActive = true;
+          performClimateResourceMapping(resource2, climateTarget, table, table.querySelector('thead'), tbody);
+          _batchClimateActive = false;
           climateTarget = originalClimateTarget;
 
           // console.log('✅ [MixedLayer] Climate resource applied to material 2');
@@ -7160,7 +7232,7 @@ function applyClimateResource(resource){
     const tbody = table.querySelector('tbody'); if(!tbody) { hideProgressBar(); return; }
 
     performClimateResourceMapping(resource, savedClimateTarget, table, thead, tbody);
-  });
+  }, 2000);
 }
 
 function performClimateResourceMapping(resource, savedClimateTarget, table, thead, tbody){
@@ -7389,31 +7461,32 @@ function updateAllClimateMappingIndicators() {
 }
 
 // Progress Bar Functions
-function showProgressBar(text = 'Bearbetar...', callback = null) {
+// estimatedMs: expected operation duration — controls how fast the bar advances.
+// The animation runs on the compositor thread independently of JS, so progress
+// is always visible even when the main thread is blocked.
+function showProgressBar(text = 'Bearbetar...', callback = null, estimatedMs = 3000) {
   const progressBar = document.getElementById('progressBar');
   const loadingOverlay = document.getElementById('loadingOverlay');
   const progressText = progressBar?.querySelector('.progress-bar-text');
   const progressFill = progressBar?.querySelector('.progress-bar-fill');
+  const progressSubtext = progressBar?.querySelector('.progress-bar-subtext');
 
   if(progressBar && loadingOverlay) {
-    // Reset progress fill to 0
-    if(progressFill) {
-      progressFill.style.width = '0%';
-    }
-
-    // Show overlay and progress bar
     loadingOverlay.style.display = 'block';
     progressBar.style.display = 'block';
 
-    if(progressText) {
-      progressText.textContent = text;
+    if(progressText) progressText.textContent = text;
+    if(progressSubtext) progressSubtext.textContent = 'Vänligen vänta...';
+
+    if(progressFill) {
+      // Reset: remove classes, snap to 0, force reflow to restart animation
+      progressFill.classList.remove('progress-animating', 'progress-done');
+      progressFill.style.width = '0%';
+      progressFill.offsetHeight; // Force reflow
+      progressFill.style.setProperty('--progress-duration', estimatedMs + 'ms');
+      progressFill.classList.add('progress-animating');
     }
 
-    // Force a reflow to ensure the browser renders the progress bar
-    // before any heavy operations start
-    progressBar.offsetHeight;
-
-    // Use requestAnimationFrame to ensure rendering happens
     if(callback) {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -7422,25 +7495,30 @@ function showProgressBar(text = 'Bearbetar...', callback = null) {
       });
     }
   } else {
-    console.error('❌ Progress bar or overlay element not found!');
-    // If progress bar failed, still run the callback
-    if(callback) {
-      callback();
-    }
+    if(callback) callback();
   }
 }
 
 function hideProgressBar() {
   const progressBar = document.getElementById('progressBar');
   const loadingOverlay = document.getElementById('loadingOverlay');
+  const progressFill = progressBar?.querySelector('.progress-bar-fill');
 
-  if(progressBar) {
-    progressBar.style.display = 'none';
+  if(progressFill) {
+    // Snap to 100% to signal completion
+    progressFill.classList.remove('progress-animating');
+    progressFill.classList.add('progress-done');
   }
 
-  if(loadingOverlay) {
-    loadingOverlay.style.display = 'none';
-  }
+  // Brief pause so user sees the completed state before hiding
+  setTimeout(() => {
+    if(progressBar) progressBar.style.display = 'none';
+    if(loadingOverlay) loadingOverlay.style.display = 'none';
+    if(progressFill) {
+      progressFill.classList.remove('progress-done');
+      progressFill.style.width = '0%';
+    }
+  }, 280);
 }
 
 function updateProgressBar(percent, text = null) {
@@ -7776,6 +7854,19 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
     if(groupKey){
       updateGroupWeightSums(groupKey, tbody);
     }
+
+    // Walk up the layer hierarchy and update sums for every ancestor layer-parent.
+    // Needed because applyClimateResource is async (rAF) — updateLayerParentSums at
+    // split-time runs before climate data exists on children.
+    let targetRow = savedClimateTarget.rowEl;
+    while(targetRow){
+      const parentKey = targetRow.getAttribute('data-parent-key');
+      if(!parentKey) break;
+      const layerParentTr = tbody.querySelector(`tr.layer-parent[data-layer-key="${CSS.escape(parentKey)}"]`);
+      if(!layerParentTr) break;
+      updateLayerParentSums(layerParentTr, tbody);
+      targetRow = layerParentTr;
+    }
   } else if(savedClimateTarget.type === 'group' && savedClimateTarget.key != null){
     const rows = Array.from(tbody.querySelectorAll('tr[data-group-child-of="' + CSS.escape(savedClimateTarget.key) + '"]'));
     rows.forEach(row => {
@@ -7801,24 +7892,26 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
     }
   }
   
-  // Re-apply filters to keep visibility consistent
-  applyFilters();
+  if(!_batchClimateActive){
+    // Re-apply filters to keep visibility consistent
+    applyFilters();
 
-// Preserve parent row collapsed state after climate mapping
-preserveParentRowStates();
-  
-  // Update climate summary
-  debouncedUpdateClimateSummary();
+    // Preserve parent row collapsed state after climate mapping
+    preserveParentRowStates();
 
-// Hide progress bar
-hideProgressBar();
+    // Update climate summary
+    debouncedUpdateClimateSummary();
+
+    // Hide progress bar
+    hideProgressBar();
+  }
 }
 
 // Apply custom climate resource (for alternative climate modal)
 function applyCustomClimateResource(customResource){
   if(!climateTarget){ return; }
   
-  showProgressBar('Mappar alternativ klimatresurs...');
+  showProgressBar('Mappar alternativ klimatresurs...', null, 2000);
   
   
   // Save climateTarget because it might be cleared if modals close
