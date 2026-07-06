@@ -851,13 +851,9 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
       // Apply climate to this child row
       const childRowData = f._originalRowData;
       if(childRowData){
-        // Fast path: if climate data already exists in the map (e.g. during re-grouping after a split),
-        // use applySavedClimate (O(1) lookup + minimal DOM writes) instead of the heavy
-        // performClimateResourceMapping path (full recomputation from the API resource object).
         const _ck = f.getAttribute('data-layer-key') || f.getAttribute('data-layer-child-of');
         const _hasSaved = climateData.has(getRowSignature(childRowData, _ck)) ||
           (_ck !== null && climateData.has(getRowSignature(childRowData, null)));
-
         if(_hasSaved){
           applySavedClimate(f, childRowData, true);
         } else if(climateResources && climateResources.length > layerIndex){
@@ -1016,7 +1012,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
         // This ensures Material 2's climate data is loaded from climateData Map
         const material2RowData = material2Row._originalRowData;
         if(material2RowData){
-          applySavedClimate(material2Row, material2RowData);
+          applySavedClimate(material2Row, material2RowData, true);
           // console.log('🔄 [applyLayerSplitWithKey] Applied saved climate to Material 2');
         }
 
@@ -1246,15 +1242,14 @@ function removeLayeringForGroup(groupKey, tbody){
 }
 
 // Helper function to update weight and climate sums for a layer parent
-function updateLayerParentSums(parentTr, tbody){
+function updateLayerParentSums(parentTr, tbody, prebuiltChildren = null){
   if(!parentTr.classList.contains('layer-parent')) return;
 
   const layerKey = parentTr.getAttribute('data-layer-key');
   if(!layerKey) return;
 
-  // Get all layer children
-  const layerChildren = Array.from(tbody.querySelectorAll(`tr[data-parent-key="${CSS.escape(layerKey)}"]`));
-  // console.log('🔍 [updateLayerParentSums] Updating sums for layer parent, children count:', layerChildren.length);
+  // Get all layer children — use pre-built array when available (avoids O(n²) per-parent querySelectorAll)
+  const layerChildren = prebuiltChildren || Array.from(tbody.querySelectorAll(`tr[data-parent-key="${CSS.escape(layerKey)}"]`));
 
   if(layerChildren.length === 0) return;
 
@@ -1430,9 +1425,6 @@ function updateLayerParentSums(parentTr, tbody){
       parentCells[idx].setAttribute('data-layer-parent-cleared', 'true');
     }
   });
-
-  // Fill parent row with common values from children
-  fillParentRowsWithCommonValues(tbody);
 
   // IMPORTANT: Verify the cell value right after setting it
   setTimeout(() => {
@@ -2194,7 +2186,18 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
     if(climateData.size > 0){ updateAllClimateMappingIndicators(); recomputeZebraStripes(); }
     // Update layer-parent sums once for all parents (bulk, after all climate has been restored)
     if(layerData.size > 0){
-      tbody.querySelectorAll('tr.layer-parent').forEach(p => updateLayerParentSums(p, tbody));
+      const layerParents = Array.from(tbody.querySelectorAll('tr.layer-parent'));
+      // Pre-build parent-key → children map (one O(n) scan instead of O(n) per parent)
+      const _childrenByPK = new Map();
+      tbody.querySelectorAll('tr[data-parent-key]').forEach(c => {
+        const pk = c.getAttribute('data-parent-key');
+        if(!_childrenByPK.has(pk)) _childrenByPK.set(pk, []);
+        _childrenByPK.get(pk).push(c);
+      });
+      layerParents.forEach(p => {
+        const key = p.getAttribute('data-layer-key');
+        updateLayerParentSums(p, tbody, key ? (_childrenByPK.get(key) || []) : null);
+      });
     }
   }
   // Fill parent rows with common values from children
@@ -2502,11 +2505,8 @@ function renderTableWithOptionalGrouping(rows){
       if(!isNaN(idx)) tr._originalRowData = _ungroupedStore[idx];
     });
     table.appendChild(tbody);
-    output.innerHTML = ''; output.appendChild(table);
-    attachSorting(table);
-    installHoverRowTracking(table);
-    
-    // Apply saved layers and climate (skip if maps are empty)
+
+    // Apply saved layers and climate BEFORE attaching to DOM (avoids live-DOM reflow per insertion)
     if(layerData.size > 0 || climateData.size > 0){
       _climateColCtx = null;
       const allRows = Array.from(tbody.querySelectorAll('tr'));
@@ -2517,9 +2517,27 @@ function renderTableWithOptionalGrouping(rows){
           if(climateData.size > 0) applySavedClimate(tr, rowData, true);
         }
       });
+    }
+
+    output.innerHTML = ''; output.appendChild(table);
+    attachSorting(table);
+    installHoverRowTracking(table);
+
+    // Post-attach updates (require table to be in DOM for getTable() lookups)
+    if(layerData.size > 0 || climateData.size > 0){
       if(climateData.size > 0){ updateAllClimateMappingIndicators(); recomputeZebraStripes(); }
       if(layerData.size > 0){
-        tbody.querySelectorAll('tr.layer-parent').forEach(p => updateLayerParentSums(p, tbody));
+        // Pre-build parent-key → children map (one O(n) scan instead of O(n) per parent)
+        const _childrenByPK = new Map();
+        tbody.querySelectorAll('tr[data-parent-key]').forEach(c => {
+          const pk = c.getAttribute('data-parent-key');
+          if(!_childrenByPK.has(pk)) _childrenByPK.set(pk, []);
+          _childrenByPK.get(pk).push(c);
+        });
+        tbody.querySelectorAll('tr.layer-parent').forEach(p => {
+          const key = p.getAttribute('data-layer-key');
+          updateLayerParentSums(p, tbody, key ? (_childrenByPK.get(key) || []) : null);
+        });
       }
     }
 
@@ -7849,23 +7867,23 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
     // Update climate mapping indicator
     updateClimateMappingIndicator(savedClimateTarget.rowEl);
 
-    // Update parent row's weight sums if this row belongs to a group
-    const groupKey = savedClimateTarget.rowEl.getAttribute('data-group-child-of');
-    if(groupKey){
-      updateGroupWeightSums(groupKey, tbody);
-    }
+    if(!_batchClimateActive){
+      // Update parent row's weight sums if this row belongs to a group
+      const groupKey = savedClimateTarget.rowEl.getAttribute('data-group-child-of');
+      if(groupKey){
+        updateGroupWeightSums(groupKey, tbody);
+      }
 
-    // Walk up the layer hierarchy and update sums for every ancestor layer-parent.
-    // Needed because applyClimateResource is async (rAF) — updateLayerParentSums at
-    // split-time runs before climate data exists on children.
-    let targetRow = savedClimateTarget.rowEl;
-    while(targetRow){
-      const parentKey = targetRow.getAttribute('data-parent-key');
-      if(!parentKey) break;
-      const layerParentTr = tbody.querySelector(`tr.layer-parent[data-layer-key="${CSS.escape(parentKey)}"]`);
-      if(!layerParentTr) break;
-      updateLayerParentSums(layerParentTr, tbody);
-      targetRow = layerParentTr;
+      // Walk up the layer hierarchy and update sums for every ancestor layer-parent.
+      let targetRow = savedClimateTarget.rowEl;
+      while(targetRow){
+        const parentKey = targetRow.getAttribute('data-parent-key');
+        if(!parentKey) break;
+        const layerParentTr = tbody.querySelector(`tr.layer-parent[data-layer-key="${CSS.escape(parentKey)}"]`);
+        if(!layerParentTr) break;
+        updateLayerParentSums(layerParentTr, tbody);
+        targetRow = layerParentTr;
+      }
     }
   } else if(savedClimateTarget.type === 'group' && savedClimateTarget.key != null){
     const rows = Array.from(tbody.querySelectorAll('tr[data-group-child-of="' + CSS.escape(savedClimateTarget.key) + '"]'));
