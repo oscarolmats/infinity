@@ -75,11 +75,12 @@
       box-shadow: inset 0 0 0 1px rgba(33, 150, 243, 0.1);
     }
     .layer-parent {
-      background: #e8eaf6;
+      background: #dde0f5;
       font-weight: 700;
       cursor: pointer;
       border-left: 5px solid #3f51b5 !important;
-      box-shadow: inset 0 0 0 1px rgba(63, 81, 181, 0.12);
+      border-bottom: 2px solid rgba(63, 81, 181, 0.35) !important;
+      box-shadow: inset 0 0 0 1px rgba(63, 81, 181, 0.18);
     }
     .group-toggle {
       display: inline-flex;
@@ -128,6 +129,11 @@
 
     /* Layered parent emphasis only (children keep zebra coloring) */
     tbody tr[data-layer-key] td { background-color: #eef1fb; }
+
+    /* Layer child rows - visually nested under parent */
+    tbody tr[data-layer-child-of] td { background-color: #f0f2fc; }
+    tbody tr[data-layer-child-of].zebra-odd td { background-color: #e8ebf9; }
+    tbody tr[data-layer-child-of] td:first-child { box-shadow: inset 3px 0 0 0 rgba(63, 81, 181, 0.45); }
 
     /* Icon buttons */
     .icon-btn {
@@ -510,6 +516,16 @@
   <div id="layerModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 2000;">
     <div style="background:#fff; padding:16px; border-radius:8px; width: min(600px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto;">
       <h2 style="margin-top:0;">Dela i skikt</h2>
+
+      <!-- Presets -->
+      <div style="margin-bottom:14px;">
+        <p style="margin:0 0 6px 0; font-size:0.8rem; color:#666; font-weight:500;">Snabbval:</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" id="presetInnervaggUtan" style="font-size:0.78rem; padding:5px 12px; border:1px solid #1976d2; border-radius:20px; background:#e3f2fd; color:#1565c0; cursor:pointer; white-space:nowrap;">Innervägg utan isolering</button>
+          <button type="button" id="presetInnervaggMed" style="font-size:0.78rem; padding:5px 12px; border:1px solid #388e3c; border-radius:20px; background:#e8f5e9; color:#2e7d32; cursor:pointer; white-space:nowrap;">Innervägg med isolering (stenull)</button>
+        </div>
+      </div>
+
       <div style="display:flex; gap:12px;">
         <label style="flex:1;">
           Antal skikt

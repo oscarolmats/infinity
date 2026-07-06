@@ -3503,6 +3503,106 @@ function updateApplyLayerButton(){
 }
 
 if(layerCancelBtn){ layerCancelBtn.addEventListener('click', closeLayerModal); }
+// Layer presets
+// layerResources: per-layer resource descriptors (null for mixed layers)
+// mixedLayerConfigs.material*.resource: resource descriptor for each material
+// Resource descriptor: { boverketId: number|null, name: string }
+// IDs are stable Boverket resource IDs; name is used as fallback if ID lookup fails
+const LAYER_PRESETS = {
+  innervaeggUtan: {
+    count: 3,
+    thicknesses: [12.5, 45, 12.5],
+    layerNames: ['Gips', 'Regelskikt', 'Gips'],
+    layerResources: [
+      { boverketId: 6000000020, name: 'Gipsskiva, standardskiva' },
+      null,
+      { boverketId: 6000000020, name: 'Gipsskiva, standardskiva' },
+    ],
+    climateTypes: ['boverket', 'boverket', 'boverket'],
+    climateFactors: [null, null, null],
+    mixedLayerConfigs: [{
+      layerIndex: 2,
+      material1: { name: 'Aluminium profil', percent: 1, resource: { boverketId: 6000000159, name: 'Aluminiumprofiler, primär' } },
+      material2: { name: 'Luft', percent: 99, resource: { boverketId: null, name: 'Luft' } }
+    }]
+  },
+  innervaeggMed: {
+    count: 3,
+    thicknesses: [12.5, 45, 12.5],
+    layerNames: ['Gips', 'Regel- och isolerskikt', 'Gips'],
+    layerResources: [
+      { boverketId: 6000000020, name: 'Gipsskiva, standardskiva' },
+      null,
+      { boverketId: 6000000020, name: 'Gipsskiva, standardskiva' },
+    ],
+    climateTypes: ['boverket', 'boverket', 'boverket'],
+    climateFactors: [null, null, null],
+    mixedLayerConfigs: [{
+      layerIndex: 2,
+      material1: { name: 'Aluminium profil', percent: 1, resource: { boverketId: 6000000159, name: 'Aluminiumprofiler, primär' } },
+      material2: { name: 'Stenull', percent: 99, resource: { boverketId: 6000000123, name: 'Stenull, skivor och rullar' } }
+    }]
+  }
+};
+
+function findClimateResourceIndex(boverketId, fallbackName) {
+  if (!window.climateResources) return -1;
+  let idx = -1;
+  if (boverketId != null) {
+    idx = window.climateResources.findIndex(r => Number(r.Id) === boverketId);
+  }
+  if (idx === -1 && fallbackName) {
+    idx = window.climateResources.findIndex(r => r.Name === fallbackName);
+  }
+  return idx;
+}
+
+function resolvePresetResources(preset) {
+  const count = preset.count;
+  const climateResources = Array(count).fill('');
+  (preset.layerResources || []).forEach((res, i) => {
+    if (res) {
+      const idx = findClimateResourceIndex(res.boverketId, res.name);
+      if (idx >= 0) climateResources[i] = String(idx);
+    }
+  });
+  const mixedLayerConfigs = (preset.mixedLayerConfigs || []).map(cfg => {
+    const m1idx = cfg.material1.resource ? findClimateResourceIndex(cfg.material1.resource.boverketId, cfg.material1.resource.name) : -1;
+    const m2idx = cfg.material2.resource ? findClimateResourceIndex(cfg.material2.resource.boverketId, cfg.material2.resource.name) : -1;
+    return {
+      ...cfg,
+      material1: { ...cfg.material1, climateResource: m1idx >= 0 ? `boverket:${m1idx}` : '' },
+      material2: { ...cfg.material2, climateResource: m2idx >= 0 ? `boverket:${m2idx}` : '' },
+    };
+  });
+  return { climateResources, mixedLayerConfigs };
+}
+
+function applyLayerPreset(preset) {
+  if(layerCountInput) layerCountInput.value = preset.count;
+  if(layerThicknessesInput) layerThicknessesInput.value = preset.thicknesses.join(', ');
+  updateMixedLayerCheckboxes();
+  (preset.mixedLayerConfigs || []).forEach(cfg => {
+    const cb = document.getElementById(`mixedLayer${cfg.layerIndex}`);
+    if(cb) cb.checked = true;
+  });
+  updateMixedLayerDetails();
+  const resolved = resolvePresetResources(preset);
+  loadExistingLayerData(
+    preset.layerNames,
+    resolved.climateResources,
+    preset.climateTypes,
+    preset.climateFactors,
+    resolved.mixedLayerConfigs
+  );
+}
+
+const presetBtnUtan = document.getElementById('presetInnervaggUtan');
+if(presetBtnUtan) presetBtnUtan.addEventListener('click', () => applyLayerPreset(LAYER_PRESETS.innervaeggUtan));
+
+const presetBtnMed = document.getElementById('presetInnervaggMed');
+if(presetBtnMed) presetBtnMed.addEventListener('click', () => applyLayerPreset(LAYER_PRESETS.innervaeggMed));
+
 if(layerPasteBtn){
   layerPasteBtn.addEventListener('click', function(){
     if(!copiedLayerSettings){
