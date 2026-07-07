@@ -62,6 +62,10 @@
     #cell-tooltip { position: fixed; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; max-width: 360px; white-space: normal; word-break: break-word; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; pointer-events: none; display: none; line-height: 1.4; color: #1f2937; }
     /* Keep action cell content tight */
     td:first-child > * { gap: 2px; }
+    /* Row numbers: auto-counter on all visible rows; display:none rows are skipped automatically */
+    tbody { counter-reset: row-num; }
+    tbody tr { counter-increment: row-num; }
+    tbody td:first-child::before { content: counter(row-num); display: inline-block; min-width: 22px; font-size: 1rem; color: #9ca3af; text-align: right; padding-right: 6px; vertical-align: middle; }
     table tbody tr:hover td { background: #e8eef7; }
     .ag-resize-handle { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; user-select: none; }
     thead th.ag-sort-asc::after { content: '▲'; font-size: 10px; margin-left: 6px; color: #6b7280; }
