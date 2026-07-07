@@ -9,6 +9,14 @@ import { createStateManagement } from './src/state/stateManagement.js';
 
 function fmtNum(v){ return v.toLocaleString('sv-SE', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 
+const _COL_WIDTHS = {
+  'Inbyggd vikt':        '120px',
+  'Inköpt vikt':         '120px',
+  'Klimatpåverkan A1-A3':'145px',
+  'Klimatpåverkan A4':   '130px',
+  'Klimatpåverkan A5':   '130px',
+};
+
 // Helper function to create icon buttons
 function escHtml(s){
   if(s==null)return'';
@@ -2078,6 +2086,8 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
       th.style.minWidth = '220px';
     } else {
       th.textContent = h;
+      const w = _COL_WIDTHS[h];
+      if(w){ th.style.width = w; th.style.minWidth = w; }
     }
     th.dataset.colIndex = String(i);
     addResizeHandle(th);
@@ -2495,7 +2505,7 @@ function renderTableWithOptionalGrouping(rows){
       });
     }
     
-    allHeaders.forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; th.dataset.colIndex = String(i); addResizeHandle(th); headerTr.appendChild(th); });
+    allHeaders.forEach((h, i) => { const th = document.createElement('th'); th.textContent = h; th.dataset.colIndex = String(i); const w = _COL_WIDTHS[h]; if(w){ th.style.width = w; th.style.minWidth = w; } addResizeHandle(th); headerTr.appendChild(th); });
     thead.appendChild(headerTr); table.appendChild(thead);
     const tbody = document.createElement('tbody');
     const _ungroupedStore = [];
