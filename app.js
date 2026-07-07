@@ -7,6 +7,8 @@ import { getTable as getTableHelper } from './src/utils/domHelpers.js';
 import { layerData, climateData, setRestoringState, undoStack, redoStack, maxUndoSteps, isRestoringState } from './src/state/dataStore.js';
 import { createStateManagement } from './src/state/stateManagement.js';
 
+function fmtNum(v){ return v.toLocaleString('sv-SE', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
 // Helper function to create icon buttons
 function escHtml(s){
   if(s==null)return'';
@@ -1368,20 +1370,20 @@ function updateLayerParentSums(parentTr, tbody, prebuiltChildren = null){
   // Update parent cells with sums
   if(inbyggdViktColIndex !== -1 && parentCells[inbyggdViktColIndex]){
     const cell = parentCells[inbyggdViktColIndex];
-    cell.textContent = countInbyggd > 0 ? sumInbyggdVikt.toFixed(2) : '';
+    cell.textContent = countInbyggd > 0 ? fmtNum(sumInbyggdVikt) : '';
     cell.setAttribute('data-sum-inbyggd-vikt', 'true');
   }
 
   if(inkoptViktColIndex !== -1 && parentCells[inkoptViktColIndex]){
     const cell = parentCells[inkoptViktColIndex];
-    cell.textContent = countInkopt > 0 ? sumInkoptVikt.toFixed(2) : '';
+    cell.textContent = countInkopt > 0 ? fmtNum(sumInkoptVikt) : '';
     cell.setAttribute('data-sum-inkopt-vikt', 'true');
   }
 
   if(klimatA1A3ColIndex !== -1 && parentCells[klimatA1A3ColIndex]){
     const cell = parentCells[klimatA1A3ColIndex];
     const oldValue = cell.textContent;
-    const newValue = countKlimatA1A3 > 0 ? sumKlimatA1A3.toFixed(2) : '';
+    const newValue = countKlimatA1A3 > 0 ? fmtNum(sumKlimatA1A3) : '';
     cell.textContent = newValue;
     cell.setAttribute('data-sum-klimat-a1a3', 'true');
     // console.log('🔧 [updateLayerParentSums] A1-A3 cell update:', {
@@ -1401,17 +1403,17 @@ function updateLayerParentSums(parentTr, tbody, prebuiltChildren = null){
 
   if(klimatA4ColIndex !== -1 && parentCells[klimatA4ColIndex]){
     const cell = parentCells[klimatA4ColIndex];
-    cell.textContent = countKlimatA4 > 0 ? sumKlimatA4.toFixed(2) : '';
+    cell.textContent = countKlimatA4 > 0 ? fmtNum(sumKlimatA4) : '';
     cell.setAttribute('data-sum-klimat-a4', 'true');
   }
 
   if(klimatA5ColIndex !== -1 && parentCells[klimatA5ColIndex]){
     const cell = parentCells[klimatA5ColIndex];
-    cell.textContent = countKlimatA5 > 0 ? sumKlimatA5.toFixed(2) : '';
+    cell.textContent = countKlimatA5 > 0 ? fmtNum(sumKlimatA5) : '';
     cell.setAttribute('data-sum-klimat-a5', 'true');
   }
 
-  // console.log('✅ [updateLayerParentSums] Updated parent sums - Inbyggd:', sumInbyggdVikt.toFixed(2), 'Inkopt:', sumInkoptVikt.toFixed(2), 'A1-A3:', sumKlimatA1A3.toFixed(2), 'A4:', sumKlimatA4.toFixed(2), 'A5:', sumKlimatA5.toFixed(2));
+  // console.log('✅ [updateLayerParentSums] Updated parent sums - Inbyggd:', fmtNum(sumInbyggdVikt), 'Inkopt:', fmtNum(sumInkoptVikt), 'A1-A3:', fmtNum(sumKlimatA1A3), 'A4:', fmtNum(sumKlimatA4), 'A5:', fmtNum(sumKlimatA5));
 
   // Clear climate detail columns in parent — per-layer values don't belong on the summary row
   const DETAIL_COLS_TO_CLEAR = [
@@ -1432,8 +1434,8 @@ function updateLayerParentSums(parentTr, tbody, prebuiltChildren = null){
     if(verifyCell){
       // console.log('🔍 [updateLayerParentSums] Verifying A1-A3 cell after 0ms:', {
 //         currentValue: verifyCell.textContent,
-//         expectedValue: sumKlimatA1A3.toFixed(2),
-//         matches: verifyCell.textContent === sumKlimatA1A3.toFixed(2)
+//         expectedValue: fmtNum(sumKlimatA1A3),
+//         matches: verifyCell.textContent === fmtNum(sumKlimatA1A3)
 //       });
     }
   }, 0);
@@ -1632,8 +1634,8 @@ function applySavedClimate(tr, rowData, skipPostUpdate = false){
     _setCell(_getCellFast(tr, ctx.a1a3Idx,         'data-A1_A3-cell'),        a1a3Factor,     'data-A1_A3-cell');
     _setCell(_getCellFast(tr, ctx.a4Idx,           'data-A4-cell'),           a4Factor,       'data-A4-cell');
     _setCell(_getCellFast(tr, ctx.a5Idx,           'data-A5-cell'),           a5Factor,       'data-A5-cell');
-    _setCell(_getCellFast(tr, ctx.inbyggdViktIdx,  'data-inbyggd-vikt-cell'), inbyggdVikt !== 'N/A' ? inbyggdVikt.toFixed(2) : 'N/A', 'data-inbyggd-vikt-cell');
-    _setCell(_getCellFast(tr, ctx.inkoptViktIdx,   'data-inkopt-vikt-cell'),  inkoptVikt  !== 'N/A' ? inkoptVikt.toFixed(2)  : 'N/A', 'data-inkopt-vikt-cell');
+    _setCell(_getCellFast(tr, ctx.inbyggdViktIdx,  'data-inbyggd-vikt-cell'), inbyggdVikt !== 'N/A' ? fmtNum(inbyggdVikt) : 'N/A', 'data-inbyggd-vikt-cell');
+    _setCell(_getCellFast(tr, ctx.inkoptViktIdx,   'data-inkopt-vikt-cell'),  inkoptVikt  !== 'N/A' ? fmtNum(inkoptVikt)  : 'N/A', 'data-inkopt-vikt-cell');
 
     // Calculate climate impact columns
     let klimatA1A3 = 'N/A', klimatA4 = 'N/A', klimatA5 = 'N/A';
@@ -1641,9 +1643,9 @@ function applySavedClimate(tr, rowData, skipPostUpdate = false){
     if(inbyggdVikt !== 'N/A' && a4Factor   !== 'N/A' && Number.isFinite(parseFloat(a4Factor)))   klimatA4   = inbyggdVikt * parseFloat(a4Factor);
     if(inkoptVikt  !== 'N/A' && a5Factor   !== 'N/A' && Number.isFinite(parseFloat(a5Factor)))   klimatA5   = inkoptVikt  * parseFloat(a5Factor);
 
-    _setCell(_getCellFast(tr, ctx.klimatA1A3Idx, 'data-klimat-a1a3-cell'), klimatA1A3 !== 'N/A' ? klimatA1A3.toFixed(2) : 'N/A', 'data-klimat-a1a3-cell');
-    _setCell(_getCellFast(tr, ctx.klimatA4Idx,   'data-klimat-a4-cell'),   klimatA4   !== 'N/A' ? klimatA4.toFixed(2)   : 'N/A', 'data-klimat-a4-cell');
-    _setCell(_getCellFast(tr, ctx.klimatA5Idx,   'data-klimat-a5-cell'),   klimatA5   !== 'N/A' ? klimatA5.toFixed(2)   : 'N/A', 'data-klimat-a5-cell');
+    _setCell(_getCellFast(tr, ctx.klimatA1A3Idx, 'data-klimat-a1a3-cell'), klimatA1A3 !== 'N/A' ? fmtNum(klimatA1A3) : 'N/A', 'data-klimat-a1a3-cell');
+    _setCell(_getCellFast(tr, ctx.klimatA4Idx,   'data-klimat-a4-cell'),   klimatA4   !== 'N/A' ? fmtNum(klimatA4)   : 'N/A', 'data-klimat-a4-cell');
+    _setCell(_getCellFast(tr, ctx.klimatA5Idx,   'data-klimat-a5-cell'),   klimatA5   !== 'N/A' ? fmtNum(klimatA5)   : 'N/A', 'data-klimat-a5-cell');
   }
 
   if(!skipPostUpdate){
@@ -2041,6 +2043,8 @@ function buildGroupedTable(headers, bodyRows, groupColIndex){
         <span>${h}</span>
       </span>`;
       th.setAttribute('data-grouped', 'true');
+      th.style.width = '220px';
+      th.style.minWidth = '220px';
     } else {
       th.textContent = h;
     }
@@ -7761,20 +7765,20 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
     
     const existingInbyggdViktCell = tr.querySelector('td[data-inbyggd-vikt-cell="true"]');
     if(existingInbyggdViktCell){
-      existingInbyggdViktCell.textContent = inbyggdVikt !== 'N/A' ? inbyggdVikt.toFixed(2) : 'N/A';
+      existingInbyggdViktCell.textContent = inbyggdVikt !== 'N/A' ? fmtNum(inbyggdVikt) : 'N/A';
     } else {
       const inbyggdViktTd = document.createElement('td');
-      inbyggdViktTd.textContent = inbyggdVikt !== 'N/A' ? inbyggdVikt.toFixed(2) : 'N/A';
+      inbyggdViktTd.textContent = inbyggdVikt !== 'N/A' ? fmtNum(inbyggdVikt) : 'N/A';
       inbyggdViktTd.setAttribute('data-inbyggd-vikt-cell', 'true');
       tr.appendChild(inbyggdViktTd);
     }
     
     const existingInkoptViktCell = tr.querySelector('td[data-inkopt-vikt-cell="true"]');
     if(existingInkoptViktCell){
-      existingInkoptViktCell.textContent = inkoptVikt !== 'N/A' ? inkoptVikt.toFixed(2) : 'N/A';
+      existingInkoptViktCell.textContent = inkoptVikt !== 'N/A' ? fmtNum(inkoptVikt) : 'N/A';
     } else {
       const inkoptViktTd = document.createElement('td');
-      inkoptViktTd.textContent = inkoptVikt !== 'N/A' ? inkoptVikt.toFixed(2) : 'N/A';
+      inkoptViktTd.textContent = inkoptVikt !== 'N/A' ? fmtNum(inkoptVikt) : 'N/A';
       inkoptViktTd.setAttribute('data-inkopt-vikt-cell', 'true');
       tr.appendChild(inkoptViktTd);
     }
@@ -7801,30 +7805,30 @@ function continueApplyClimateResource(resource, resourceName, conversionFactor, 
     
     const existingKlimatA1A3Cell = tr.querySelector('td[data-klimat-a1a3-cell="true"]');
     if(existingKlimatA1A3Cell){
-      existingKlimatA1A3Cell.textContent = klimatA1A3 !== 'N/A' ? klimatA1A3.toFixed(2) : 'N/A';
+      existingKlimatA1A3Cell.textContent = klimatA1A3 !== 'N/A' ? fmtNum(klimatA1A3) : 'N/A';
     } else {
       const klimatA1A3Td = document.createElement('td');
-      klimatA1A3Td.textContent = klimatA1A3 !== 'N/A' ? klimatA1A3.toFixed(2) : 'N/A';
+      klimatA1A3Td.textContent = klimatA1A3 !== 'N/A' ? fmtNum(klimatA1A3) : 'N/A';
       klimatA1A3Td.setAttribute('data-klimat-a1a3-cell', 'true');
       tr.appendChild(klimatA1A3Td);
     }
     
     const existingKlimatA4Cell = tr.querySelector('td[data-klimat-a4-cell="true"]');
     if(existingKlimatA4Cell){
-      existingKlimatA4Cell.textContent = klimatA4 !== 'N/A' ? klimatA4.toFixed(2) : 'N/A';
+      existingKlimatA4Cell.textContent = klimatA4 !== 'N/A' ? fmtNum(klimatA4) : 'N/A';
     } else {
       const klimatA4Td = document.createElement('td');
-      klimatA4Td.textContent = klimatA4 !== 'N/A' ? klimatA4.toFixed(2) : 'N/A';
+      klimatA4Td.textContent = klimatA4 !== 'N/A' ? fmtNum(klimatA4) : 'N/A';
       klimatA4Td.setAttribute('data-klimat-a4-cell', 'true');
       tr.appendChild(klimatA4Td);
     }
     
     const existingKlimatA5Cell = tr.querySelector('td[data-klimat-a5-cell="true"]');
     if(existingKlimatA5Cell){
-      existingKlimatA5Cell.textContent = klimatA5 !== 'N/A' ? klimatA5.toFixed(2) : 'N/A';
+      existingKlimatA5Cell.textContent = klimatA5 !== 'N/A' ? fmtNum(klimatA5) : 'N/A';
     } else {
       const klimatA5Td = document.createElement('td');
-      klimatA5Td.textContent = klimatA5 !== 'N/A' ? klimatA5.toFixed(2) : 'N/A';
+      klimatA5Td.textContent = klimatA5 !== 'N/A' ? fmtNum(klimatA5) : 'N/A';
       klimatA5Td.setAttribute('data-klimat-a5-cell', 'true');
       tr.appendChild(klimatA5Td);
     }
@@ -8879,7 +8883,7 @@ function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, 
   
   if(inbyggdViktColIndex !== -1 && parentCells[inbyggdViktColIndex]){
     const cell = parentCells[inbyggdViktColIndex];
-    cell.textContent = countInbyggd > 0 ? sumInbyggdVikt.toFixed(2) : '';
+    cell.textContent = countInbyggd > 0 ? fmtNum(sumInbyggdVikt) : '';
     // Also add the attribute for future lookups
     cell.setAttribute('data-sum-inbyggd-vikt', 'true');
     // console.log('✅ [updateGroupWeightSums] Updated Inbyggd cell to:', cell.textContent);
@@ -8887,7 +8891,7 @@ function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, 
   
   if(inkoptViktColIndex !== -1 && parentCells[inkoptViktColIndex]){
     const cell = parentCells[inkoptViktColIndex];
-    cell.textContent = countInkopt > 0 ? sumInkoptVikt.toFixed(2) : '';
+    cell.textContent = countInkopt > 0 ? fmtNum(sumInkoptVikt) : '';
     // Also add the attribute for future lookups
     cell.setAttribute('data-sum-inkopt-vikt', 'true');
     // console.log('✅ [updateGroupWeightSums] Updated Inkopt cell to:', cell.textContent);
@@ -8895,7 +8899,7 @@ function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, 
   
   if(klimatA1A3ColIndex !== -1 && parentCells[klimatA1A3ColIndex]){
     const cell = parentCells[klimatA1A3ColIndex];
-    const newValue = countKlimatA1A3 > 0 ? sumKlimatA1A3.toFixed(2) : '';
+    const newValue = countKlimatA1A3 > 0 ? fmtNum(sumKlimatA1A3) : '';
     cell.textContent = newValue;
     // Also add the attribute for future lookups
     cell.setAttribute('data-sum-klimat-a1a3', 'true');
@@ -8904,7 +8908,7 @@ function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, 
   
   if(klimatA4ColIndex !== -1 && parentCells[klimatA4ColIndex]){
     const cell = parentCells[klimatA4ColIndex];
-    const newValue = countKlimatA4 > 0 ? sumKlimatA4.toFixed(2) : '';
+    const newValue = countKlimatA4 > 0 ? fmtNum(sumKlimatA4) : '';
     cell.textContent = newValue;
     // Also add the attribute for future lookups
     cell.setAttribute('data-sum-klimat-a4', 'true');
@@ -8913,7 +8917,7 @@ function updateGroupWeightSums(groupKey, tbody, parentTrOpt, directChildrenOpt, 
   
   if(klimatA5ColIndex !== -1 && parentCells[klimatA5ColIndex]){
     const cell = parentCells[klimatA5ColIndex];
-    const newValue = countKlimatA5 > 0 ? sumKlimatA5.toFixed(2) : '';
+    const newValue = countKlimatA5 > 0 ? fmtNum(sumKlimatA5) : '';
     cell.textContent = newValue;
     // Also add the attribute for future lookups
     cell.setAttribute('data-sum-klimat-a5', 'true');
@@ -9265,17 +9269,17 @@ function updateClimateSummary(){
   // IMPORTANT: Always show summary (even if data is 0.00)
   // This makes it visible from the start and after layering
   if(climateSummary) climateSummary.style.display = 'flex';
-  if(summaryA1A3) summaryA1A3.textContent = totalA1A3.toFixed(2) + ' kg CO₂e';
-  if(summaryA4) summaryA4.textContent = totalA4.toFixed(2) + ' kg CO₂e';
-  if(summaryA5) summaryA5.textContent = totalA5.toFixed(2) + ' kg CO₂e';
-  if(summaryTotal) summaryTotal.textContent = total.toFixed(2) + ' kg CO₂e';
+  if(summaryA1A3) summaryA1A3.textContent = fmtNum(totalA1A3) + ' kg CO₂e';
+  if(summaryA4) summaryA4.textContent = fmtNum(totalA4) + ' kg CO₂e';
+  if(summaryA5) summaryA5.textContent = fmtNum(totalA5) + ' kg CO₂e';
+  if(summaryTotal) summaryTotal.textContent = fmtNum(total) + ' kg CO₂e';
 
   // Update reduction display (only show if we have reduction data)
   if(summaryReduction){
     if(hasReductionData && reductionKg > 0){
       summaryReduction.style.display = 'flex';
       summaryReduction.querySelector('.climate-summary-value').textContent =
-        `${reductionKg.toFixed(2)} kg CO₂e (${reductionPercent.toFixed(1)}%)`;
+        `${fmtNum(reductionKg)} kg CO₂e (${reductionPercent.toFixed(1)}%)`;
     } else {
       summaryReduction.style.display = 'none';
     }
@@ -9301,7 +9305,7 @@ function updateClimateSummary(){
     if(btaArea && btaArea > 0 && total > 0){
       const perM2 = total / btaArea;
       summaryBtaPerM2.style.display = 'flex';
-      summaryBtaValue.textContent = `${perM2.toFixed(2)} kg CO₂e/m²`;
+      summaryBtaValue.textContent = `${fmtNum(perM2)} kg CO₂e/m²`;
     } else {
       summaryBtaPerM2.style.display = 'none';
     }
