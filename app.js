@@ -49,6 +49,8 @@ function createIconButton(type, title) {
 // DOM element references
 const fileInput = document.getElementById('fileInput');
 const filterInput = document.getElementById('filterInput');
+const hideMappedToggle = document.getElementById('hideMappedToggle');
+let hideMappedRows = false;
 const toggleAllBtn = document.getElementById('toggleAllBtn');
 const exportBtn = document.getElementById('exportBtn');
 const saveProjectBtn = document.getElementById('saveProjectBtn');
@@ -1800,7 +1802,22 @@ function applyFilters(){
       }
     });
 
+    function isMapped(tr){
+      return tr.classList.contains('climate-mapped') ||
+             tr.classList.contains('climate-mapped-alt') ||
+             tr.classList.contains('climate-mapped-both');
+    }
+
     function rowMatches(tr){
+      if(hideMappedRows && !tr.hasAttribute('data-group-key')){
+        // Hide rows that are directly climate-mapped
+        if(isMapped(tr)) return false;
+        // Hide layer parents whose every layer child is mapped
+        if(tr.hasAttribute('data-layer-key')){
+          const kids = childrenByLayer.get(tr.getAttribute('data-layer-key')) || [];
+          if(kids.length > 0 && kids.every(isMapped)) return false;
+        }
+      }
       const cells = Array.from(tr.children);
       const text = tr.textContent.toLowerCase();
       const globalOk = !globalQ || text.includes(globalQ);
@@ -1820,9 +1837,23 @@ function applyFilters(){
     groupParents.forEach(parent => {
       const key = parent.getAttribute('data-group-key');
       const kids = childrenByGroup.get(key) || [];
+
+      // When hiding mapped rows: hide group parent if ALL its children are effectively mapped
+      let allEffectivelyMapped = false;
+      if(hideMappedRows && kids.length > 0){
+        allEffectivelyMapped = kids.every(k => {
+          if(isMapped(k)) return true;
+          if(k.hasAttribute('data-layer-key')){
+            const lKids = childrenByLayer.get(k.getAttribute('data-layer-key')) || [];
+            return lKids.length > 0 && lKids.every(isMapped);
+          }
+          return false;
+        });
+      }
+
       const parentMatch = rowMatches(parent);
       const anyChildMatch = kids.some(rowMatches);
-      const showParent = parentMatch || anyChildMatch;
+      const showParent = !allEffectivelyMapped && (parentMatch || anyChildMatch);
       const isOpen = parent.getAttribute('data-open') !== 'false';
       parent.style.display = showParent ? '' : 'none';
       kids.forEach(k => { k.style.display = showParent && isOpen && rowMatches(k) ? '' : 'none'; });
@@ -2675,6 +2706,7 @@ fileInput.addEventListener('click', function(e) {
 
 fileInput.addEventListener('change', function(){ const file = this.files && this.files[0]; if(!file) return; handleFile(file); });
 if(filterInput){ filterInput.addEventListener('input', applyFilters); }
+if(hideMappedToggle){ hideMappedToggle.addEventListener('change', function(){ hideMappedRows = this.checked; applyFilters(); }); }
 
 // Add event listener for BTA input to update climate summary
 const btaInput = document.getElementById('btaInput');

@@ -515,6 +515,10 @@
     <div class="picker">
       <input id="fileInput" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"/>
       <input id="filterInput" class="filter" type="search" placeholder="Filtrera rader..." />
+      <label for="hideMappedToggle" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;color:#374151;white-space:nowrap;user-select:none;">
+        <input id="hideMappedToggle" type="checkbox" style="width:15px;height:15px;cursor:pointer;accent-color:#2e7d32;" />
+        Dölj mappade
+      </label>
       <label for="groupBy" class="muted">Gruppera efter:</label>
       <select id="groupBy"></select>
       <label for="btaInput" class="muted" style="margin-left: 1rem;">BTA-yta (m²):</label>
