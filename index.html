@@ -8,8 +8,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif; margin: 1rem; background: #f7f9fc; color: #111827; }
+    body { font-family: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif; margin: 1rem; margin-top: calc(1rem + 40px); background: #f7f9fc; color: #111827; }
     button, input, select, textarea { font-family: inherit; }
+    /* App-level tab bar switching between Klimatanalys and IFC Viewer */
+    #view-tab-bar { position: fixed; top: 0; left: 0; right: 0; height: 40px; background: #fff; border-bottom: 1px solid #e5e7eb; z-index: 200; display: flex; align-items: center; gap: 2px; padding: 0 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .view-tab { background: none; border: none; color: #6b7280; cursor: pointer; font-size: 0.82rem; font-weight: 600; padding: 0 14px; height: 100%; display: inline-flex; align-items: center; gap: 6px; border-bottom: 2px solid transparent; font-family: inherit; transition: color .15s, border-color .15s; }
+    .view-tab:hover { color: #111827; }
+    .view-tab.active { color: #1976d2; border-bottom-color: #1976d2; }
+    .view-tab svg { width: 14px; height: 14px; flex-shrink: 0; }
+    /* IFC iframe — fills viewport below the tab bar */
+    #ifc-frame { display: none; position: fixed; top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100vh - 40px); border: none; z-index: 150; }
+    body.ifc-active #ifc-frame { display: block; }
+    body.ifc-active .container, body.ifc-active #climateSummary, body.ifc-active .status-indicators, body.ifc-active #progressBar { display: none !important; }
     .container { max-width: calc(95vw - 340px); margin: 0 auto; margin-right: 360px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.06); padding: 16px; padding-top: 0; }
     h1 { position: sticky; top: 0; z-index: 11; background: #ffffff; margin: 0; padding: 16px; padding-bottom: 8px; margin-left: -16px; margin-right: -16px; border-bottom: 1px solid #e5e7eb; }
     .picker { position: sticky; top: 60px; z-index: 10; background: #ffffff; margin-bottom: 1rem; margin-left: -16px; margin-right: -16px; padding: 16px; padding-bottom: 12px; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.04); flex-wrap: wrap; }
@@ -442,6 +452,19 @@
   </style>
 </head>
 <body>
+  <!-- App-level tab bar -->
+  <nav id="view-tab-bar">
+    <button id="tab-table" class="view-tab active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+      Klimatanalys
+    </button>
+    <button id="tab-ifc" class="view-tab">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 7-9-4-9 4"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 3v18"/><path d="m3 7 9 4 9-4"/></svg>
+      IFC Viewer
+    </button>
+  </nav>
+  <iframe id="ifc-frame" src="/viewer/" title="IFC Viewer" allow="cross-origin-isolated"></iframe>
+
   <!-- API Status Indicators -->
   <div class="status-indicators">
     <div id="apiIndicator" class="api-indicator">

@@ -1,19 +1,32 @@
 {
   "name": "tabellen",
   "version": "1.0.0",
-  "description": "Excel och CSV tabellvisare",
+  "description": "Excel och CSV tabellvisare med IFC-viewer",
   "main": "api/index.js",
   "scripts": {
     "start": "node api/index.js",
     "dev": "node server.js",
+    "dev:viewer": "vite",
+    "build:viewer": "tsc -b && vite build",
     "build": "echo 'No build step required'"
   },
   "license": "ISC",
   "dependencies": {
+    "@thatopen/components": "^3.4.6",
+    "@thatopen/components-front": "^3.4.3",
+    "@thatopen/fragments": "^3.4.6",
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "multer": "^2.0.2",
-    "server": "^1.0.42"
+    "server": "^1.0.42",
+    "three": "^0.185.1",
+    "web-ifc": "0.0.77",
+    "write-excel-file": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.0",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8"
   }
 }
 

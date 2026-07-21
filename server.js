@@ -2,9 +2,25 @@ const express = require('express');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
 const path = require('path');
+const http = require('http');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
+
+// Proxy /viewer/* → Vite dev-server (port 5173) when it is running.
+// Falls back automatically to the static viewer/ folder via express.static below.
+const VITE_PORT = 5173;
+app.use('/viewer', (req, res, next) => {
+  const viteReq = http.request(
+    { hostname: 'localhost', port: VITE_PORT, path: '/viewer' + req.url, method: req.method, headers: { ...req.headers, host: `localhost:${VITE_PORT}` } },
+    (viteRes) => {
+      res.writeHead(viteRes.statusCode, viteRes.headers);
+      viteRes.pipe(res, { end: true });
+    }
+  );
+  viteReq.on('error', () => next()); // Vite not running → fall through to static
+  req.pipe(viteReq, { end: true });
+});
 
 // CORS för lokal utveckling
 app.use((req, res, next) => {

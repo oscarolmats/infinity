@@ -69,6 +69,34 @@ const groupBySelect = document.getElementById('groupBy');
 const applyLayerToSelectedBtn = document.getElementById('applyLayerToSelectedBtn');
 const selectedCountSpan = document.getElementById('selectedCount');
 
+// View tab switching (Klimatanalys ↔ IFC Viewer)
+(function setupViewTabs(){
+  const tabTable = document.getElementById('tab-table');
+  const tabIfc   = document.getElementById('tab-ifc');
+  if(!tabTable || !tabIfc) return;
+
+  tabIfc.addEventListener('click', function(){
+    document.body.classList.add('ifc-active');
+    tabIfc.classList.add('active');
+    tabTable.classList.remove('active');
+  });
+  tabTable.addEventListener('click', function(){
+    document.body.classList.remove('ifc-active');
+    tabTable.classList.add('active');
+    tabIfc.classList.remove('active');
+  });
+
+  // Receive quantity data from IFC Viewer and load it into the table
+  window.addEventListener('message', function(event){
+    if(!event.data || event.data.type !== 'ifcinfinity-export') return;
+    const rows = event.data.rows;
+    if(!Array.isArray(rows) || rows.length < 2) return;
+    tabTable.click(); // switch to table view
+    lastRows = rows;
+    renderTableWithOptionalGrouping(rows);
+  });
+})();
+
 // Application state
 let lastRows = null; // cache of parsed rows for re-rendering
 let lastHeaders = null; // cache of headers for project save/load
