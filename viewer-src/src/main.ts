@@ -113,6 +113,16 @@ const canvas = world.renderer.three.domElement;
 
 components.init();
 
+// Demand rendering: only render when the scene actually changes.
+// turnOffOnManualMode (default true) disables the expensive COLOR_PEN
+// post-processing during MANUAL-mode frames and re-enables it 50 ms after the
+// last scene change, giving a fast preview during interaction and a sharp
+// still image when the camera comes to rest.
+postproductionRenderer.mode = OBC.RendererMode.MANUAL;
+postproductionRenderer.needsUpdate = true;
+// Cap render resolution on high-DPI screens — halves GPU work on Retina.
+postproductionRenderer.three.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
 world.scene.setup();
 world.scene.three.background = null;
 
@@ -152,7 +162,10 @@ const workerUrl = await OBC.FragmentsManager.getWorker();
 const fragments = components.get(OBC.FragmentsManager);
 fragments.init(workerUrl);
 
-world.camera.controls.addEventListener("update", () => fragments.core.update());
+world.camera.controls.addEventListener("update", () => {
+  fragments.core.update();
+  postproductionRenderer.needsUpdate = true;
+});
 
 const modelNames = new Map<string, string>();
 // Rå IFC (STEP) -text per modell, sparad vid inläsning/generering så att
@@ -304,6 +317,7 @@ fragments.list.onItemSet.add(({ value: model }) => {
   model.useCamera(world.camera.three);
   world.scene.three.add(model.object);
   fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
   renderModelList();
   treeBuiltMode = null;
   duplicatesBuilt = false;
@@ -317,6 +331,7 @@ fragments.list.onItemSet.add(({ value: model }) => {
 
 fragments.list.onBeforeDelete.add(({ value: model }) => {
   world.scene.three.remove(model.object);
+  postproductionRenderer.needsUpdate = true;
 });
 
 fragments.list.onItemDeleted.add((modelId) => {
@@ -1331,6 +1346,7 @@ async function clearHighlight() {
   highlightedItems = [];
   updateStatusSelection();
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 }
 
 async function clearSelection() {
@@ -1373,6 +1389,7 @@ visibilityHide.addEventListener("click", async () => {
   // Ett gömt objekt kan inte längre vara meningsfullt markerat/highlightat.
   await clearSelection();
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 });
 
 visibilityIsolate.addEventListener("click", async () => {
@@ -1386,6 +1403,7 @@ visibilityIsolate.addEventListener("click", async () => {
     if (keep) await model.setVisible(keep, true);
   }
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 });
 
 visibilityShowAll.addEventListener("click", async () => {
@@ -1393,6 +1411,7 @@ visibilityShowAll.addEventListener("click", async () => {
     await fragments.list.get(modelId)?.resetVisible();
   }
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 });
 
 /** Röntgenvy för den vanliga markeringen (till skillnad från dubblettpanelens
@@ -1416,6 +1435,7 @@ async function applyVisibilityXray() {
   visibilityXrayActive = true;
   visibilityXray.classList.add("active");
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 }
 
 async function clearVisibilityXray() {
@@ -1436,6 +1456,7 @@ async function clearVisibilityXray() {
     }
   }
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 }
 
 visibilityXray.addEventListener("click", async () => {
@@ -1535,6 +1556,7 @@ modelListEl.addEventListener("click", async (event) => {
   if (target.closest(".model-toggle")) {
     model.object.visible = !model.object.visible;
     await fragments.core.update(true);
+    postproductionRenderer.needsUpdate = true;
     renderModelList();
     return;
   }
@@ -1644,6 +1666,7 @@ async function applySelection(items: SelectableItem[], label?: string) {
     }
   }
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 
   // Håller röntgenvyn (Synlighet-sektionen) i synk med markeringen - se
   // applyVisibilityXray, som ghostar allt UTOM highlightedItems.
@@ -2524,6 +2547,7 @@ async function applyDuplicatesXray() {
   duplicatesXrayActive = true;
   duplicatesXray.classList.add("active");
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 }
 
 async function clearDuplicatesXray() {
@@ -2551,6 +2575,7 @@ async function clearDuplicatesXray() {
   }
 
   await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
 }
 
 duplicatesToggle.addEventListener("click", async () => {
@@ -2784,8 +2809,18 @@ measureToggle.addEventListener("click", () => {
 // BEFINTLIGT snittplan (i gizmot) tolkas som ett nytt klick och skapa ett
 // extra plan ovanpå det man just flyttade.
 let clipperJustDragged = false;
+let clipperDragging = false;
+clipper.onBeforeDrag.add(() => { clipperDragging = true; });
 clipper.onAfterDrag.add(() => {
   clipperJustDragged = true;
+  clipperDragging = false;
+  postproductionRenderer.needsUpdate = true;
+});
+
+// While dragging an existing clip plane, camera controls don't fire update
+// events — set needsUpdate directly from pointer movement.
+canvas.addEventListener("pointermove", () => {
+  if (clipperDragging) postproductionRenderer.needsUpdate = true;
 });
 
 canvas.addEventListener("click", (event) => {
@@ -2799,6 +2834,7 @@ canvas.addEventListener("click", (event) => {
     // snittläge felaktigt skapa ett nytt snittplan.
     if (wasCanvasDrag(event)) return;
     clipper.create(world);
+    postproductionRenderer.needsUpdate = true;
   }
   if (measurer.enabled) {
     if (wasCanvasDrag(event)) return;
@@ -2807,6 +2843,7 @@ canvas.addEventListener("click", (event) => {
     // användaren väljer efteråt vilket av de två den bryr sig om, istället
     // för att behöva slå om läge i förväg.
     measurer.create();
+    postproductionRenderer.needsUpdate = true;
     void handlePerpendicularMeasureClick();
   }
 });
@@ -3146,11 +3183,13 @@ function showMetricVisualization(metrics: ItemMetrics, key: MetricVisualizationK
       break;
   }
   metricsVisualizationGroup.visible = true;
+  postproductionRenderer.needsUpdate = true;
 }
 
 function hideMetricVisualization(): void {
   clearMetricVisualizationGroup();
   metricsVisualizationGroup.visible = false;
+  postproductionRenderer.needsUpdate = true;
 }
 
 // Litet, halvgenomskinligt plan som visar var ett snitt skulle hamna när
@@ -3210,13 +3249,14 @@ canvas.addEventListener("mousemove", () => {
   clipPreviewRafScheduled = true;
   requestAnimationFrame(() => {
     clipPreviewRafScheduled = false;
-    void updateClipPreview();
+    void updateClipPreview().then(() => { postproductionRenderer.needsUpdate = true; });
   });
 });
 
 canvas.addEventListener("mouseleave", () => {
   clipPreviewGroup.visible = false;
   measurePreviewGroup.visible = false;
+  postproductionRenderer.needsUpdate = true;
 });
 
 // Mätverktyget har en egen inbyggd snapp-markör, men den är bara 6px och lätt
@@ -3286,6 +3326,7 @@ function cancelPerpendicularMeasure() {
   perpendicularAnchor = null;
   perpendicularAnchorMarker.visible = false;
   perpendicularPreviewLine.visible = false;
+  postproductionRenderer.needsUpdate = true;
 }
 
 async function updateMeasurePreview() {
@@ -3357,7 +3398,7 @@ canvas.addEventListener("mousemove", () => {
   measurePreviewRafScheduled = true;
   requestAnimationFrame(() => {
     measurePreviewRafScheduled = false;
-    void updateMeasurePreview();
+    void updateMeasurePreview().then(() => { postproductionRenderer.needsUpdate = true; });
   });
 });
 
@@ -3382,6 +3423,7 @@ async function handlePerpendicularMeasureClick() {
     if (Math.abs(offset) > 1e-6) {
       const p2 = p1.clone().addScaledVector(n1, offset);
       measurer.list.add(new OBF.Line(p1, p2));
+      postproductionRenderer.needsUpdate = true;
     }
   }
   cancelPerpendicularMeasure();
@@ -3402,8 +3444,8 @@ window.addEventListener("keydown", (event) => {
   if (isTypingTarget(event.target)) return;
 
   if (event.code === "Delete" || event.code === "Backspace") {
-    if (clipper.enabled) clipper.delete(world);
-    if (measurer.enabled) measurer.delete();
+    if (clipper.enabled) { clipper.delete(world); postproductionRenderer.needsUpdate = true; }
+    if (measurer.enabled) { measurer.delete(); postproductionRenderer.needsUpdate = true; }
     return;
   }
 
@@ -3423,11 +3465,13 @@ window.addEventListener("keydown", (event) => {
 
 clipClear.addEventListener("click", () => {
   clipper.deleteAll();
+  postproductionRenderer.needsUpdate = true;
 });
 
 measureClear.addEventListener("click", () => {
   measurer.list.clear();
   cancelPerpendicularMeasure();
+  postproductionRenderer.needsUpdate = true;
 });
 
 // Mängdavtagning
@@ -4862,3 +4906,6 @@ generateSubmit.addEventListener("click", async () => {
     clearProgress();
   }
 });
+
+// Re-render after viewport resize so the scene fills the new canvas size.
+window.addEventListener("resize", () => { postproductionRenderer.needsUpdate = true; });
