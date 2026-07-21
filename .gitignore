@@ -12,7 +12,6 @@ yarn-error.log*
 # Builds
 /dist/
 /build/
-/viewer/
 
 # OS/Editor
 .DS_Store
