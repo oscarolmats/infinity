@@ -39,4 +39,8 @@ declare global {
   interface Window {
     showOpenFilePicker(options?: OpenFilePickerOptions): Promise<FileSystemFileHandle[]>;
   }
+
+  interface DataTransferItem {
+    getAsFileSystemHandle(): Promise<FileSystemHandle | null>;
+  }
 }

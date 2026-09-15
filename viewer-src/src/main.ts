@@ -433,51 +433,126 @@ async function syncFiles(): Promise<{ changed: number }> {
   }
 }
 
+/** Delad av både "Lägg till fil(er)"-knappen och drag-and-drop: lägger till
+ *  eller uppdaterar varje handtag som en spårad källfil och laddar in den. */
+async function addSyncedFileHandles(handles: FileSystemFileHandle[]): Promise<void> {
+  for (const handle of handles) {
+    // Om filen redan spåras (t.ex. återvald efter att behörigheten gick
+    // förlorad mellan sessioner) - uppdatera dess handtag istället för att
+    // lägga till en dubblett.
+    let existing: SyncedFile | undefined;
+    for (const entry of syncedFiles) {
+      if (await handle.isSameEntry(entry.handle)) {
+        existing = entry;
+        break;
+      }
+    }
+
+    const meta = await readFileMeta(handle);
+    const entry: SyncedFile = existing ?? {
+      id: crypto.randomUUID(),
+      handle,
+      name: handle.name,
+      lastModified: meta.lastModified,
+      size: meta.size,
+    };
+    entry.handle = handle;
+    entry.lastModified = meta.lastModified;
+    entry.size = meta.size;
+
+    filesStatus.textContent = `Laddar ${entry.name}...`;
+    await loadOrReplaceSyncedFile(entry);
+    if (!existing) syncedFiles.push(entry);
+  }
+
+  await saveSourceFiles(syncedFiles.map(({ id, handle }) => ({ id, handle })));
+  updateFilesControlsEnabled();
+  filesStatus.textContent = `${syncedFiles.length} fil(er) synkade`;
+}
+
 filesAddButton.addEventListener("click", async () => {
   try {
     const handles = await window.showOpenFilePicker({
       multiple: true,
       types: [{ description: "IFC-filer", accept: { "application/octet-stream": [".ifc"] } }],
     });
-
-    for (const handle of handles) {
-      // Om filen redan spåras (t.ex. återvald efter att behörigheten gick
-      // förlorad mellan sessioner) - uppdatera dess handtag istället för att
-      // lägga till en dubblett.
-      let existing: SyncedFile | undefined;
-      for (const entry of syncedFiles) {
-        if (await handle.isSameEntry(entry.handle)) {
-          existing = entry;
-          break;
-        }
-      }
-
-      const meta = await readFileMeta(handle);
-      const entry: SyncedFile = existing ?? {
-        id: crypto.randomUUID(),
-        handle,
-        name: handle.name,
-        lastModified: meta.lastModified,
-        size: meta.size,
-      };
-      entry.handle = handle;
-      entry.lastModified = meta.lastModified;
-      entry.size = meta.size;
-
-      filesStatus.textContent = `Laddar ${entry.name}...`;
-      await loadOrReplaceSyncedFile(entry);
-      if (!existing) syncedFiles.push(entry);
-    }
-
-    await saveSourceFiles(syncedFiles.map(({ id, handle }) => ({ id, handle })));
-    updateFilesControlsEnabled();
-    filesStatus.textContent = `${syncedFiles.length} fil(er) synkade`;
+    await addSyncedFileHandles(handles);
   } catch (err) {
     if ((err as DOMException)?.name !== "AbortError") {
       console.error(err);
       filesStatus.textContent = "Kunde inte lägga till filerna.";
     }
   }
+});
+
+/** Drag-and-drop av IFC-filer var som helst i visningsytan - hämtar
+ *  filhandtag (inte bara File-objekt) via getAsFileSystemHandle() så att de
+ *  släppta filerna spåras/synkas precis som filer valda via "Lägg till
+ *  fil(er)". Kräver Chrome/Edge, samma begränsning som resten av synken. */
+let dragCounter = 0;
+
+function hasFilesPayload(event: DragEvent): boolean {
+  return !!event.dataTransfer && Array.from(event.dataTransfer.types).includes("Files");
+}
+
+window.addEventListener("dragenter", (event) => {
+  if (!hasFilesPayload(event)) return;
+  event.preventDefault();
+  dragCounter++;
+  container.classList.add("drag-over");
+});
+
+window.addEventListener("dragover", (event) => {
+  if (!hasFilesPayload(event)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+});
+
+window.addEventListener("dragleave", (event) => {
+  if (!hasFilesPayload(event)) return;
+  dragCounter = Math.max(0, dragCounter - 1);
+  if (dragCounter === 0) container.classList.remove("drag-over");
+});
+
+window.addEventListener("drop", (event) => {
+  if (!hasFilesPayload(event)) return;
+  event.preventDefault();
+  dragCounter = 0;
+  container.classList.remove("drag-over");
+
+  void (async () => {
+    const items = Array.from(event.dataTransfer?.items ?? []);
+    if (items.length > 0 && typeof items[0].getAsFileSystemHandle !== "function") {
+      filesStatus.textContent =
+        "Drag-and-drop av filer kräver Chrome eller Edge - använd \"Lägg till fil(er)\" istället.";
+      return;
+    }
+
+    // getAsFileSystemHandle() måste anropas synkront för ALLA filer innan
+    // någon av dem väntas in - webbläsarens dragdata-lager hinner annars
+    // ogiltigförklaras innan de senare filernas löften skapas, så att bara
+    // den först behandlade filen (den vars await hann köra i tid) läggs till.
+    const handlePromises = items
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFileSystemHandle());
+    const resolvedHandles = await Promise.all(handlePromises);
+    const handles = resolvedHandles.filter(
+      (handle): handle is FileSystemFileHandle =>
+        handle?.kind === "file" && handle.name.toLowerCase().endsWith(".ifc"),
+    );
+
+    if (handles.length === 0) {
+      filesStatus.textContent = "Släpp en eller flera .ifc-filer.";
+      return;
+    }
+
+    try {
+      await addSyncedFileHandles(handles);
+    } catch (err) {
+      console.error(err);
+      filesStatus.textContent = "Kunde inte lägga till filerna.";
+    }
+  })();
 });
 
 filesRescanButton.addEventListener("click", async () => {
@@ -2765,11 +2840,11 @@ duplicatesContent.addEventListener("contextmenu", (event) => {
 // Snitt (sektionering) och mätning - ömsesidigt uteslutande verktygsläge
 const clipper = components.get(OBC.Clipper);
 clipper.enabled = false;
-// Standardstorleken (2 enheter) gör att snittplanets färgade platta täcker en
-// stor del av vyn och skymmer modellen - autoScalePlanes håller kvar en
-// konstant SKÄRMSTORLEK oavsett zoom, så en mindre bas-storlek räcker för att
-// den bara ska synas som en kompakt markör vid själva snittytan.
-clipper.size = 0.6;
+// Snittplattan ska vara stor och tydlig - dels som visuell markör, dels
+// eftersom den (se pointerdown-hanteraren nedan) är det man drar i för att
+// flytta snittet, istället för det tunna pil-handtaget som TransformControls-
+// gizmot annars kräver pixelprecision för att träffa.
+clipper.size = 2.5;
 
 const measurer = components.get(OBF.LengthMeasurement);
 measurer.world = world;
@@ -2821,6 +2896,55 @@ clipper.onAfterDrag.add(() => {
 // events — set needsUpdate directly from pointer movement.
 canvas.addEventListener("pointermove", () => {
   if (clipperDragging) postproductionRenderer.needsUpdate = true;
+});
+
+// Gör hela snittplattan grabbbar (inte bara TransformControls-gizmots tunna
+// pil-handtag längs normalen). Varje SimplePlane har sin egen TransformControls
+// bunden till samma canvas - dess pointerHover/pointerDown raycastar bara mot
+// sitt eget (mycket smala) pil-handtag, så ett klick mot den stora, synliga
+// plattan missar annars helt. Vi gör en egen, generösare raycast mot
+// plane.meshes (samma mesharray biblioteket redan använder för radering-vid-
+// hovring, se Delete-tangenten nedan) och triggar - om den träffar - samma
+// inbyggda dragrörelse genom att manuellt sätta .axis och anropa
+// .pointerDown(), precis som om pilen hade träffats. Den fortsatta
+// dragningen (pointermove/pointerup) sköts sedan automatiskt av planets
+// egen TransformControls, eftersom dess "dragging"-tillstånd redan är satt.
+const clipPlaneDragRaycaster = new THREE.Raycaster();
+
+function pointerCoords(event: PointerEvent): { x: number; y: number; button: number } {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    y: -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    button: event.button,
+  };
+}
+
+function findClipPlaneAt(pointer: { x: number; y: number }): OBC.SimplePlane | undefined {
+  clipPlaneDragRaycaster.setFromCamera(new THREE.Vector2(pointer.x, pointer.y), world.camera.three);
+
+  const planeByMesh = new Map<THREE.Object3D, OBC.SimplePlane>();
+  const meshes: THREE.Mesh[] = [];
+  for (const [, plane] of clipper.list) {
+    for (const mesh of plane.meshes) {
+      meshes.push(mesh);
+      planeByMesh.set(mesh, plane);
+    }
+  }
+  if (meshes.length === 0) return undefined;
+
+  const hit = clipPlaneDragRaycaster.intersectObjects(meshes, false)[0];
+  return hit ? planeByMesh.get(hit.object) : undefined;
+}
+
+canvas.addEventListener("pointerdown", (event) => {
+  if (!clipper.enabled || event.button !== 0) return;
+  const pointer = pointerCoords(event);
+  const plane = findClipPlaneAt(pointer);
+  if (!plane) return;
+
+  plane.controls.axis = "Z";
+  plane.controls.pointerDown(pointer as unknown as PointerEvent);
 });
 
 canvas.addEventListener("click", (event) => {

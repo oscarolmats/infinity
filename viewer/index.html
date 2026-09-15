@@ -108,6 +108,35 @@
         overflow: hidden;
       }
 
+      /* Visas medan en fil dras över visningsytan - se drag-and-drop-
+       * hanteringen i main.ts (window "dragenter"/"dragleave"/"drop"). */
+      #drop-hint {
+        position: absolute;
+        inset: 0;
+        z-index: 500;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        background: var(--color-primary-soft-strong);
+        border: 3px dashed var(--color-primary);
+        border-radius: var(--radius-lg);
+      }
+
+      #container.drag-over #drop-hint {
+        display: flex;
+      }
+
+      #drop-hint-label {
+        background: var(--surface);
+        color: var(--color-primary);
+        font-weight: 700;
+        font-size: 1.05rem;
+        padding: 16px 28px;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-modal);
+      }
+
       /* Tunn statusrad längst ner (matchar Solibris "0 component(s) painted"/
        * "Selected: 0"-fält) - visar aktuell markering/verktygsläge till
        * vänster, och en global progressindikator till höger som används av
@@ -130,15 +159,31 @@
         font-weight: 600;
       }
 
+      /* Visas mitt på skärmen istället för i statusraden, så den syns tydligt
+       * även när visningsytan är full av modeller/paneler - position:fixed
+       * lyfter den ur #status-bar:s flex-flöde oavsett var i DOM:en den
+       * ligger. */
       #status-progress {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 8px;
-        margin-left: auto;
+        gap: 12px;
+        min-width: 280px;
+        padding: 20px 28px;
+        background: var(--surface);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-modal);
+        font-size: 0.82rem;
+        color: var(--text-primary);
       }
 
       .status-progress-track {
-        width: 160px;
+        width: 100%;
         height: 6px;
         border-radius: 3px;
         background: var(--surface-hover-strong);
@@ -1513,7 +1558,7 @@
         cursor: not-allowed;
       }
     </style>
-    <script type="module" crossorigin src="/viewer/assets/index-IL6aOBaK.js"></script>
+    <script type="module" crossorigin src="/viewer/assets/index-D2sLBo4I.js"></script>
   </head>
   <body>
     <div id="app-shell">
@@ -1586,6 +1631,7 @@
         </div>
       </div>
       <div id="container">
+      <div id="drop-hint"><div id="drop-hint-label">Släpp IFC-filer här för att lägga till dem</div></div>
       <div id="left-panels">
       <div id="tree-panel">
         <div id="tree-header">
