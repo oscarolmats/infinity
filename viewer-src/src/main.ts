@@ -113,6 +113,27 @@ const canvas = world.renderer.three.domElement;
 
 components.init();
 
+// Viewaren ligger i en iframe som föräldersidan (index.html) sätter till
+// display:none när "Klimatanalys"-fliken är aktiv - det stänger av layouten
+// men INTE komponentbibliotekets egen requestAnimationFrame-loop, som
+// fortsätter köra mot en canvas vars container kollapsat till 0×0. Det
+// spammar konsolen med WebGL-varningar ("Framebuffer is incomplete:
+// Attachment has zero size") helt i onödan. En dold iframes egen
+// document.documentElement rapporterar 0×0 via ResizeObserver, så vi pausar
+// hela uppdateringsloopen (components.enabled) tills ytan får en riktig
+// storlek igen.
+new ResizeObserver((entries) => {
+  const { width, height } = entries[0].contentRect;
+  const isVisible = width > 0 && height > 0;
+  if (isVisible === components.enabled) return;
+  components.enabled = isVisible;
+  // update() restarts the (self-rescheduling) animation loop after it exited
+  // from enabled becoming false - it's marked private in Components' types
+  // (library-internal entry point) but is a plain instance method at
+  // runtime, same one init() itself calls to kick the loop off initially.
+  if (isVisible) (components as unknown as { update(): void }).update();
+}).observe(document.documentElement);
+
 // Demand rendering: only render when the scene actually changes.
 // turnOffOnManualMode (default true) disables the expensive COLOR_PEN
 // post-processing during MANUAL-mode frames and re-enables it 50 ms after the

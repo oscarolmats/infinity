@@ -286,16 +286,17 @@ function reattachTableEventListeners(){
   if(!tbody) return;
   
   // console.log('🔗 Re-attaching event listeners after state restore');
-  
-  // Re-attach toggle listeners for group/layer parents
-  const parents = Array.from(table.querySelectorAll('tr.group-parent, tr.layer-parent'));
-  parents.forEach(parent => {
-    parent.onclick = function(e){
-      if(e.target.closest('button')) return;
-      toggleParentRow(parent);
-    };
-  });
-  
+
+  // NOTE: no need to re-attach toggle listeners for group/layer parents here -
+  // the delegated click listener on `output` (see further down, matches
+  // tr.group-parent/tr.layer-parent) already handles this for every row
+  // regardless of when it was rendered. Setting a redundant per-row onclick
+  // here used to double-fire toggleParentRow on every click (once via that
+  // row's own onclick, once via the delegated listener bubbling up to
+  // `output`), which opened and immediately closed the row again - so
+  // expanding a layered row after reloading a saved project silently did
+  // nothing.
+
   // Re-attach button listeners for all rows
   const allButtons = tbody.querySelectorAll('button');
   let buttonCount = { skikta: 0, skiktaGrupp: 0, skiktaSkikt: 0, klimat: 0 };
@@ -7436,9 +7437,16 @@ function performClimateResourceMapping(resource, savedClimateTarget, table, thea
   
   // Check if conversion factor or unit is missing - if so, prompt user for manual input
   if(conversionFactor === 'N/A' || conversionUnit === 'N/A'){
-    // Close climate modal before opening manual factor modal
+    // Close climate modal before opening manual factor modal. The progress
+    // overlay (z-index 9998/9999) must also be hidden here - it was left
+    // showing while we wait for user input, which visually buried the manual
+    // factor modal (z-index 2600) underneath it, making the app look stuck
+    // ("Mappar klimatresurs...") for any resource missing a Conversions
+    // array (e.g. Boverkets XPS/EPS-resurser, which only expose
+    // ConservativeDataConversionFactor and no unit).
     closeClimateModal();
-    
+    hideProgressBar();
+
     openManualFactorModal(resourceName, function(manualData){
       // User provided manual values, update and continue
       conversionFactor = manualData.factor;
