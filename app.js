@@ -7,7 +7,7 @@ import { getTable as getTableHelper } from './src/utils/domHelpers.js';
 import { layerData, climateData, setRestoringState, undoStack, redoStack, maxUndoSteps, isRestoringState } from './src/state/dataStore.js';
 import { createStateManagement } from './src/state/stateManagement.js';
 
-function fmtNum(v){ return v.toLocaleString('sv-SE', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function fmtNum(v){ return v.toLocaleString('sv-SE', {minimumFractionDigits:1, maximumFractionDigits:1}).replace(',', '.'); }
 
 const _COL_WIDTHS = {
   'Inbyggd vikt':        '120px',
@@ -1954,41 +1954,50 @@ function recomputeZebraStripes(){
 
 // Note: parseNumberLike is now imported from ./src/utils/calculations.js
 
-// Add a simple resize handle to header cells
+// Add a resize handle to a header cell. Dragging is handled by one delegated
+// listener on `output` (below), so handles keep working on columns added
+// later (Skiktnamn, climate columns) and after the table is restored from
+// saved HTML - per-handle listeners were lost in both cases.
 function addResizeHandle(th){
-  try {
-    th.style.position = th.style.position || 'relative';
-    const handle = document.createElement('span');
-    handle.className = 'ag-resize-handle';
-    th.appendChild(handle);
-    let startX = 0; let startWidth = 0;
-    const onMouseMove = (e) => {
-      const dx = e.clientX - startX;
-      const newWidth = Math.max(40, startWidth + dx);
-      th.style.width = newWidth + 'px';
-      th.style.minWidth = newWidth + 'px';
-      th.style.maxWidth = newWidth + 'px';
-      const index = Array.from(th.parentElement.children).indexOf(th);
-      const table = th.closest('table');
-      if(!table) return;
-      const rows = table.querySelectorAll('tbody tr');
-      rows.forEach(tr => {
-        const td = tr.children[index];
-        if(td){ td.style.width = newWidth + 'px'; td.style.minWidth = newWidth + 'px'; td.style.maxWidth = newWidth + 'px'; }
-      });
-    };
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-    handle.addEventListener('mousedown', (e) => {
-      e.preventDefault(); e.stopPropagation();
-      startX = e.clientX; startWidth = th.getBoundingClientRect().width;
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    });
-  } catch(_e) {}
+  if(th.querySelector(':scope > .ag-resize-handle')) return;
+  th.style.position = th.style.position || 'relative';
+  const handle = document.createElement('span');
+  handle.className = 'ag-resize-handle';
+  th.appendChild(handle);
 }
+
+function ensureResizeHandles(table){
+  const headerRow = table.querySelector('thead tr');
+  if(headerRow) Array.from(headerRow.children).forEach(addResizeHandle);
+}
+
+output.addEventListener('mousedown', (e) => {
+  const handle = e.target.closest('.ag-resize-handle');
+  if(!handle) return;
+  const th = handle.closest('th');
+  const table = th && th.closest('table');
+  if(!table) return;
+  e.preventDefault(); e.stopPropagation();
+
+  const index = Array.from(th.parentElement.children).indexOf(th);
+  const startX = e.clientX;
+  const startWidth = th.getBoundingClientRect().width;
+
+  const onMouseMove = (ev) => {
+    const w = Math.max(40, startWidth + ev.clientX - startX) + 'px';
+    th.style.width = w; th.style.minWidth = w; th.style.maxWidth = w;
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      const td = tr.children[index];
+      if(td){ td.style.width = w; td.style.minWidth = w; td.style.maxWidth = w; }
+    });
+  };
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  };
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+});
 
 // Attach simple sorting to non-grouped table
 function attachSorting(_table){
@@ -9028,6 +9037,38 @@ function debouncedUpdateClimateSummary(){
   climateSummaryTimeout = setTimeout(() => updateClimateSummary(), 50);
 }
 
+const CLIMATE_COLUMN_NAMES = new Set([
+  'Klimatresurs', 'Klimatresurs typ', 'Omräkningsfaktor', 'Omräkningsfaktor enhet', 'Spillfaktor',
+  'Emissionsfaktor A1-A3', 'Emissionsfaktor A4', 'Emissionsfaktor A5',
+  'Inbyggd vikt', 'Inköpt vikt', 'Klimatpåverkan A1-A3', 'Klimatpåverkan A4', 'Klimatpåverkan A5'
+]);
+
+// Sets the columns added by climate mapping apart from the original Excel
+// columns. Styled through generated nth-child rules rather than per-cell
+// attributes, which would mean touching every row on each update.
+function markClimateColumns(table){
+  const headerRow = table.querySelector('thead tr');
+  if(!headerRow) return;
+  const indexes = [];
+  Array.from(headerRow.children).forEach((th, i) => {
+    if(CLIMATE_COLUMN_NAMES.has(th.textContent.trim())) indexes.push(i + 1);
+  });
+
+  let styleEl = document.getElementById('climateColumnStyles');
+  if(!styleEl){
+    styleEl = document.createElement('style');
+    styleEl.id = 'climateColumnStyles';
+    document.head.appendChild(styleEl);
+  }
+  if(indexes.length === 0){ styleEl.textContent = ''; return; }
+
+  const headerSelectors = indexes.map(i => `#output thead tr > th:nth-child(${i})`).join(',\n');
+  styleEl.textContent = `
+${headerSelectors} { background: #e6f4f1; color: #0f5f58; }
+#output tr > :nth-child(${indexes[0]}) { border-left: 3px solid #0f766e; }
+`;
+}
+
 // Function to update climate impact summary
 function updateClimateSummary(){
   const table = getTable();
@@ -9037,7 +9078,10 @@ function updateClimateSummary(){
     if(climateSummary) climateSummary.style.display = 'none';
     return;
   }
-  
+
+  markClimateColumns(table);
+  ensureResizeHandles(table);
+
   const tbody = table.querySelector('tbody');
   if(!tbody) return;
   
@@ -9351,6 +9395,29 @@ function updateClimateSummary(){
   if(summaryA4) summaryA4.textContent = fmtNum(totalA4) + ' kg CO₂e';
   if(summaryA5) summaryA5.textContent = fmtNum(totalA5) + ' kg CO₂e';
   if(summaryTotal) summaryTotal.textContent = fmtNum(total) + ' kg CO₂e';
+
+  // Mappningsöverblick: andel av ALLA materialrader (allt utom grupp-/
+  // skiktrubriker, som bara är behållare) som har en klimatresurs mappad.
+  // Räknar medvetet även dolda rader - ihopfällda grupper, "Dölj mappade"
+  // och filter ska inte ändra hur långt projektet har kommit.
+  const summaryMapped = document.getElementById('summaryMapped');
+  const summaryMappedValue = document.getElementById('summaryMappedValue');
+  const summaryMappedFill = document.getElementById('summaryMappedFill');
+  if(summaryMapped && summaryMappedValue && summaryMappedFill){
+    const leafRows = allRows.filter(tr => !tr.classList.contains('group-parent') && !tr.classList.contains('layer-parent'));
+    const mappedLeafRows = leafRows.filter(tr =>
+      tr.classList.contains('climate-mapped') ||
+      tr.classList.contains('climate-mapped-alt') ||
+      tr.classList.contains('climate-mapped-both')
+    );
+    if(leafRows.length > 0){
+      summaryMapped.style.display = 'flex';
+      summaryMappedValue.textContent = `${mappedLeafRows.length}/${leafRows.length} rader`;
+      summaryMappedFill.style.width = `${(mappedLeafRows.length / leafRows.length) * 100}%`;
+    } else {
+      summaryMapped.style.display = 'none';
+    }
+  }
 
   // Update reduction display (only show if we have reduction data)
   if(summaryReduction){

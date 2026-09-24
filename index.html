@@ -82,20 +82,24 @@
     thead th.ag-sort-desc::after { content: '▼'; font-size: 10px; margin-left: 6px; color: #6b7280; }
     .filter { flex: 1; max-width: 320px; }
     .muted { color: #666; font-size: 0.9rem; }
+    /* Radhierarki (grupp/skikt) - EN neutral gråskala oavsett mappningsstatus,
+     * så "är det här ett skikt" alltid syns likadant. Mappningsstatus (grönt/
+     * orange, se .climate-mapped* längre ner) signaleras uteslutande via
+     * kantlinjen till vänster - de två kanalerna konkurrerar då inte längre
+     * om samma bakgrundsfärg (tidigare vann alltid mappningsfärgen och
+     * skikt-/grupptillhörigheten försvann helt så fort en rad blev mappad). */
     .group-parent {
-      background: #e3f2fd;
+      background: #eef0f3;
       font-weight: 700;
       cursor: pointer;
-      border-left: 5px solid #2196f3 !important;
-      box-shadow: inset 0 0 0 1px rgba(33, 150, 243, 0.1);
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
     }
     .layer-parent {
-      background: #dde0f5;
+      background: #e6e9ee;
       font-weight: 700;
       cursor: pointer;
-      border-left: 5px solid #3f51b5 !important;
-      border-bottom: 2px solid rgba(63, 81, 181, 0.35) !important;
-      box-shadow: inset 0 0 0 1px rgba(63, 81, 181, 0.18);
+      border-bottom: 2px solid rgba(15, 23, 42, 0.12) !important;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.1);
     }
     .group-toggle {
       display: inline-flex;
@@ -103,7 +107,7 @@
       justify-content: center;
       margin-right: .75rem;
       vertical-align: middle;
-      background: #1976d2;
+      background: #475569;
       border-radius: 4px;
       width: 24px;
       height: 24px;
@@ -122,34 +126,37 @@
     .group-parent:not([data-open='false']) .group-toggle svg { transform: rotate(90deg); }
     .layer-parent[data-open='false'] .group-toggle svg { transform: rotate(0deg); }
     .layer-parent:not([data-open='false']) .group-toggle svg { transform: rotate(90deg); }
-    /* New rows visual marking */
-    tr.is-new td { background: #fff7cc; }
+    /* New rows visual marking - not for layer children, which always get
+     * is-new when created and would otherwise all turn yellow. */
+    tr.is-new:not([data-layer-child-of]) td { background: #fff7cc; }
     .badge-new { display:inline-block; background:#ffec99; color:#5c4400; border:1px solid #e6c466; border-radius:10px; padding:0 6px; font-size:11px; margin-right:6px; }
-    
-    /* Climate mapping indicators - stronger */
-    tr.climate-mapped td { background-color: #dff7e4 !important; }
-    tr.climate-mapped { border-left: 5px solid #2e7d32 !important; }
-    tr.climate-mapped-alt td { background-color: #ffefdb !important; }
-    tr.climate-mapped-alt { border-left: 5px solid #e67e22 !important; }
-    tr.climate-mapped-both td { background: linear-gradient(90deg, #dff7e4 50%, #ffefdb 50%) !important; }
-    tr.climate-mapped-both { border-left: 5px solid #2e7d32 !important; border-right: 5px solid #e67e22 !important; }
-    
-    /* Parent row indicators */
-    tr.group-parent.climate-mapped,
-    tr.layer-parent.climate-mapped { background-color: #dff7e4 !important; border-left: 5px solid #2e7d32 !important; }
-    tr.group-parent.climate-mapped-alt,
-    tr.layer-parent.climate-mapped-alt { background-color: #ffefdb !important; border-left: 5px solid #e67e22 !important; }
-    tr.group-parent.climate-mapped-both,
-    tr.layer-parent.climate-mapped-both { background: linear-gradient(90deg, #dff7e4 50%, #ffefdb 50%) !important; border-left: 5px solid #2e7d32 !important; border-right: 5px solid #e67e22 !important; }
 
-    /* Layered parent emphasis only (children keep zebra coloring) */
-    tbody tr[data-layer-key] td { background-color: #eef1fb; }
+    /* Skikt-barnrader - tunn "trädlinje" + tydligare indrag så nästling syns
+     * även när zebra-randningen är subtil, istället för en egen kulör som
+     * konkurrerade med mappningsfärgerna. */
+    tbody tr[data-layer-child-of] td:first-child { box-shadow: inset 4px 0 0 0 #94a3b8; }
+    tbody tr[data-layer-child-of] td:nth-child(2) { padding-left: 22px; position: relative; }
+    tbody tr[data-layer-child-of] td:nth-child(2)::before {
+      content: "";
+      position: absolute;
+      left: 10px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: #cbd5e1;
+    }
 
-    /* Layer child rows - visually nested under parent */
-    tbody tr[data-layer-child-of] td { background-color: #f0f2fc; }
-    tbody tr[data-layer-child-of].zebra-odd td { background-color: #e8ebf9; }
-    tbody tr[data-layer-child-of] td:first-child { box-shadow: inset 5px 0 0 0 #7986cb; }
-    tbody tr[data-layer-child-of] td:nth-child(2) { padding-left: 16px; }
+    /* Mappningsstatus - bakgrundsfärgen betyder BARA detta, på alla radtyper
+     * (grupp, skikt, vanlig). Struktur visas istället via pilknapp, fetstil
+     * och indrag. Stapeln ligger i den fastlåsta första kolumnen eftersom en
+     * kantlinje på <tr> döljs bakom den. Måste ligga efter zebra- och
+     * skiktreglerna ovan för att vinna. */
+    tbody tr.climate-mapped td { background-color: #e3f4e6; }
+    tbody tr.climate-mapped-alt td { background-color: #fdeedd; }
+    tbody tr.climate-mapped-both td { background: linear-gradient(90deg, #e3f4e6 50%, #fdeedd 50%); }
+    tbody tr.climate-mapped td:first-child { box-shadow: inset 6px 0 0 0 #2e7d32; }
+    tbody tr.climate-mapped-alt td:first-child { box-shadow: inset 6px 0 0 0 #e67e22; }
+    tbody tr.climate-mapped-both td:first-child { box-shadow: inset 3px 0 0 0 #2e7d32, inset 6px 0 0 0 #e67e22; }
 
     /* Icon buttons */
     .icon-btn {
@@ -427,6 +434,23 @@
       color: #1565c0 !important;
       font-size: 1rem;
     }
+    /* Mappningsöverblick i sammanfattningspanelen - "X/Y rader mappade" +
+     * en liten fyllnadsstapel, så man ser åtgärdsbehovet på en blick utan
+     * att behöva scrolla igenom hela tabellen. */
+    .mapping-overview-bar {
+      width: 70px;
+      height: 6px;
+      border-radius: 3px;
+      background: #e5e7eb;
+      overflow: hidden;
+    }
+    .mapping-overview-fill {
+      height: 100%;
+      width: 0%;
+      background: #2e7d32;
+      border-radius: 3px;
+      transition: width 200ms ease;
+    }
 
     /* Add padding to body to account for fixed summary */
     body { padding-top: 100px; }
@@ -503,6 +527,11 @@
       <div class="climate-summary-item">
         <span class="climate-summary-label">Totalt:</span>
         <span class="climate-summary-value climate-summary-total" id="summaryTotal">0.00 kg CO₂e</span>
+      </div>
+      <div class="climate-summary-item" id="summaryMapped" style="display: none;">
+        <span class="climate-summary-label">Mappat:</span>
+        <span class="climate-summary-value" id="summaryMappedValue">0/0 rader</span>
+        <div class="mapping-overview-bar"><div class="mapping-overview-fill" id="summaryMappedFill"></div></div>
       </div>
       <div class="climate-summary-item" id="summaryReduction" style="display: none;">
         <span class="climate-summary-label">Reduktion:</span>
