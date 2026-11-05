@@ -598,6 +598,30 @@ function applySavedLayers(tr, rowData){
   }
 }
 
+// Action buttons for a layered (layer-parent) row. Shared by fresh layering
+// (applyLayerSplit) and restoring layers on re-render (applyLayerSplitWithKey),
+// so a row looks and behaves the same whether it was just layered or rebuilt.
+// Rows that are themselves children (of a group or another layer) get no
+// buttons - their parent row carries them.
+function setLayerParentButtons(tr, layerKey){
+  const actionTd = tr.querySelector('td:first-child');
+  if(!actionTd) return;
+  actionTd.innerHTML = '';
+  if(tr.hasAttribute('data-layer-child-of') || tr.hasAttribute('data-group-child-of')) return;
+
+  const add = (type, title, onClick, marginLeft) => {
+    const btn = createIconButton(type, title);
+    if(marginLeft) btn.style.marginLeft = marginLeft;
+    btn.addEventListener('click', function(ev){ ev.stopPropagation(); onClick(); });
+    actionTd.appendChild(btn);
+  };
+  add('layer',   'Skikta skikt',       () => openLayerModal({ type: 'group', key: layerKey }));
+  add('climate', 'Mappa klimatresurs', () => openClimateModal({ type: 'group', key: layerKey }));
+  add('epd',     'Mappa till EPD',     () => openAltClimateModal({ type: 'group', key: layerKey }));
+  add('edit',    'Redigera skiktning', () => openLayerModal({ type: 'row', rowEl: tr }), '6px');
+  add('copy',    'Kopiera skiktning',  () => copyLayerSettings({ type: 'row', rowEl: tr }), '6px');
+}
+
 // Helper function for applying layers with a specific key
 function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNested = false, sharedLayerKeys = null, layerNames = [], mixedLayerConfigs = [], climateResources = [], climateTypes = [], climateFactors = []){
   const table = tr.closest('table');
@@ -661,57 +685,7 @@ function applyLayerSplitWithKey(tr, tbody, count, thicknesses, layerKey, isNeste
     tr.setAttribute('data-layer-key', savedLayerKey);
     tr.setAttribute('data-open', 'false'); // Start collapsed by default
 
-    // Update action buttons on parent row
-    // IMPORTANT: If this row is also a child row, it should NOT get buttons
-    const isChildRow = tr.hasAttribute('data-layer-child-of') || tr.hasAttribute('data-group-child-of');
-    const actionTd = tr.querySelector('td:first-child');
-    if(actionTd){
-      actionTd.innerHTML = '';
-      // Only add buttons if this is NOT a child row
-      if(!isChildRow){
-        const parentLayerBtn = document.createElement('button');
-        parentLayerBtn.type = 'button';
-        parentLayerBtn.textContent = 'Skikta skikt';
-        parentLayerBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openLayerModal({ type: 'group', key: savedLayerKey });
-        });
-        actionTd.appendChild(parentLayerBtn);
-        
-        const parentClimateBtn = createIconButton('climate', 'Mappa klimatresurs');
-        parentClimateBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openClimateModal({ type: 'group', key: savedLayerKey });
-        });
-        actionTd.appendChild(parentClimateBtn);
-
-        const parentAltClimateBtn = createIconButton('epd', 'Mappa till EPD');
-        parentAltClimateBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openAltClimateModal({ type: 'group', key: savedLayerKey });
-        });
-        actionTd.appendChild(parentAltClimateBtn);
-        // console.log('🔧 [Debug] parentAltClimateBtn created and appended to actionTd');
-
-        // Add edit button for layering (only for non-child rows)
-        const editBtn = createIconButton('edit', 'Redigera skiktning');
-        editBtn.style.marginLeft = '6px';
-        editBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          openLayerModal({ type: 'row', rowEl: tr });
-        });
-        actionTd.appendChild(editBtn);
-
-        // Add copy button for layering (only for non-child rows)
-        const copyBtn = createIconButton('copy', 'Kopiera skiktning');
-        copyBtn.style.marginLeft = '6px';
-        copyBtn.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          copyLayerSettings({ type: 'row', rowEl: tr });
-        });
-        actionTd.appendChild(copyBtn);
-      }
-    }
+    setLayerParentButtons(tr, savedLayerKey);
 
     // Add toggle to first data cell
     const firstDataTd = tr.querySelector('td:nth-child(2)');
@@ -1971,6 +1945,35 @@ function ensureResizeHandles(table){
   if(headerRow) Array.from(headerRow.children).forEach(addResizeHandle);
 }
 
+const TABLE_ZOOM_MIN = 0.5;
+const TABLE_ZOOM_MAX = 1;
+const TABLE_ZOOM_STEP = 0.1;
+let tableZoom = 1;
+
+// Shrinks the whole table (text, padding, column widths) so more fits on
+// screen without horizontal scrolling. Applied as CSS zoom via --tz on
+// #output; the sticky header offsets in index.html divide by --tz so the
+// headers still stick right under the toolbar.
+function applyTableZoom(zoom){
+  tableZoom = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Math.round(zoom * 10) / 10));
+  output.style.setProperty('--tz', String(tableZoom));
+  const label = document.getElementById('zoomLevel');
+  const outBtn = document.getElementById('zoomOutBtn');
+  const inBtn = document.getElementById('zoomInBtn');
+  if(label) label.textContent = Math.round(tableZoom * 100) + '%';
+  if(outBtn) outBtn.disabled = tableZoom <= TABLE_ZOOM_MIN;
+  if(inBtn) inBtn.disabled = tableZoom >= TABLE_ZOOM_MAX;
+  try { localStorage.setItem('tableZoom', String(tableZoom)); } catch(_){}
+}
+
+document.getElementById('zoomOutBtn')?.addEventListener('click', () => applyTableZoom(tableZoom - TABLE_ZOOM_STEP));
+document.getElementById('zoomInBtn')?.addEventListener('click', () => applyTableZoom(tableZoom + TABLE_ZOOM_STEP));
+(() => {
+  let saved = NaN;
+  try { saved = parseFloat(localStorage.getItem('tableZoom')); } catch(_){}
+  applyTableZoom(Number.isFinite(saved) ? saved : 1);
+})();
+
 output.addEventListener('mousedown', (e) => {
   const handle = e.target.closest('.ag-resize-handle');
   if(!handle) return;
@@ -1981,10 +1984,13 @@ output.addEventListener('mousedown', (e) => {
 
   const index = Array.from(th.parentElement.children).indexOf(th);
   const startX = e.clientX;
-  const startWidth = th.getBoundingClientRect().width;
+  // Mouse movement and getBoundingClientRect are in screen pixels, while the
+  // width we set is in the table's zoomed pixels - convert between them.
+  const zoom = tableZoom;
+  const startWidth = th.getBoundingClientRect().width / zoom;
 
   const onMouseMove = (ev) => {
-    const w = Math.max(40, startWidth + ev.clientX - startX) + 'px';
+    const w = Math.max(40, startWidth + (ev.clientX - startX) / zoom) + 'px';
     th.style.width = w; th.style.minWidth = w; th.style.maxWidth = w;
     table.querySelectorAll('tbody tr').forEach(tr => {
       const td = tr.children[index];
@@ -6227,11 +6233,13 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
   }
 
   function splitRow(tr, savedLayerKey){
-    // Use saved layer key if provided, otherwise generate new one
-    const layerKey = savedLayerKey || 'layer-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    
     // Check if this row is already layered (has existing layer children)
     const existingLayerKey = tr.getAttribute('data-layer-key');
+
+    // Re-layering keeps the row's existing key: layerData stores that key, so a
+    // new one here would make the restored layers (after regrouping/reloading)
+    // get a different key than the climate mappings saved for the children.
+    const layerKey = savedLayerKey || existingLayerKey || 'layer-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     if(existingLayerKey && !savedLayerKey){
       // Re-layering: remove all existing layer children first
       const existingChildren = Array.from(tbody.querySelectorAll(`tr[data-layer-child-of="${CSS.escape(existingLayerKey)}"]`));
@@ -6264,11 +6272,18 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
         const layerChildOf = tr.getAttribute('data-layer-child-of');
         const signature = getRowSignature(rowData, layerChildOf);
         const beforeSize = layerData.size;
+        // Same fields as the group path and applyLayerSplitWithKey - without
+        // them, per-layer climate resources and mixed materials were lost as
+        // soon as the table was re-rendered (regrouping, reloading).
         const layerDataEntry = {
           count,
           thicknesses,
-          layerKey: existingLayerKey || layerKey,
-          layerNames: layerNames && layerNames.length > 0 ? layerNames : undefined
+          layerKey,
+          layerNames: layerNames && layerNames.length > 0 ? layerNames : undefined,
+          mixedLayerConfigs: mixedLayerConfigs && mixedLayerConfigs.length > 0 ? mixedLayerConfigs : undefined,
+          climateResources: climateResources && climateResources.length > 0 ? climateResources : undefined,
+          climateTypes: climateTypes && climateTypes.length > 0 ? climateTypes : undefined,
+          climateFactors: climateFactors && climateFactors.length > 0 ? climateFactors : undefined
         };
         layerData.set(signature, layerDataEntry);
         // Also save with null layerChildOf for groupBy changes
@@ -6294,40 +6309,7 @@ function applyLayerSplit(count, thicknesses, mixedLayerConfigs = [], layerNames 
     tr.setAttribute('data-layer-key', layerKey);
     tr.setAttribute('data-open', 'false'); // Start collapsed by default
 
-    // Update action buttons on parent row
-    const actionTd = tr.querySelector('td:first-child');
-    if(actionTd){
-      actionTd.innerHTML = '';
-      const parentLayerBtn = document.createElement('button');
-      parentLayerBtn.type = 'button';
-      parentLayerBtn.textContent = 'Skikta skikt';
-      parentLayerBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        // Open as 'row' type so it can be re-layered
-        openLayerModal({ type: 'row', rowEl: tr });
-      });
-      actionTd.appendChild(parentLayerBtn);
-      
-      const parentClimateBtn = document.createElement('button');
-      parentClimateBtn.type = 'button';
-      parentClimateBtn.textContent = 'Mappa klimatresurs';
-      parentClimateBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        openClimateModal({ type: 'group', key: layerKey });
-      });
-      actionTd.appendChild(parentClimateBtn);
-
-      const parentAltClimateBtn = document.createElement('button');
-      parentAltClimateBtn.type = 'button';
-      parentAltClimateBtn.textContent = 'Mappa till EPD';
-      parentAltClimateBtn.style.marginLeft = '5px'; // Add some spacing
-      parentAltClimateBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        openAltClimateModal({ type: 'group', key: layerKey });
-      });
-      actionTd.appendChild(parentAltClimateBtn);
-      // console.log('🔧 [Debug] parentAltClimateBtn created in applyLayerSplit function');
-    }
+    setLayerParentButtons(tr, layerKey);
     
     // Add toggle to first data cell
     const firstDataTd = tr.querySelector('td:nth-child(2)');
