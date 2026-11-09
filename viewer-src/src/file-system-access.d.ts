@@ -36,8 +36,13 @@ declare global {
     multiple?: boolean;
   }
 
+  interface SaveFilePickerOptions extends FilePickerOptions {
+    suggestedName?: string;
+  }
+
   interface Window {
     showOpenFilePicker(options?: OpenFilePickerOptions): Promise<FileSystemFileHandle[]>;
+    showSaveFilePicker?(options?: SaveFilePickerOptions): Promise<FileSystemFileHandle>;
   }
 
   interface DataTransferItem {

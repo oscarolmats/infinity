@@ -504,6 +504,58 @@
         background: var(--surface-hover-strong);
       }
 
+      .model-row button.active {
+        opacity: 1;
+        color: var(--color-primary);
+      }
+
+      .model-elevation {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        margin: -2px 0 2px;
+        padding: 6px 7px;
+        background: var(--surface-chip);
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      }
+
+      .model-elevation-inputs,
+      .model-elevation-actions {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .model-elevation .toolbar-button {
+        padding: 3px 9px;
+        font-size: 0.78rem;
+      }
+
+      .model-elevation-actions .toolbar-button {
+        flex: 1;
+        justify-content: center;
+      }
+
+      .model-elevation-input {
+        flex: 1;
+        min-width: 0;
+        font: inherit;
+        font-size: 0.78rem;
+        padding: 3px 6px;
+        text-align: right;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        background: var(--surface-hover-strong);
+        color: var(--text-primary);
+      }
+
+      .model-elevation-unit {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+      }
+
       .model-empty {
         font-size: 0.8rem;
         color: var(--text-muted);

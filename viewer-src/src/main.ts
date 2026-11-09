@@ -6,6 +6,7 @@ import writeExcelFile from "write-excel-file/browser";
 import { generateBuildingIfc } from "./ifcGenerator";
 import { FootprintEditor } from "./footprintEditor";
 import { type SyncedFile, readFileMeta, saveSourceFiles, loadSourceFiles } from "./ifcFileSync";
+import { shiftIfcElevation } from "./ifcElevation";
 
 const container = document.getElementById("container") as HTMLDivElement;
 const statusSelection = document.getElementById("status-selection") as HTMLSpanElement;
@@ -189,6 +190,12 @@ world.camera.controls.addEventListener("update", () => {
 });
 
 const modelNames = new Map<string, string>();
+// Osparad höjdförflyttning (meter, positiv = uppåt) per modell. Förhandsvisas
+// genom att förskjuta modellens three-objekt i Y (scenen är Y-upp) RELATIVT
+// dess nuvarande position - objektet kan redan ha en egen transform från
+// fragments koordinering mellan modeller, så den får inte skrivas över.
+const elevationPending = new Map<string, number>();
+let elevationEditModelId: string | null = null;
 // Rå IFC (STEP) -text per modell, sparad vid inläsning/generering så att
 // flera modeller senare kan slås ihop och exporteras till en gemensam fil.
 const modelIfcText = new Map<string, string>();
@@ -358,6 +365,8 @@ fragments.list.onBeforeDelete.add(({ value: model }) => {
 fragments.list.onItemDeleted.add((modelId) => {
   modelNames.delete(modelId);
   modelIfcText.delete(modelId);
+  elevationPending.delete(modelId);
+  if (elevationEditModelId === modelId) elevationEditModelId = null;
   renderModelList();
   treeBuiltMode = null;
   renderModelTreeIfOpen();
@@ -1616,6 +1625,122 @@ const ICON_EYE_OFF =
 const ICON_TRASH =
   '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>';
 
+const ICON_MOVE_VERTICAL =
+  '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20" /><path d="m8 18 4 4 4-4" /><path d="m8 6 4-4 4 4" /></svg>';
+
+/** Sätter modellens osparade höjdförflyttning och förhandsvisar den direkt. */
+async function setElevationPending(modelId: string, value: number): Promise<void> {
+  const model = fragments.list.get(modelId);
+  if (!model || !Number.isFinite(value)) return;
+  const previous = elevationPending.get(modelId) ?? 0;
+  model.object.position.y += value - previous;
+  model.object.updateMatrixWorld(true);
+  if (value === 0) elevationPending.delete(modelId);
+  else elevationPending.set(modelId, value);
+
+  const editor = modelListEl.querySelector<HTMLElement>(".model-elevation");
+  if (editor?.dataset.modelId === modelId) {
+    for (const button of editor.querySelectorAll<HTMLButtonElement>(
+      ".model-elevation-save, .model-elevation-reset",
+    )) {
+      button.disabled = value === 0;
+    }
+  }
+  await fragments.core.update(true);
+  postproductionRenderer.needsUpdate = true;
+}
+
+/** Skriver in den osparade höjdförflyttningen i modellens IFC-fil - källfilen
+ *  skrivs över på plats om modellen kommer från en synkad fil, annars sparas
+ *  en ny fil. Modellen läses inte om: förhandsvisningen stämmer redan. */
+async function saveElevation(modelId: string): Promise<void> {
+  const pending = elevationPending.get(modelId) ?? 0;
+  const text = modelIfcText.get(modelId);
+  const name = modelNames.get(modelId) ?? "modell.ifc";
+  if (pending === 0) return;
+  if (!text) {
+    filesStatus.textContent = "Hittar inte IFC-datan för modellen.";
+    return;
+  }
+
+  const entry = modelId.startsWith("syncfile:")
+    ? syncedFiles.find((file) => syncedModelId(file.id) === modelId)
+    : undefined;
+  const sign = pending > 0 ? "+" : "";
+  if (
+    entry &&
+    !confirm(`Flytta ${name} ${sign}${pending.toFixed(3)} m i höjdled och skriva över filen?`)
+  ) {
+    return;
+  }
+
+  let result: ReturnType<typeof shiftIfcElevation>;
+  try {
+    result = shiftIfcElevation(text, pending);
+  } catch (err) {
+    console.error(err);
+    filesStatus.textContent = "Kunde inte flytta modellen i IFC-filen.";
+    return;
+  }
+  if (result.movedPlacements === 0) {
+    filesStatus.textContent = "Hittade inga rotplaceringar att flytta i IFC-filen.";
+    return;
+  }
+
+  try {
+    if (entry) {
+      // Behörighet att skriva måste begäras separat från läsbehörigheten
+      // som gavs när filen valdes - och bara från en användarhandling.
+      let permission = await entry.handle.queryPermission({ mode: "readwrite" });
+      if (permission !== "granted") {
+        permission = await entry.handle.requestPermission({ mode: "readwrite" });
+      }
+      if (permission !== "granted") {
+        filesStatus.textContent = "Fick inte skrivbehörighet till filen.";
+        return;
+      }
+      const writable = await entry.handle.createWritable();
+      await writable.write(result.text);
+      await writable.close();
+      // Uppdatera synkens metadata så den egna sparningen inte ses som en
+      // extern ändring och laddar om modellen (vilket nollställer vyn).
+      const meta = await readFileMeta(entry.handle);
+      entry.lastModified = meta.lastModified;
+      entry.size = meta.size;
+    } else {
+      const suggestedName = name.toLowerCase().endsWith(".ifc") ? name : `${name}.ifc`;
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [{ description: "IFC-fil", accept: { "application/octet-stream": [".ifc"] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(result.text);
+        await writable.close();
+      } else {
+        const url = URL.createObjectURL(new Blob([result.text], { type: "application/octet-stream" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = suggestedName;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    }
+  } catch (err) {
+    if ((err as DOMException)?.name === "AbortError") return;
+    console.error(err);
+    filesStatus.textContent = "Kunde inte spara IFC-filen.";
+    return;
+  }
+
+  modelIfcText.set(modelId, result.text);
+  // Förflyttningen är nu en del av filen - behåll objektets position men
+  // nollställ det osparade värdet.
+  elevationPending.delete(modelId);
+  renderModelList();
+  filesStatus.textContent = `${name} flyttad ${sign}${pending.toFixed(3)} m och sparad (${result.movedPlacements} placering(ar), ${result.movedStoreys} våningsplan).`;
+}
+
 function renderModelList() {
   const modelIds = [...fragments.list.keys()];
 
@@ -1629,25 +1754,82 @@ function renderModelList() {
       const model = fragments.list.get(modelId);
       const name = modelNames.get(modelId) ?? modelId;
       const visible = model ? model.object.visible : true;
+      const editing = elevationEditModelId === modelId;
+      const pending = elevationPending.get(modelId) ?? 0;
       return `
         <div class="model-row" data-model-id="${escapeHtml(modelId)}">
           <span class="model-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          <button class="model-elevation-toggle${editing ? " active" : ""}" title="Flytta i höjdled">${ICON_MOVE_VERTICAL}</button>
           <button class="model-toggle" title="Visa/dölj">${visible ? ICON_EYE : ICON_EYE_OFF}</button>
           <button class="model-remove" title="Ta bort">${ICON_TRASH}</button>
         </div>
+        ${
+          editing
+            ? `
+        <div class="model-elevation" data-model-id="${escapeHtml(modelId)}">
+          <div class="model-elevation-inputs">
+            <button class="toolbar-button" data-elev-step="-0.1" title="Sänk 0,1 m">−</button>
+            <input type="number" class="model-elevation-input" step="0.01" value="${pending.toFixed(3)}" title="Förflyttning i höjdled (m), positivt = uppåt" />
+            <span class="model-elevation-unit">m</span>
+            <button class="toolbar-button" data-elev-step="0.1" title="Höj 0,1 m">+</button>
+          </div>
+          <div class="model-elevation-actions">
+            <button class="toolbar-button primary model-elevation-save"${pending === 0 ? " disabled" : ""}>Spara IFC</button>
+            <button class="toolbar-button model-elevation-reset"${pending === 0 ? " disabled" : ""}>Återställ</button>
+          </div>
+        </div>`
+            : ""
+        }
       `;
     })
     .join("");
 }
 
+modelListEl.addEventListener("input", (event) => {
+  const input = (event.target as HTMLElement).closest<HTMLInputElement>(".model-elevation-input");
+  const modelId = input?.closest<HTMLElement>(".model-elevation")?.dataset.modelId;
+  if (!input || !modelId) return;
+  const value = input.value.trim() === "" ? 0 : Number(input.value.replace(",", "."));
+  void setElevationPending(modelId, value);
+});
+
 modelListEl.addEventListener("click", async (event) => {
   const target = event.target as HTMLElement;
+
+  const editor = target.closest<HTMLElement>(".model-elevation");
+  if (editor) {
+    const editorModelId = editor.dataset.modelId;
+    if (!editorModelId) return;
+    const stepButton = target.closest<HTMLElement>("[data-elev-step]");
+    if (stepButton) {
+      const input = editor.querySelector<HTMLInputElement>(".model-elevation-input");
+      const current = elevationPending.get(editorModelId) ?? 0;
+      // Avrunda till mm så upprepade klick inte samlar flyttalsbrus.
+      const next = Math.round((current + Number(stepButton.dataset.elevStep)) * 1000) / 1000;
+      if (input) input.value = next.toFixed(3);
+      await setElevationPending(editorModelId, next);
+    } else if (target.closest(".model-elevation-reset")) {
+      await setElevationPending(editorModelId, 0);
+      const input = editor.querySelector<HTMLInputElement>(".model-elevation-input");
+      if (input) input.value = (0).toFixed(3);
+    } else if (target.closest(".model-elevation-save")) {
+      await saveElevation(editorModelId);
+    }
+    return;
+  }
+
   const row = target.closest(".model-row") as HTMLElement | null;
   const modelId = row?.dataset.modelId;
   if (!modelId) return;
 
   const model = fragments.list.get(modelId);
   if (!model) return;
+
+  if (target.closest(".model-elevation-toggle")) {
+    elevationEditModelId = elevationEditModelId === modelId ? null : modelId;
+    renderModelList();
+    return;
+  }
 
   if (target.closest(".model-toggle")) {
     model.object.visible = !model.object.visible;
