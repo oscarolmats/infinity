@@ -201,6 +201,79 @@
     .icon-btn.close-btn:hover { background: #ffebee; border-color: #f44336; }
 
     .hidden { display: none; }
+
+    /* ===== Layer modal ("Dela i skikt", app.js layer modal code) ===== */
+    #layerModal [hidden] { display: none !important; }
+    .lm-box { background: #fff; border-radius: 10px; width: min(820px, 94vw); max-height: 90vh; overflow-y: auto; box-shadow: 0 12px 36px rgba(15, 35, 55, 0.2); padding: 20px 22px; display: grid; gap: 16px; }
+    .lm-title { margin: 0; font-size: 1.15rem; font-weight: 700; color: #14202e; }
+    .lm-sub { color: #5d6b7c; font-size: 0.8rem; margin-top: 2px; }
+    .lm-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+    .lm-chip { font: inherit; font-size: 0.78rem; padding: 5px 12px; border-radius: 999px; border: 1px solid #dbe2ea; background: #f6f8fb; color: #14202e; cursor: pointer; }
+    .lm-chip:hover { border-color: #1976d2; color: #1976d2; }
+
+    /* vertical bar of the build-up, layers top to bottom in row order */
+    .lm-area { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 14px; }
+    .lm-bar { display: flex; flex-direction: column; margin-top: 24px; border-radius: 6px; overflow: hidden; border: 1px solid #dbe2ea; }
+    .lm-seg { min-height: 2px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; color: #14202e; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; border-bottom: 1px solid #fff; }
+    .lm-seg:last-child { border-bottom: 0; }
+    .lm-seg:nth-child(odd) { background: #cfe2f5; }
+    .lm-seg:nth-child(even) { background: #e4eef9; }
+    .lm-seg.lm-seg-mixed { background: repeating-linear-gradient(135deg, #cfe2f5 0 5px, #9dc0e6 5px 10px); }
+    .lm-seg.lm-seg-mixed span { background: #fff; border-radius: 3px; padding: 0 3px; }
+
+    /* one row per layer (+ material 2 and EPD factor rows) */
+    .lm-grid { display: grid; grid-template-columns: 22px minmax(100px, 0.9fr) 92px minmax(200px, 1.8fr) 72px 30px; gap: 8px; align-items: center; }
+    .lm-head { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5d6b7c; margin-bottom: 4px; }
+    .lm-rows { display: grid; gap: 6px; }
+    .lm-layer { display: grid; gap: 6px; }
+    .lm-layer-mixed { background: #f1f6fc; border-radius: 6px; margin-inline: -6px; padding: 6px; box-shadow: inset 3px 0 0 #1976d2; }
+    .lm-n { color: #5d6b7c; font-size: 0.8rem; text-align: right; font-variant-numeric: tabular-nums; }
+    .lm-box input[type="text"], .lm-box input[type="number"], .lm-catalog input[type="search"], .lm-catalog select {
+      font: inherit; font-size: 0.85rem; color: #14202e; background: #f6f8fb; border: 1px solid #dbe2ea; border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; box-sizing: border-box;
+    }
+    .lm-box input[type="number"] { text-align: right; font-variant-numeric: tabular-nums; }
+    .lm-res { font: inherit; font-size: 0.85rem; text-align: left; color: #14202e; background: #f6f8fb; border: 1px solid #dbe2ea; border-radius: 6px; padding: 6px 28px 6px 8px; width: 100%; min-width: 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+    .lm-res::after { content: "⌕"; position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: #1976d2; font-size: 15px; }
+    .lm-res:hover { border-color: #1976d2; }
+    .lm-res.lm-missing { border-color: #b45309; color: #b45309; }
+    .lm-mixbox { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; color: #5d6b7c; cursor: pointer; }
+    .lm-mixbox input { accent-color: #1976d2; }
+    .lm-del { font: inherit; width: 30px; height: 30px; border-radius: 6px; border: 1px solid #dbe2ea; background: #fff; color: #5d6b7c; cursor: pointer; }
+    .lm-del:hover:not(:disabled) { color: #b45309; border-color: #b45309; }
+    .lm-del:disabled { opacity: .35; cursor: default; }
+    .lm-unit { position: relative; }
+    .lm-unit::after { content: attr(data-unit); position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: #5d6b7c; font-size: 0.75rem; pointer-events: none; }
+    .lm-box .lm-unit input { padding-right: 44px; }
+    .lm-factor .lm-label { grid-column: 2; font-size: 0.8rem; color: #5d6b7c; text-align: right; }
+    .lm-factor .lm-unit { grid-column: 4; max-width: 200px; }
+    .lm-add { font: inherit; border: 0; background: none; color: #1976d2; padding: 6px 0 0; cursor: pointer; font-weight: 500; }
+
+    .lm-foot { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; border-top: 1px solid #dbe2ea; padding-top: 14px; }
+    .lm-total b { font-weight: 500; font-variant-numeric: tabular-nums; }
+    .lm-status { font-size: 0.8rem; margin-top: 2px; }
+    .lm-ok { color: #2e7d32; }
+    .lm-warn { color: #b45309; }
+    .lm-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .lm-btn { font: inherit; font-weight: 500; border-radius: 999px; padding: 8px 18px; cursor: pointer; border: 1px solid #dbe2ea; background: #fff; color: #14202e; }
+    .lm-btn.lm-primary { background: #1976d2; border-color: #1976d2; color: #fff; }
+    .lm-btn:disabled { opacity: .45; cursor: default; }
+    .lm-message { font-size: 0.8rem; color: #2e7d32; min-height: 1em; }
+    .lm-message.lm-message-error { color: #b45309; }
+
+    /* climate resource catalogue for one layer */
+    .lm-scrim { position: fixed; inset: 0; background: rgba(10, 20, 30, 0.42); display: grid; place-items: center; z-index: 10; padding: 16px; }
+    .lm-catalog { width: min(860px, 100%); max-height: 100%; overflow: auto; background: #fff; border-radius: 10px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); display: grid; }
+    .lm-catalog > * { padding: 16px 20px; }
+    .lm-cat-head { border-bottom: 1px solid #dbe2ea; }
+    .lm-cat-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+    .lm-cat-left { display: grid; gap: 8px; align-content: start; }
+    .lm-catalog select[size] { padding: 4px; min-height: 300px; }
+    .lm-details { background: #f6f8fb; border: 1px solid #dbe2ea; border-radius: 8px; padding: 14px; display: grid; gap: 10px; align-content: start; font-size: 0.85rem; margin: 0; }
+    .lm-details dt { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5d6b7c; }
+    .lm-details dd { margin: 2px 0 0; }
+    .lm-empty { color: #5d6b7c; font-style: italic; margin: 0; }
+    .lm-cat-foot { border-top: 1px solid #dbe2ea; display: flex; justify-content: flex-end; gap: 8px; }
+    .lm-btn.lm-clear { margin-right: auto; border: 0; background: none; color: #b45309; padding-inline: 4px; }
     /* Editable cells */
     td.editable { 
       cursor: text;
@@ -606,67 +679,59 @@
     <div id="output"></div>
   </div>
 
-  <!-- Layer modal -->
+  <!-- Layer modal ("Dela i skikt") - rendered by the layer modal code in app.js -->
   <div id="layerModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 2000;">
-    <div style="background:#fff; padding:16px; border-radius:8px; width: min(600px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto;">
-      <h2 style="margin-top:0;">Dela i skikt</h2>
-
-      <!-- Presets -->
-      <div style="margin-bottom:14px;">
-        <p style="margin:0 0 6px 0; font-size:0.8rem; color:#666; font-weight:500;">Snabbval:</p>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" id="presetInnervaggUtan" style="font-size:0.78rem; padding:5px 12px; border:1px solid #1976d2; border-radius:20px; background:#e3f2fd; color:#1565c0; cursor:pointer; white-space:nowrap;">Innervägg utan isolering</button>
-          <button type="button" id="presetInnervaggMed" style="font-size:0.78rem; padding:5px 12px; border:1px solid #388e3c; border-radius:20px; background:#e8f5e9; color:#2e7d32; cursor:pointer; white-space:nowrap;">Innervägg med isolering (stenull)</button>
-        </div>
+    <div class="lm-box" role="dialog" aria-labelledby="lmTitle">
+      <div>
+        <h2 id="lmTitle" class="lm-title">Dela i skikt</h2>
+        <div class="lm-sub" id="lmSub"></div>
       </div>
 
-      <div style="display:flex; gap:12px;">
-        <label style="flex:1;">
-          Antal skikt
-          <input id="layerCount" type="number" min="1" value="2" style="width:100%;" />
-        </label>
-        <label style="flex:2;">
-          Tjocklekar (kommaseparerade i mm)
-          <input id="layerThicknesses" type="text" placeholder="t.ex. 10,5" style="width:100%;" />
-        </label>
-      </div>
-      <p class="muted">Lämna tjocklekar tomma för att fördela jämnt.</p>
-      
-      <!-- Mixed Layer Section -->
-      <div style="margin-top:16px; padding:12px; border:1px solid #ddd; border-radius:4px; background:#f9f9f9;">
-        <h3 style="margin-top:0; margin-bottom:12px; font-size:1rem;">Blandade skikt</h3>
-        <p class="muted" style="margin-top:0; margin-bottom:12px;">Bocka i vilka skikt som är blandningar av två material:</p>
-        
-        <div id="mixedLayerCheckboxes" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:8px; margin-bottom:16px;">
-          <!-- Will be populated dynamically based on layer count -->
-        </div>
-        
-        <div id="mixedLayerDetails" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #ddd;">
-          <p class="muted" style="margin-top:0; margin-bottom:12px;">Konfigurera de blandade skikten:</p>
-          <div id="mixedLayerConfigs">
-            <!-- Will be populated dynamically for each mixed layer -->
+      <div class="lm-presets" id="lmPresets"></div>
+
+      <div>
+        <div class="lm-area">
+          <div class="lm-bar" id="lmBar" aria-hidden="true"></div>
+          <div>
+            <div class="lm-grid lm-head"><span></span><span>Namn</span><span>Tjocklek (mm)</span><span>Klimatresurs</span><span></span><span></span></div>
+            <div class="lm-rows" id="lmRows"></div>
           </div>
         </div>
+        <button type="button" class="lm-add" id="lmAdd">+ Lägg till skikt</button>
       </div>
-      
-      <!-- Layer Names and Climate Resources Section -->
-      <div id="layerNamesSection" style="margin-top:16px; padding:12px; border:1px solid #ddd; border-radius:4px; background:#f9f9f9;">
-        <h3 style="margin-top:0; margin-bottom:12px; font-size:1rem;">Skiktnamn och klimatresurser</h3>
-        <p class="muted" style="margin-top:0; margin-bottom:12px;">Namnge varje skikt och välj klimatresurs (valfritt):</p>
-        
-        <div id="layerNamesContainer">
-          <!-- Will be populated dynamically based on layer count -->
+
+      <div class="lm-foot">
+        <div>
+          <div class="lm-total" id="lmTotal"></div>
+          <div class="lm-status" id="lmStatus"></div>
         </div>
-        
+        <div class="lm-btns">
+          <button id="layerPaste" type="button" class="lm-btn" hidden>Klistra in kopierade skikt</button>
+          <button id="layerCancel" type="button" class="lm-btn">Avbryt</button>
+          <button id="layerApply" type="button" class="lm-btn lm-primary">Dela</button>
+        </div>
       </div>
-      
-      <div style="display:flex; gap:8px; justify-content:space-between; margin-top:12px;">
-        <div style="display:flex; gap:8px;">
-          <button id="layerPaste" type="button" style="display:none;">Klistra in</button>
+      <div class="lm-message" id="lmMessage" role="status"></div>
+    </div>
+
+    <!-- Climate resource catalogue for one layer -->
+    <div class="lm-scrim" id="lmCatalog" hidden>
+      <div class="lm-catalog" role="dialog" aria-labelledby="lmCatTitle">
+        <div class="lm-cat-head">
+          <h2 id="lmCatTitle" class="lm-title">Mappa klimatresurs</h2>
+          <div class="lm-sub" id="lmCatTarget"></div>
         </div>
-        <div style="display:flex; gap:8px;">
-          <button id="layerCancel" type="button">Avbryt</button>
-          <button id="layerApply" type="button">Dela</button>
+        <div class="lm-cat-body">
+          <div class="lm-cat-left">
+            <input type="search" id="lmCatSearch" placeholder="Sök klimatresurs…" aria-label="Sök klimatresurs" autocomplete="off">
+            <select id="lmCatList" size="14" aria-label="Klimatresurser"></select>
+          </div>
+          <dl class="lm-details" id="lmCatDetails"></dl>
+        </div>
+        <div class="lm-cat-foot">
+          <button type="button" class="lm-btn lm-clear" id="lmCatClear">Ta bort klimatresurs</button>
+          <button type="button" class="lm-btn" id="lmCatCancel">Avbryt</button>
+          <button type="button" class="lm-btn lm-primary" id="lmCatUse" disabled>Använd</button>
         </div>
       </div>
     </div>

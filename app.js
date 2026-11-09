@@ -105,17 +105,9 @@ let savedFileHandle = null; // store file handle for quick save
 
 // Layer modal refs
 const layerModal = document.getElementById('layerModal');
-const layerCountInput = document.getElementById('layerCount');
-const layerThicknessesInput = document.getElementById('layerThicknesses');
 const layerCancelBtn = document.getElementById('layerCancel');
 const layerApplyBtn = document.getElementById('layerApply');
 const layerPasteBtn = document.getElementById('layerPaste');
-// Mixed layer refs
-const mixedLayerCheckboxes = document.getElementById('mixedLayerCheckboxes');
-const mixedLayerDetails = document.getElementById('mixedLayerDetails');
-const mixedLayerConfigs = document.getElementById('mixedLayerConfigs');
-const layerNamesSection = document.getElementById('layerNamesSection');
-const layerNamesContainer = document.getElementById('layerNamesContainer');
 let layerTarget = null; // { type: 'row'|'group', key?: string, rowEl?: HTMLTableRowElement }
 
 // Climate resource modal refs
@@ -391,6 +383,16 @@ function reattachTableEventListeners(){
     const groupKey = isGroupParent ? row.getAttribute('data-group-key') : null;
     const layerKey = isLayerParent ? row.getAttribute('data-layer-key') : null;
 
+    // Layered rows get the exact buttons they get on a normal render. Patching
+    // them below used group semantics with the layer key (copy/edit looked for
+    // a *group* with that key, found nothing and copy reported "Inga
+    // skiktinställningar att kopiera"), and older saved projects still carry
+    // the legacy text buttons.
+    if(isLayerParent && layerKey){
+      setLayerParentButtons(row, layerKey);
+      return;
+    }
+
     const layerBtn = actionTd.querySelector('button.layer-btn');
     if(layerBtn){
       layerBtn.onclick = function(ev){
@@ -462,16 +464,21 @@ function reattachTableEventListeners(){
 
     // console.log('🔄 [reattach] Restoring _originalRowData for', allRows.length, 'rows from', dataRows.length, 'data rows');
 
-    // Create a lookup map: description -> original row data (with trimmed values)
+    // Match on the same six identifying columns getRowSignature uses. Matching
+    // on column 3 alone (often Type) is not unique: rows sharing it all got
+    // the LAST such row as _originalRowData, so their signatures no longer
+    // matched layerData/climateData and copy, edit and re-mapping broke.
+    // The matched raw row (not the DOM strings) is assigned, so signatures
+    // are byte-identical to the ones computed when the project was saved.
+    const identityKey = (row) => JSON.stringify(row.slice(0, 6).map(v => String(v ?? '').trim()));
+    const identityToRow = new Map();
     const descriptionToRow = new Map();
     dataRows.forEach(row => {
-      if(row && row.length >= 4){
-        // Use description (column 3) as key, trimmed to handle whitespace differences
-        const desc = String(row[3] || '').trim();
-        if(desc){
-          descriptionToRow.set(desc, row);
-        }
-      }
+      if(!Array.isArray(row)) return;
+      const key = identityKey(row);
+      if(!identityToRow.has(key)) identityToRow.set(key, row);
+      const desc = String(row[3] ?? '').trim();
+      if(desc && !descriptionToRow.has(desc)) descriptionToRow.set(desc, row);
     });
 
     allRows.forEach(tr => {
@@ -482,9 +489,8 @@ function reattachTableEventListeners(){
       const currentRowData = getRowDataFromTr(tr);
       if(!currentRowData || currentRowData.length < 4) return;
 
-      // Try to find matching row by description (column 3), which should be unique
-      const currentDesc = String(currentRowData[3] || '').trim();
-      const matchingRow = descriptionToRow.get(currentDesc);
+      const matchingRow = identityToRow.get(identityKey(currentRowData))
+        || descriptionToRow.get(String(currentRowData[3] || '').trim());
 
       if(matchingRow){
         tr._originalRowData = matchingRow;
@@ -508,6 +514,20 @@ function reattachTableEventListeners(){
     });
   }
   
+  // _originalBoverketClimate is a JS property, so it isn't part of the saved
+  // tableHTML. Without it the reduction/EPD-andel summary disappears and
+  // re-mapping a row to EPD loses its Boverket baseline. climateData keeps the
+  // values under the same signature key the mapping code saves with.
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const rowData = tr._originalRowData;
+    if(!rowData) return;
+    const signatureKey = tr.getAttribute('data-layer-key') || tr.getAttribute('data-layer-child-of');
+    const climateInfo = climateData.get(getRowSignature(rowData, signatureKey));
+    if(climateInfo && typeof climateInfo === 'object' && climateInfo.originalBoverket){
+      tr._originalBoverketClimate = climateInfo.originalBoverket;
+    }
+  });
+
   // Re-apply filters
   // Restore table utilities lost on innerHTML restore
   try { attachSorting(table); } catch(_){}
@@ -3300,204 +3320,6 @@ function exportTableToExcel(){
 }
 
 // Layer modal behavior
-function openLayerModal(target){
-  layerTarget = target;
-
-  // console.log('🔍 [openLayerModal] Called with target:', target);
-
-  // Pre-fill with existing values if editing an already layered item
-  if(target.type === 'row' && target.rowEl){
-    // For a single row, check if it's a layer parent
-    const layerKey = target.rowEl.getAttribute('data-layer-key');
-    // console.log('🔍 [openLayerModal] Layer key:', layerKey);
-    // console.log('🔍 [openLayerModal] Has _originalRowData:', !!target.rowEl._originalRowData);
-    // console.log('🔍 [openLayerModal] layerData.size:', layerData.size);
-
-    if(layerKey){
-      // This row is already layered, get its layer data
-      const rowData = target.rowEl._originalRowData || getRowDataFromTr(target.rowEl);
-      // console.log('🔍 [openLayerModal] Row data:', rowData ? rowData.slice(0, 3) : 'null');
-
-      if(rowData){
-        const layerChildOf = target.rowEl.getAttribute('data-layer-child-of');
-        const signature = getRowSignature(rowData, layerChildOf);
-        let saved = layerData.get(signature);
-        // console.log('🔍 [openLayerModal] LayerChildOf:', layerChildOf);
-        // console.log('🔍 [openLayerModal] Signature:', signature.substring(0, 60));
-        // console.log('🔍 [openLayerModal] Saved data found:', !!saved);
-
-        // If not found, try without the layerChildOf suffix (for backwards compatibility)
-        if(!saved && layerChildOf){
-          const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
-          saved = layerData.get(signatureWithoutLayerChildOf);
-          // console.log('🔍 [openLayerModal] Trying without layerChildOf suffix');
-          // console.log('🔍 [openLayerModal] Saved data found (2nd attempt):', !!saved);
-        }
-
-        if(!saved){
-          // console.log('🔍 [openLayerModal] Available signatures in layerData:');
-          layerData.forEach((_value, key) => {
-            // console.log('  -', key.substring(0, 60));
-          });
-        }
-        if(saved){
-          // console.log('🔍 [openLayerModal] Saved data:', saved);
-          if(layerCountInput) layerCountInput.value = saved.count;
-          if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
-
-          // Store mixed layer configs and layer data to be loaded after UI is initialized
-          target.rowEl._pendingLayerData = saved;
-        }
-      }
-    } else {
-      // Not yet layered, clear the inputs
-      if(layerCountInput) layerCountInput.value = '2';
-      if(layerThicknessesInput) layerThicknessesInput.value = '';
-      updateLayerNamesContainer();
-    }
-  } else if(target.type === 'group' && target.key){
-    // console.log('🔍 [openLayerModal] Opening group modal for key:', target.key);
-    // Find existing layer data for this group
-    const table = getTable();
-    if(table){
-      const tbody = table.querySelector('tbody');
-      if(tbody){
-        // First, try to find a layer parent within this group (for already-layered groups)
-        const layerParentInGroup = tbody.querySelector(`tr[data-group-child-of="${CSS.escape(target.key)}"][data-layer-key]`);
-        // console.log('🔍 [openLayerModal] Layer parent in group found:', !!layerParentInGroup);
-
-        if(layerParentInGroup){
-          // Group is already layered - get data from one of the layer parents within the group
-          const rowData = layerParentInGroup._originalRowData || getRowDataFromTr(layerParentInGroup);
-          // console.log('🔍 [openLayerModal] Row data from layer parent:', !!rowData);
-          // console.log('🔍 [openLayerModal] Has _originalRowData:', !!layerParentInGroup._originalRowData);
-          if(rowData){
-            // Use the layer parent's data-group-child-of as the signature key
-            const groupChildOf = layerParentInGroup.getAttribute('data-group-child-of');
-            const signature = getRowSignature(rowData, groupChildOf);
-            let saved = layerData.get(signature);
-            // console.log('🔍 [openLayerModal] GroupChildOf:', groupChildOf);
-            // console.log('🔍 [openLayerModal] Row data (first 6 cols):', rowData.slice(0, 6));
-            // console.log('🔍 [openLayerModal] Full signature:', signature);
-            // console.log('🔍 [openLayerModal] Saved layer data found:', !!saved);
-
-            // If not found, try without the layerChildOf suffix (for backwards compatibility)
-            if(!saved && groupChildOf){
-              const signatureWithoutLayerChildOf = getRowSignature(rowData, null);
-              saved = layerData.get(signatureWithoutLayerChildOf);
-              // console.log('🔍 [openLayerModal] Trying without layerChildOf suffix:', signatureWithoutLayerChildOf);
-              // console.log('🔍 [openLayerModal] Saved layer data found (2nd attempt):', !!saved);
-            }
-
-            // console.log('🔍 [openLayerModal] layerData.size:', layerData.size);
-            if(!saved){
-              // console.log('🔍 [openLayerModal] Available signatures in layerData (first 3):');
-              let count = 0;
-              layerData.forEach((_value, key) => {
-                if(count < 3){
-                  // console.log('  Full signature:', key);
-                  count++;
-                }
-              });
-            }
-            if(saved){
-              if(layerCountInput) layerCountInput.value = saved.count;
-              if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
-
-              // Store mixed layer configs and layer data to be loaded after UI is initialized
-              if(!layerTarget._pendingLayerData){
-                layerTarget._pendingLayerData = saved;
-              }
-            }
-          }
-        } else {
-          // Not yet layered, or try the old method for backwards compatibility
-          const firstChild = tbody.querySelector(`tr[data-layer-child-of="${CSS.escape(target.key)}"]`);
-          // console.log('🔍 [openLayerModal] First child found (legacy):', !!firstChild);
-          if(firstChild){
-            const rowData = firstChild._originalRowData || getRowDataFromTr(firstChild);
-            // console.log('🔍 [openLayerModal] Row data found:', !!rowData);
-            if(rowData){
-              const signature = getRowSignature(rowData, target.key);
-              const saved = layerData.get(signature);
-              // console.log('🔍 [openLayerModal] Saved layer data found:', !!saved, 'Signature:', signature);
-              if(saved){
-                if(layerCountInput) layerCountInput.value = saved.count;
-                if(layerThicknessesInput) layerThicknessesInput.value = saved.thicknesses.join(', ');
-
-                // Store mixed layer configs and layer data to be loaded after UI is initialized
-                if(!layerTarget._pendingLayerData){
-                  layerTarget._pendingLayerData = saved;
-                }
-              }
-            }
-          } else {
-            // console.log('🔍 [openLayerModal] No existing layer data found, clearing inputs');
-            // Not yet layered, clear the inputs
-            if(layerCountInput) layerCountInput.value = '2';
-            if(layerThicknessesInput) layerThicknessesInput.value = '';
-            updateLayerNamesContainer();
-          }
-        }
-      }
-    }
-  }
-
-  // Initialize mixed layer checkboxes and UI
-  updateMixedLayerCheckboxes();
-
-  // Load pending layer data if it exists
-  const pendingData = (target.rowEl && target.rowEl._pendingLayerData) || layerTarget._pendingLayerData;
-  if(pendingData){
-    // Set mixed layer checkboxes
-    if(pendingData.mixedLayerConfigs && pendingData.mixedLayerConfigs.length > 0){
-      pendingData.mixedLayerConfigs.forEach(config => {
-        const checkbox = document.getElementById(`mixedLayer${config.layerIndex}`);
-        if(checkbox){
-          checkbox.checked = true;
-        }
-      });
-    }
-
-    // Update UI with mixed layer inputs
-    updateMixedLayerDetails();
-
-    // Load layer names and climate resources
-    if(pendingData.layerNames && pendingData.climateResources){
-      loadExistingLayerData(pendingData.layerNames, pendingData.climateResources, pendingData.climateTypes, pendingData.climateFactors, pendingData.mixedLayerConfigs);
-    } else {
-      updateLayerNamesContainer();
-    }
-
-    // Clean up
-    if(target.rowEl) delete target.rowEl._pendingLayerData;
-    if(layerTarget) delete layerTarget._pendingLayerData;
-  } else {
-    // No pending data, just initialize UI
-    updateMixedLayerDetails();
-    updateLayerNamesContainer();
-  }
-
-  // Show/hide paste button based on whether we have copied settings
-  if(layerPasteBtn){
-    const shouldShow = !!copiedLayerSettings;
-    layerPasteBtn.style.display = shouldShow ? '' : 'none';
-    // console.log('🔍 [openLayerModal] Paste button visibility:', shouldShow, 'copiedLayerSettings:', !!copiedLayerSettings);
-  }
-
-  if(layerModal){ layerModal.style.display = 'flex'; }
-}
-function closeLayerModal(){
-  layerTarget = null;
-  // Reset mixed layer controls
-  if(mixedLayerCheckboxes){ mixedLayerCheckboxes.innerHTML = ''; }
-  if(mixedLayerDetails){ mixedLayerDetails.style.display = 'none'; }
-  if(mixedLayerConfigs){ mixedLayerConfigs.innerHTML = ''; }
-  // Clear layer names container
-  if(layerNamesContainer){ layerNamesContainer.innerHTML = ''; }
-  if(layerModal){ layerModal.style.display = 'none'; }
-}
-
 // Global variable to store copied layer settings
 let copiedLayerSettings = null;
 let selectedRowsForLayering = new Set(); // Track selected rows for bulk layering
@@ -3735,75 +3557,477 @@ function resolvePresetResources(preset) {
   return { climateResources, mixedLayerConfigs };
 }
 
-function applyLayerPreset(preset) {
-  if(layerCountInput) layerCountInput.value = preset.count;
-  if(layerThicknessesInput) layerThicknessesInput.value = preset.thicknesses.join(', ');
-  updateMixedLayerCheckboxes();
-  (preset.mixedLayerConfigs || []).forEach(cfg => {
-    const cb = document.getElementById(`mixedLayer${cfg.layerIndex}`);
-    if(cb) cb.checked = true;
-  });
-  updateMixedLayerDetails();
-  const resolved = resolvePresetResources(preset);
-  loadExistingLayerData(
-    preset.layerNames,
-    resolved.climateResources,
-    preset.climateTypes,
-    preset.climateFactors,
-    resolved.mixedLayerConfigs
-  );
+// ===== Layer modal ("Dela i skikt") =====
+// One row per layer (name, thickness, climate resource, optional second
+// material) beside a vertical bar of the build-up. The modal keeps its own
+// state in `layerRows` and hands applyLayerSplit exactly the arguments the old
+// form produced, and reads saved layers, presets and copied settings in the
+// same format - so the layering itself and saved projects are unchanged.
+const layerModalEls = {
+  sub: document.getElementById('lmSub'),
+  presets: document.getElementById('lmPresets'),
+  bar: document.getElementById('lmBar'),
+  rows: document.getElementById('lmRows'),
+  add: document.getElementById('lmAdd'),
+  total: document.getElementById('lmTotal'),
+  status: document.getElementById('lmStatus'),
+  message: document.getElementById('lmMessage'),
+  catalog: document.getElementById('lmCatalog'),
+  catTarget: document.getElementById('lmCatTarget'),
+  catSearch: document.getElementById('lmCatSearch'),
+  catList: document.getElementById('lmCatList'),
+  catDetails: document.getElementById('lmCatDetails'),
+  catUse: document.getElementById('lmCatUse'),
+  catClear: document.getElementById('lmCatClear'),
+  catCancel: document.getElementById('lmCatCancel')
+};
+// Each row: { name, t (mm or ''), res, factor, mix: null | { name, pct (material 2 %), res, factor } }
+// res is '' | 'boverket:<index>' | 'epd:<key>' | 'custom:manual', as in the old dropdowns.
+let layerRows = [];
+let layerElementThicknessMm = null;
+const DEFAULT_EPD_FACTOR = 10;
+
+const lmEsc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const lmFmt = (n) => Number(n).toLocaleString('sv-SE', { maximumFractionDigits: 1 }).replace(',', '.');
+const newLayerRow = (t = '') => ({ name: '', t, res: '', factor: DEFAULT_EPD_FACTOR, mix: null });
+
+function lmResourceLabel(value){
+  if(!value) return '';
+  if(value.startsWith('boverket:')){
+    const r = window.climateResources && window.climateResources[Number(value.slice(9))];
+    return r ? (r.Name || 'Namnlös resurs') : '';
+  }
+  if(value.startsWith('epd:')){
+    const epd = window.loadedEpdData && window.loadedEpdData.get(value.slice(4));
+    return epd ? (epd.name || 'EPD') : '';
+  }
+  if(value === 'custom:manual') return 'Egen klimatresurs (mappas efteråt)';
+  return '';
 }
 
-const presetBtnUtan = document.getElementById('presetInnervaggUtan');
-if(presetBtnUtan) presetBtnUtan.addEventListener('click', () => applyLayerPreset(LAYER_PRESETS.innervaeggUtan));
+function layerRowsFromSaved(saved){
+  const thicknesses = saved.thicknesses || [];
+  const count = Math.max(1, saved.count || thicknesses.length || 1);
+  const names = saved.layerNames || [];
+  const resources = saved.climateResources || [];
+  const types = saved.climateTypes || [];
+  const factors = saved.climateFactors || [];
+  const mixed = saved.mixedLayerConfigs || [];
+  const toValue = (type, r) => {
+    const has = r !== '' && r != null;
+    if(type === 'boverket' && has) return `boverket:${r}`;
+    if(type === 'epd' && has) return `epd:${r}`;
+    if(type === 'custom') return 'custom:manual';
+    return '';
+  };
+  return Array.from({ length: count }, (_, i) => {
+    const t = thicknesses[i] != null ? thicknesses[i] : '';
+    const cfg = mixed.find(c => c.layerIndex === i + 1);
+    if(cfg){
+      const m1 = cfg.material1 || {}, m2 = cfg.material2 || {};
+      return {
+        name: m1.name || '', t, res: m1.climateResource || '', factor: m1.factor ?? DEFAULT_EPD_FACTOR,
+        mix: { name: m2.name || '', pct: m2.percent ?? (100 - (m1.percent ?? 50)), res: m2.climateResource || '', factor: m2.factor ?? DEFAULT_EPD_FACTOR }
+      };
+    }
+    return {
+      name: names[i] || '', t, res: toValue(types[i], resources[i]),
+      factor: types[i] === 'epd' ? (factors[i] || 1) : DEFAULT_EPD_FACTOR, mix: null
+    };
+  });
+}
 
-const presetBtnMed = document.getElementById('presetInnervaggMed');
-if(presetBtnMed) presetBtnMed.addEventListener('click', () => applyLayerPreset(LAYER_PRESETS.innervaeggMed));
+function parseLayerResource(value, factor){
+  if(value.startsWith('boverket:')) return { type: 'boverket', resource: value.slice(9), factor: 1 };
+  if(value.startsWith('epd:')) return { type: 'epd', resource: value.slice(4), factor: parseFloat(factor) || 1 };
+  if(value === 'custom:manual') return { type: 'custom', resource: 'manual', factor: 1 };
+  return { type: 'none', resource: '', factor: 1 };
+}
+
+// The arguments applyLayerSplit expects (same shapes the old form built).
+function layerSplitArgsFromRows(){
+  const layerNames = [], climateResources = [], climateTypes = [], climateFactors = [], mixedLayerConfigs = [];
+  const material = (name, percent, value, factor, fallback) => {
+    const m = { name: name.trim() || fallback, percent, climateResource: value };
+    if(value.startsWith('epd:')) m.factor = parseFloat(factor) || 1;
+    return m;
+  };
+  layerRows.forEach((row, i) => {
+    const parsed = parseLayerResource(row.res, row.factor);
+    if(row.mix){
+      layerNames.push(row.name.trim() || `Skikt ${i + 1}`);
+      mixedLayerConfigs.push({
+        layerIndex: i + 1,
+        material1: material(row.name, 100 - row.mix.pct, row.res, row.factor, 'Material 1'),
+        material2: material(row.mix.name, row.mix.pct, row.mix.res, row.mix.factor, 'Material 2')
+      });
+    } else {
+      layerNames.push(row.name.trim());
+    }
+    climateResources.push(parsed.resource);
+    climateTypes.push(parsed.type);
+    climateFactors.push(parsed.factor);
+  });
+  return { layerNames, climateResources, climateTypes, climateFactors, mixedLayerConfigs };
+}
+
+// Finds the saved layering for what the modal was opened on (same lookups
+// as before: row signature, then a layered row in the group, then the
+// legacy layer-child lookup).
+function findSavedLayerData(target){
+  const lookup = (rowEl, key) => {
+    const rowData = rowEl._originalRowData || getRowDataFromTr(rowEl);
+    if(!rowData) return null;
+    return layerData.get(getRowSignature(rowData, key)) || (key ? layerData.get(getRowSignature(rowData, null)) : null) || null;
+  };
+  if(target.type === 'row' && target.rowEl){
+    if(!target.rowEl.getAttribute('data-layer-key')) return null;
+    return lookup(target.rowEl, target.rowEl.getAttribute('data-layer-child-of'));
+  }
+  if(target.type === 'group' && target.key){
+    const tbody = getTable()?.querySelector('tbody');
+    if(!tbody) return null;
+    const layeredInGroup = tbody.querySelector(`tr[data-group-child-of="${CSS.escape(target.key)}"][data-layer-key]`);
+    if(layeredInGroup) return lookup(layeredInGroup, layeredInGroup.getAttribute('data-group-child-of'));
+    const firstChild = tbody.querySelector(`tr[data-layer-child-of="${CSS.escape(target.key)}"]`);
+    if(firstChild){
+      const rowData = firstChild._originalRowData || getRowDataFromTr(firstChild);
+      return rowData ? (layerData.get(getRowSignature(rowData, target.key)) || null) : null;
+    }
+  }
+  return null;
+}
+
+// Header line: what is being layered, and the element's own thickness when
+// the table has a Thickness column (in metres, as from the IFC export).
+function layerTargetInfo(target){
+  const table = getTable();
+  if(!table) return { label: '', thicknessMm: null };
+  const headers = Array.from(table.querySelectorAll('thead tr:first-child th')).map(th => th.textContent.trim().toLowerCase());
+  const cellText = (tr, name) => {
+    const idx = headers.indexOf(name);
+    if(idx < 0 || !tr.children[idx]) return '';
+    return tr.children[idx].textContent.replace(/\s*\[\d+\s+skikt\]\s*$/, '').trim();
+  };
+  if(target.type === 'group'){
+    const tbody = table.querySelector('tbody');
+    const groupRows = tbody ? tbody.querySelectorAll(`tr[data-group-child-of="${CSS.escape(target.key)}"]:not([data-layer-child-of])`) : [];
+    if(groupRows.length) return { label: `Alla objekt i gruppen ${target.key} (${groupRows.length} st)`, thicknessMm: null };
+    return { label: 'Skiktar om skikten i den här raden', thicknessMm: null };
+  }
+  const tr = target.rowEl;
+  if(!tr) return { label: '', thicknessMm: null };
+  const parts = [];
+  const type = cellText(tr, 'type');
+  const area = parseNumberLike(cellText(tr, 'net area'));
+  const thicknessM = parseNumberLike(cellText(tr, 'thickness'));
+  const thicknessMm = Number.isFinite(thicknessM) && thicknessM > 0 ? Math.round(thicknessM * 10000) / 10 : null;
+  if(type) parts.push(type);
+  if(Number.isFinite(area) && area > 0) parts.push(`Net Area ${lmFmt(area)} m²`);
+  if(thicknessMm) parts.push(`Byggdelens tjocklek ${lmFmt(thicknessMm)} mm`);
+  return { label: parts.join(' · '), thicknessMm };
+}
+
+function layerTotalMm(){
+  return layerRows.reduce((sum, r) => sum + (Number(r.t) > 0 ? Number(r.t) : 0), 0);
+}
+
+function renderLayerBar(){
+  const total = layerTotalMm();
+  layerModalEls.bar.innerHTML = layerRows.map(r => {
+    const t = Number(r.t) > 0 ? Number(r.t) : 0;
+    const grow = total > 0 ? t / total : 1;
+    const name = r.mix ? `${r.name || 'Material 1'} + ${r.mix.name || 'Material 2'} (${100 - r.mix.pct} % / ${r.mix.pct} %)` : (r.name || 'Namnlöst skikt');
+    return `<div class="lm-seg${r.mix ? ' lm-seg-mixed' : ''}" style="flex:${grow}" title="${lmEsc(name)}${t ? `, ${lmFmt(t)} mm` : ''}"><span>${t ? lmFmt(t) : '–'}</span></div>`;
+  }).join('');
+}
+
+function lmResourceButton(id, field, value, aria){
+  const text = lmResourceLabel(value);
+  return `<button type="button" class="lm-res${text ? '' : ' lm-missing'}" id="${id}" data-act="catalog" data-field="${field}"
+    title="${lmEsc(text || 'Välj klimatresurs')}" aria-label="${lmEsc(aria)}: ${lmEsc(text || 'ingen vald')}. Öppna katalog">${lmEsc(text || 'Välj klimatresurs…')}</button>`;
+}
+
+function lmFactorRow(i, field, value, factor){
+  if(!value.startsWith('epd:')) return '';
+  return `<div class="lm-grid lm-factor">
+    <span></span><span class="lm-label">Omräkningsfaktor</span><span></span>
+    <div class="lm-unit" data-unit="kg/m²"><input type="number" id="lm-${field}-${i}" data-f="${field}" step="0.1" min="0" value="${lmEsc(factor)}" aria-label="Omräkningsfaktor"></div>
+  </div>`;
+}
+
+function renderLayerRows(){
+  layerModalEls.rows.innerHTML = layerRows.map((r, i) => `
+    <div class="lm-layer${r.mix ? ' lm-layer-mixed' : ''}" data-i="${i}">
+      <div class="lm-grid">
+        <span class="lm-n">${i + 1}</span>
+        <input type="text" id="lm-name-${i}" data-f="name" value="${lmEsc(r.name)}" placeholder="t.ex. Gips" aria-label="Namn, skikt ${i + 1}">
+        <input type="number" id="lm-t-${i}" data-f="t" min="0" step="0.5" value="${lmEsc(r.t)}" aria-label="Tjocklek i mm, skikt ${i + 1}">
+        ${lmResourceButton(`lm-res-${i}`, 'res', r.res, `Klimatresurs, skikt ${i + 1}`)}
+        <label class="lm-mixbox"><input type="checkbox" id="lm-mix-${i}" data-f="mix"${r.mix ? ' checked' : ''}> Blandat</label>
+        <button type="button" class="lm-del" data-act="del" title="Ta bort skikt" aria-label="Ta bort skikt ${i + 1}"${layerRows.length === 1 ? ' disabled' : ''}>✕</button>
+      </div>
+      ${lmFactorRow(i, 'factor', r.res, r.factor)}
+      ${r.mix ? `
+      <div class="lm-grid">
+        <span class="lm-n" title="Material 2 i samma skikt">+</span>
+        <input type="text" id="lm-m2name-${i}" data-f="m2name" value="${lmEsc(r.mix.name)}" placeholder="Material 2, t.ex. Stenull" aria-label="Material 2, skikt ${i + 1}">
+        <div class="lm-unit" data-unit="%"><input type="number" id="lm-pct-${i}" data-f="pct" min="1" max="99" value="${lmEsc(r.mix.pct)}" aria-label="Andel material 2 i procent"></div>
+        ${lmResourceButton(`lm-mix-res-${i}`, 'mix', r.mix.res, `Klimatresurs, material 2 i skikt ${i + 1}`)}
+        <span></span><span></span>
+      </div>
+      ${lmFactorRow(i, 'm2factor', r.mix.res, r.mix.factor)}` : ''}
+    </div>`).join('');
+}
+
+function renderLayerTotals(){
+  const total = layerTotalMm();
+  const withThickness = layerRows.filter(r => Number(r.t) > 0).length;
+  const missing = layerRows.filter(r => !lmResourceLabel(r.res) || (r.mix && !lmResourceLabel(r.mix.res))).length;
+  const parts = [];
+
+  if(withThickness === 0){
+    layerModalEls.total.textContent = 'Ingen tjocklek angiven';
+    parts.push('<span class="lm-warn">Skikten delas jämnt</span>');
+  } else {
+    layerModalEls.total.innerHTML = `Totalt <b>${lmFmt(total)} mm</b>${layerElementThicknessMm ? ` av ${lmFmt(layerElementThicknessMm)} mm` : ''}`;
+    if(withThickness < layerRows.length){
+      parts.push('<span class="lm-warn">Tjocklek saknas på något skikt</span>');
+    } else if(layerElementThicknessMm){
+      const diff = total - layerElementThicknessMm;
+      parts.push(Math.abs(diff) < 0.05
+        ? '<span class="lm-ok">Tjockleken stämmer</span>'
+        : `<span class="lm-warn">${diff > 0 ? `${lmFmt(diff)} mm för mycket` : `${lmFmt(-diff)} mm kvar`}</span>`);
+    }
+  }
+  parts.push(missing
+    ? `<span class="lm-warn">${missing} skikt saknar klimatresurs</span>`
+    : '<span class="lm-ok">Alla skikt har klimatresurs</span>');
+  layerModalEls.status.innerHTML = parts.join(' · ');
+}
+
+function renderLayerModal(){
+  renderLayerBar();
+  renderLayerRows();
+  renderLayerTotals();
+}
+
+function showLayerMessage(text, isError){
+  layerModalEls.message.textContent = text;
+  layerModalEls.message.classList.toggle('lm-message-error', !!isError);
+}
+
+function openLayerModal(target){
+  layerTarget = target;
+  const saved = findSavedLayerData(target);
+  layerRows = saved ? layerRowsFromSaved(saved) : [newLayerRow(), newLayerRow()];
+  const info = layerTargetInfo(target);
+  layerElementThicknessMm = info.thicknessMm;
+  layerModalEls.sub.textContent = info.label;
+  if(layerPasteBtn) layerPasteBtn.hidden = !copiedLayerSettings;
+  showLayerMessage('');
+  closeLayerCatalog();
+  renderLayerModal();
+  if(layerModal){ layerModal.style.display = 'flex'; }
+}
+
+function closeLayerModal(){
+  layerTarget = null;
+  closeLayerCatalog();
+  if(layerModal){ layerModal.style.display = 'none'; }
+}
+
+// Typing updates state, bar and totals without rebuilding the inputs (keeps focus).
+layerModalEls.rows?.addEventListener('input', (e) => {
+  const layer = e.target.closest('.lm-layer');
+  if(!layer) return;
+  const r = layerRows[Number(layer.dataset.i)];
+  const v = e.target.value;
+  switch(e.target.dataset.f){
+    case 'name': r.name = v; break;
+    case 't': r.t = v === '' ? '' : Math.max(0, parseFloat(v) || 0); break;
+    case 'm2name': r.mix.name = v; break;
+    case 'pct': r.mix.pct = Math.min(99, Math.max(1, Math.round(parseFloat(v) || 1))); break;
+    case 'factor': r.factor = v; break;
+    case 'm2factor': r.mix.factor = v; break;
+    default: return;
+  }
+  renderLayerBar();
+  renderLayerTotals();
+});
+
+layerModalEls.rows?.addEventListener('change', (e) => {
+  if(e.target.dataset.f !== 'mix') return;
+  const i = Number(e.target.closest('.lm-layer').dataset.i);
+  layerRows[i].mix = e.target.checked ? { name: '', pct: 50, res: '', factor: DEFAULT_EPD_FACTOR } : null;
+  renderLayerModal();
+  document.getElementById(e.target.id)?.focus();
+});
+
+layerModalEls.rows?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-act]');
+  if(!btn) return;
+  const i = Number(btn.closest('.lm-layer').dataset.i);
+  if(btn.dataset.act === 'del' && layerRows.length > 1){
+    layerRows.splice(i, 1);
+    renderLayerModal();
+  }
+  if(btn.dataset.act === 'catalog') openLayerCatalog(i, btn.dataset.field);
+});
+
+layerModalEls.add?.addEventListener('click', () => {
+  const remaining = layerElementThicknessMm ? Math.round((layerElementThicknessMm - layerTotalMm()) * 10) / 10 : 0;
+  layerRows.push(newLayerRow(remaining > 0 ? remaining : ''));
+  renderLayerModal();
+  document.getElementById(`lm-name-${layerRows.length - 1}`)?.focus();
+});
+
+const LAYER_PRESET_LABELS = {
+  innervaeggUtan: 'Innervägg utan isolering',
+  innervaeggMed: 'Innervägg med isolering (stenull)'
+};
+Object.entries(LAYER_PRESETS).forEach(([key, preset]) => {
+  if(!layerModalEls.presets) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'lm-chip';
+  btn.textContent = LAYER_PRESET_LABELS[key] || key;
+  btn.addEventListener('click', () => {
+    const resolved = resolvePresetResources(preset);
+    layerRows = layerRowsFromSaved({ ...preset, climateResources: resolved.climateResources, mixedLayerConfigs: resolved.mixedLayerConfigs });
+    showLayerMessage(`Snabbvalet "${btn.textContent}" är ifyllt.`);
+    renderLayerModal();
+  });
+  layerModalEls.presets.appendChild(btn);
+});
 
 if(layerPasteBtn){
   layerPasteBtn.addEventListener('click', function(){
     if(!copiedLayerSettings){
-      alert('Inga skiktinställningar att klistra in.');
+      showLayerMessage('Inga skiktinställningar att klistra in.', true);
       return;
     }
-
-    // console.log('🔄 [pasteLayerSettings] Pasting settings:', copiedLayerSettings);
-
-    // Fill in the layer count and thicknesses
-    if(layerCountInput) layerCountInput.value = copiedLayerSettings.count;
-    if(layerThicknessesInput) layerThicknessesInput.value = copiedLayerSettings.thicknesses.join(', ');
-
-    // Update mixed layer checkboxes based on count
-    updateMixedLayerCheckboxes();
-
-    // Set mixed layer checkboxes if they exist
-    if(copiedLayerSettings.mixedLayerConfigs && copiedLayerSettings.mixedLayerConfigs.length > 0){
-      copiedLayerSettings.mixedLayerConfigs.forEach(config => {
-        const checkbox = document.getElementById(`mixedLayer${config.layerIndex}`);
-        if(checkbox){
-          checkbox.checked = true;
-        }
-      });
-    }
-
-    // Update UI with mixed layer inputs
-    updateMixedLayerDetails();
-
-    // Load layer names and climate resources
-    if(copiedLayerSettings.layerNames && copiedLayerSettings.climateResources){
-      loadExistingLayerData(
-        copiedLayerSettings.layerNames,
-        copiedLayerSettings.climateResources,
-        copiedLayerSettings.climateTypes,
-        copiedLayerSettings.climateFactors
-      );
-    } else {
-      updateLayerNamesContainer();
-    }
-
-    alert('Skiktinställningar inklistrade!');
+    layerRows = layerRowsFromSaved(copiedLayerSettings);
+    showLayerMessage('Kopierade skikt är inklistrade.');
+    renderLayerModal();
   });
 }
+
+if(layerApplyBtn){
+  layerApplyBtn.addEventListener('click', function(){
+    if(!layerTarget) return;
+    const withThickness = layerRows.filter(r => Number(r.t) > 0).length;
+    if(withThickness > 0 && withThickness < layerRows.length){
+      showLayerMessage('Ange tjocklek för alla skikt, eller lämna alla tomma för att dela jämnt.', true);
+      return;
+    }
+    const count = layerRows.length;
+    const thicknesses = withThickness === 0 ? [] : layerRows.map(r => Number(r.t));
+    const { layerNames, climateResources, climateTypes, climateFactors, mixedLayerConfigs } = layerSplitArgsFromRows();
+
+    saveState();
+    // Show progress bar with callback to ensure it renders before heavy operation
+    showProgressBar('Skiktar objekt...', () => {
+      applyLayerSplit(count, thicknesses, mixedLayerConfigs, layerNames, climateResources, climateTypes, climateFactors);
+      closeLayerModal();
+    }, 3000);
+  });
+}
+
+// --- Climate resource catalogue (search + grouped list + details) ---
+let lmCatalogTarget = null; // { index, field: 'res' | 'mix' }
+
+function lmCurrentValue(){
+  if(!lmCatalogTarget) return '';
+  const r = layerRows[lmCatalogTarget.index];
+  return lmCatalogTarget.field === 'mix' ? r.mix.res : r.res;
+}
+
+function renderLayerCatalogList(query){
+  const q = query.trim().toLowerCase();
+  const hit = (...texts) => !q || texts.some(t => String(t || '').toLowerCase().includes(q));
+  let html = '';
+  const boverket = (window.climateResources || []).map((r, i) => ({ r, i }))
+    .filter(({ r }) => hit(r.Name, r.Categories && r.Categories[0] && r.Categories[0].Text));
+  if(boverket.length){
+    html += `<optgroup label="Boverket API">${boverket.map(({ r, i }) => `<option value="boverket:${i}">${lmEsc(r.Name || 'Namnlös resurs')}</option>`).join('')}</optgroup>`;
+  }
+  const epds = window.loadedEpdData ? Array.from(window.loadedEpdData.entries()).filter(([, e]) => hit(e.name, 'epd')) : [];
+  if(epds.length){
+    html += `<optgroup label="EPD-filer">${epds.map(([key, e]) => `<option value="epd:${lmEsc(key)}">${lmEsc(e.name || 'EPD')}</option>`).join('')}</optgroup>`;
+  }
+  if(hit('Skapa egen klimatresurs', 'egen')){
+    html += '<optgroup label="Egna klimatresurser"><option value="custom:manual">Skapa egen klimatresurs...</option></optgroup>';
+  }
+  layerModalEls.catList.innerHTML = html;
+  const current = lmCurrentValue();
+  if(current && layerModalEls.catList.querySelector(`option[value="${CSS.escape(current)}"]`)){
+    layerModalEls.catList.value = current;
+  }
+  showLayerCatalogDetails(layerModalEls.catList.value || '');
+}
+
+function showLayerCatalogDetails(value){
+  layerModalEls.catUse.disabled = !value;
+  const row = (label, text) => `<div><dt>${label}</dt><dd>${lmEsc(text)}</dd></div>`;
+  let html = '<p class="lm-empty">Välj en resurs för att se detaljer</p>';
+  if(value.startsWith('boverket:')){
+    const r = window.climateResources && window.climateResources[Number(value.slice(9))];
+    if(r){
+      const conv = r.Conversions && r.Conversions[0];
+      const factor = (conv && conv.Value) || r.ConservativeDataConversionFactor || r.ConversionFactor || r.Factor || r.Omräkningsfaktor;
+      const unit = conv && conv.Unit;
+      html = row('Namn', r.Name || 'Okänt')
+        + row('Kategori', (r.Categories && r.Categories[0] && r.Categories[0].Text) || 'Ej kategoriserad')
+        + row('Omräkningsfaktor', factor != null ? `${factor}${unit ? ' ' + unit : ' (enhet saknas, fylls i vid mappning)'}` : 'Ej angiven')
+        + row('Spillfaktor', r.WasteFactor != null ? r.WasteFactor : 'Ej angiven');
+    }
+  } else if(value.startsWith('epd:')){
+    html = row('Namn', lmResourceLabel(value)) + row('Typ', 'EPD-fil') + row('Omräkningsfaktor', 'Anges i skiktet, i kg/m²');
+  } else if(value === 'custom:manual'){
+    html = row('Typ', 'Egen klimatresurs')
+      + row('Så fungerar det', 'Skiktet skapas utan klimatresurs. Mappa det efteråt med Mappa till EPD.');
+  }
+  layerModalEls.catDetails.innerHTML = html;
+}
+
+function openLayerCatalog(index, field){
+  lmCatalogTarget = { index, field };
+  const r = layerRows[index];
+  layerModalEls.catTarget.textContent = field === 'mix'
+    ? `Skikt ${index + 1}, material 2: ${r.mix.name || 'namnlöst'}`
+    : `Skikt ${index + 1}: ${r.name || 'namnlöst'}`;
+  layerModalEls.catSearch.value = '';
+  layerModalEls.catClear.hidden = !lmCurrentValue();
+  renderLayerCatalogList('');
+  layerModalEls.catalog.hidden = false;
+  layerModalEls.catSearch.focus();
+}
+
+function closeLayerCatalog(){
+  if(layerModalEls.catalog) layerModalEls.catalog.hidden = true;
+  lmCatalogTarget = null;
+}
+
+function chooseLayerResource(value){
+  if(!lmCatalogTarget) return;
+  const { index, field } = lmCatalogTarget;
+  if(field === 'mix') layerRows[index].mix.res = value; else layerRows[index].res = value;
+  closeLayerCatalog();
+  renderLayerModal();
+  document.getElementById(field === 'mix' ? `lm-mix-res-${index}` : `lm-res-${index}`)?.focus();
+}
+
+layerModalEls.catSearch?.addEventListener('input', (e) => renderLayerCatalogList(e.target.value));
+layerModalEls.catList?.addEventListener('change', (e) => showLayerCatalogDetails(e.target.value));
+layerModalEls.catList?.addEventListener('dblclick', () => { if(layerModalEls.catList.value) chooseLayerResource(layerModalEls.catList.value); });
+layerModalEls.catUse?.addEventListener('click', () => chooseLayerResource(layerModalEls.catList.value));
+layerModalEls.catClear?.addEventListener('click', () => chooseLayerResource(''));
+layerModalEls.catCancel?.addEventListener('click', closeLayerCatalog);
+layerModalEls.catalog?.addEventListener('click', (e) => { if(e.target === layerModalEls.catalog) closeLayerCatalog(); });
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && layerModalEls.catalog && !layerModalEls.catalog.hidden) closeLayerCatalog();
+});
 
 // Apply layer settings to selected rows
 if(applyLayerToSelectedBtn){
@@ -3934,689 +4158,6 @@ function applyLayerSplitToRow(tr, tbody, count, thicknesses, layerNames, mixedLa
     climateFactors
   );
 }
-
-// Update mixed layer checkboxes when layer count changes
-if(layerCountInput && mixedLayerCheckboxes){
-  layerCountInput.addEventListener('input', function(){
-    updateMixedLayerCheckboxes();
-    updateLayerNamesContainer();
-  });
-}
-
-// Update mixed layer checkboxes based on layer count
-function updateMixedLayerCheckboxes(){
-  if(!mixedLayerCheckboxes || !layerCountInput) return;
-  
-  const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
-  mixedLayerCheckboxes.innerHTML = '';
-  
-  for(let i = 1; i <= count; i++){
-    const checkboxDiv = document.createElement('div');
-    checkboxDiv.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px; border:1px solid #ddd; border-radius:4px; background:white;';
-    
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.id = `mixedLayer${i}`;
-    checkbox.addEventListener('change', function(){
-      updateMixedLayerDetails();
-      updateLayerNamesContainer();
-    });
-    
-    const label = document.createElement('label');
-    label.htmlFor = `mixedLayer${i}`;
-    label.textContent = `Skikt ${i} är blandning`;
-    label.style.cssText = 'cursor:pointer; margin:0; font-weight:500;';
-    
-    checkboxDiv.appendChild(checkbox);
-    checkboxDiv.appendChild(label);
-    mixedLayerCheckboxes.appendChild(checkboxDiv);
-  }
-}
-
-// Update mixed layer details section
-function updateMixedLayerDetails(){
-  if(!mixedLayerDetails || !mixedLayerConfigs) return;
-  
-  const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
-  const mixedLayers = [];
-  
-  // Find which layers are marked as mixed
-  for(let i = 1; i <= count; i++){
-    const checkbox = document.getElementById(`mixedLayer${i}`);
-    if(checkbox && checkbox.checked){
-      mixedLayers.push(i);
-    }
-  }
-  
-  if(mixedLayers.length === 0){
-    mixedLayerDetails.style.display = 'none';
-    return;
-  }
-  
-  mixedLayerDetails.style.display = 'block';
-  mixedLayerConfigs.innerHTML = '';
-  
-  mixedLayers.forEach(layerNum => {
-    const configDiv = document.createElement('div');
-    configDiv.style.cssText = 'margin-bottom:16px; padding:12px; border:1px solid #ddd; border-radius:4px; background:white;';
-
-    // Two equal columns: left = Material 1 (stacked), right = Material 2 (stacked)
-    configDiv.innerHTML = `
-      <h4 style="margin:0 0 12px 0; font-size:0.9rem; color:#333;">Skikt ${layerNum} - Blandat material</h4>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
-        <div style="display:flex; flex-direction:column; gap:10px;">
-          <div>
-            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Material 1</label>
-            <input type="text" id="mixedMat1Name${layerNum}" placeholder="t.ex. Betong C30/37" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;" />
-          </div>
-          <div>
-            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Andel av volym (%):</label>
-            <input type="number" id="mixedMat1Percent${layerNum}" min="0" max="100" value="50" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;" />
-          </div>
-          <div>
-            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Klimatresurs:</label>
-            <select id="mixedMat1Climate${layerNum}" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;">
-              <option value="">Ingen klimatresurs</option>
-              <optgroup label="Boverket API"></optgroup>
-              <optgroup label="EPD-filer"></optgroup>
-              <optgroup label="Egna klimatresurser"></optgroup>
-            </select>
-            <button type="button" id="mixedMat1Pick${layerNum}" style="margin-top:6px; padding:6px 8px; font-size:0.85rem;">Välj från katalog...</button>
-          </div>
-          <div id="mixedMat1Factor${layerNum}" style="display:none;">
-            <label style="display:block; margin-bottom:4px; font-size:0.8rem; font-weight:600;">Omräkningsfaktor:</label>
-            <input type="number" id="mixedMat1FactorValue${layerNum}" placeholder="t.ex. 10" step="0.1" min="0" value="10" style="width:100%; padding:4px; border:1px solid #ddd; border-radius:4px; font-size:0.8rem;" />
-          </div>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:10px;">
-          <div>
-            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Material 2</label>
-            <input type="text" id="mixedMat2Name${layerNum}" placeholder="t.ex. Stål" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;" />
-          </div>
-          <div>
-            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Andel av volym (%):</label>
-            <input type="number" id="mixedMat2Percent${layerNum}" min="0" max="100" value="50" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;" />
-          </div>
-          <div>
-            <label style="display:block; margin-bottom:4px; font-size:0.85rem; font-weight:600;">Klimatresurs:</label>
-            <select id="mixedMat2Climate${layerNum}" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;">
-              <option value="">Ingen klimatresurs</option>
-              <optgroup label="Boverket API"></optgroup>
-              <optgroup label="EPD-filer"></optgroup>
-              <optgroup label="Egna klimatresurser"></optgroup>
-            </select>
-            <button type="button" id="mixedMat2Pick${layerNum}" style="margin-top:6px; padding:6px 8px; font-size:0.85rem;">Välj från katalog...</button>
-          </div>
-          <div id="mixedMat2Factor${layerNum}" style="display:none;">
-            <label style="display:block; margin-bottom:4px; font-size:0.8rem; font-weight:600;">Omräkningsfaktor:</label>
-            <input type="number" id="mixedMat2FactorValue${layerNum}" placeholder="t.ex. 10" step="0.1" min="0" value="10" style="width:100%; padding:4px; border:1px solid #ddd; border-radius:4px; font-size:0.8rem;" />
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Populate climate resource dropdowns
-    const mat1Climate = configDiv.querySelector(`#mixedMat1Climate${layerNum}`);
-    const mat2Climate = configDiv.querySelector(`#mixedMat2Climate${layerNum}`);
-    
-    if(mat1Climate && mat2Climate){
-      // Clear existing optgroups
-      const optgroups1 = mat1Climate.querySelectorAll('optgroup');
-      const optgroups2 = mat2Climate.querySelectorAll('optgroup');
-      optgroups1.forEach(group => group.innerHTML = '');
-      optgroups2.forEach(group => group.innerHTML = '');
-      
-      // Add Boverket API options
-      const boverketGroup1 = mat1Climate.querySelector('optgroup[label="Boverket API"]');
-      const boverketGroup2 = mat2Climate.querySelector('optgroup[label="Boverket API"]');
-      if(boverketGroup1 && boverketGroup2 && window.climateResources){
-      window.climateResources.forEach((resource, index) => {
-        const option1 = document.createElement('option');
-          option1.value = `boverket:${index}`;
-        option1.textContent = resource.Name || 'Namnlös resurs';
-          boverketGroup1.appendChild(option1);
-        
-        const option2 = document.createElement('option');
-          option2.value = `boverket:${index}`;
-        option2.textContent = resource.Name || 'Namnlös resurs';
-          boverketGroup2.appendChild(option2);
-        });
-      }
-      
-      // Add EPD options
-      const epdGroup1 = mat1Climate.querySelector('optgroup[label="EPD-filer"]');
-      const epdGroup2 = mat2Climate.querySelector('optgroup[label="EPD-filer"]');
-      if(epdGroup1 && epdGroup2 && window.loadedEpdData && window.loadedEpdData.size > 0){
-        let epdIndex = 0;
-        window.loadedEpdData.forEach((epdData) => {
-          const option1 = document.createElement('option');
-          option1.value = `epd:${epdIndex}`;
-          option1.textContent = epdData.name || `EPD ${epdIndex + 1}`;
-          epdGroup1.appendChild(option1);
-          
-          const option2 = document.createElement('option');
-          option2.value = `epd:${epdIndex}`;
-          option2.textContent = epdData.name || `EPD ${epdIndex + 1}`;
-          epdGroup2.appendChild(option2);
-          epdIndex++;
-        });
-      }
-      
-      // Add custom options
-      const customGroup1 = mat1Climate.querySelector('optgroup[label="Egna klimatresurser"]');
-      const customGroup2 = mat2Climate.querySelector('optgroup[label="Egna klimatresurser"]');
-      if(customGroup1 && customGroup2){
-        const option1 = document.createElement('option');
-        option1.value = 'custom:manual';
-        option1.textContent = 'Skapa egen klimatresurs...';
-        customGroup1.appendChild(option1);
-        
-        const option2 = document.createElement('option');
-        option2.value = 'custom:manual';
-        option2.textContent = 'Skapa egen klimatresurs...';
-        customGroup2.appendChild(option2);
-      }
-    }
-    
-    // Make both selects searchable
-    if(mat1Climate){ 
-      const pick1 = configDiv.querySelector(`#mixedMat1Pick${layerNum}`);
-      if(pick1){
-        pick1.addEventListener('click', function(){
-          climatePickerTargetSelect = mat1Climate;
-          openClimateModal({ type: 'picker' });
-        });
-      }
-    }
-    if(mat2Climate){ 
-      const pick2 = configDiv.querySelector(`#mixedMat2Pick${layerNum}`);
-      if(pick2){
-        pick2.addEventListener('click', function(){
-          climatePickerTargetSelect = mat2Climate;
-          openClimateModal({ type: 'picker' });
-        });
-      }
-    }
-    
-    // Auto-adjust percentages
-    const mat1Percent = configDiv.querySelector(`#mixedMat1Percent${layerNum}`);
-    const mat2Percent = configDiv.querySelector(`#mixedMat2Percent${layerNum}`);
-    
-    if(mat1Percent && mat2Percent){
-      mat1Percent.addEventListener('input', function(){
-        const val1 = parseFloat(this.value) || 0;
-        const val2 = 100 - val1;
-        if(val2 >= 0 && val2 <= 100){
-          mat2Percent.value = val2.toString();
-        }
-      });
-      
-      mat2Percent.addEventListener('input', function(){
-        const val2 = parseFloat(this.value) || 0;
-        const val1 = 100 - val2;
-        if(val1 >= 0 && val1 <= 100){
-          mat1Percent.value = val1.toString();
-        }
-      });
-    }
-    
-    // Add event listeners for factor inputs
-    const mat1FactorDiv = configDiv.querySelector(`#mixedMat1Factor${layerNum}`);
-    const mat1FactorInput = configDiv.querySelector(`#mixedMat1FactorValue${layerNum}`);
-    const mat2FactorDiv = configDiv.querySelector(`#mixedMat2Factor${layerNum}`);
-    const mat2FactorInput = configDiv.querySelector(`#mixedMat2FactorValue${layerNum}`);
-    
-    if(mat1Climate && mat1FactorDiv && mat1FactorInput){
-      mat1Climate.addEventListener('change', function() {
-        const value = this.value;
-        if(value && value.startsWith('epd:')) {
-          mat1FactorDiv.style.display = 'block';
-        } else {
-          mat1FactorDiv.style.display = 'none';
-        }
-      });
-    }
-    
-    if(mat2Climate && mat2FactorDiv && mat2FactorInput){
-      mat2Climate.addEventListener('change', function() {
-        const value = this.value;
-        if(value && value.startsWith('epd:')) {
-          mat2FactorDiv.style.display = 'block';
-        } else {
-          mat2FactorDiv.style.display = 'none';
-        }
-      });
-    }
-    
-    mixedLayerConfigs.appendChild(configDiv);
-  });
-  
-  // Set up event listeners for factor inputs in mixed layers
-  updateLayerClimateDropdowns();
-}
-
-function updateLayerClimateDropdowns(){
-  if(!layerCountInput) return;
-  
-  const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
-  
-  for(let i = 1; i <= count; i++){
-    const climateSelect = document.getElementById(`layerClimate${i}`);
-    if(climateSelect){
-      // Update EPD files in the dropdown
-      const epdGroup = climateSelect.querySelector('optgroup[label="EPD-filer"]');
-      if(epdGroup && window.loadedEpdData && window.loadedEpdData.size > 0){
-        // Clear existing EPD options
-        epdGroup.innerHTML = '';
-        
-        // Add EPD files
-        let epdIndex = 0;
-        window.loadedEpdData.forEach((epdData) => {
-          const option = document.createElement('option');
-          option.value = `epd:${epdIndex}`;
-          option.textContent = epdData.name || `EPD ${epdIndex + 1}`;
-          epdGroup.appendChild(option);
-          epdIndex++;
-        });
-      }
-      
-      // Add event listener for factor input visibility
-      const factorDiv = document.getElementById(`layerFactor${i}`);
-      const factorInput = document.getElementById(`layerFactorValue${i}`);
-      if(factorDiv && factorInput && !climateSelect.hasAttribute('data-factor-listener-added')){
-        // Set default value
-        if(!factorInput.value) {
-          factorInput.value = '10';
-        }
-        
-        climateSelect.addEventListener('change', function() {
-          const value = this.value;
-          if(value && value.startsWith('epd:')) {
-            factorDiv.style.display = 'block';
-          } else {
-            factorDiv.style.display = 'none';
-          }
-        });
-        climateSelect.setAttribute('data-factor-listener-added', 'true');
-      }
-      
-      // Check if EPD is already selected and show factor input
-      if(climateSelect.value && climateSelect.value.startsWith('epd:')) {
-        const factorDiv = document.getElementById(`layerFactor${i}`);
-        if(factorDiv) {
-          factorDiv.style.display = 'block';
-        }
-      }
-
-    }
-  }
-  
-  // Also update mixed layer dropdowns
-  if(mixedLayerConfigs){
-    const mixedClimateSelects = mixedLayerConfigs.querySelectorAll('select[id^="mixedMat1Climate"], select[id^="mixedMat2Climate"]');
-    mixedClimateSelects.forEach(climateSelect => {
-      // Update EPD files in the dropdown
-      const epdGroup = climateSelect.querySelector('optgroup[label="EPD-filer"]');
-      if(epdGroup && window.loadedEpdData && window.loadedEpdData.size > 0){
-        // Clear existing EPD options
-        epdGroup.innerHTML = '';
-        
-        // Add EPD files
-        let epdIndex = 0;
-        window.loadedEpdData.forEach((epdData) => {
-          const option = document.createElement('option');
-          option.value = `epd:${epdIndex}`;
-          option.textContent = epdData.name || `EPD ${epdIndex + 1}`;
-          epdGroup.appendChild(option);
-          epdIndex++;
-        });
-      }
-      
-      // Add event listener for factor input visibility
-      const factorDiv = climateSelect.parentElement.querySelector('div[id^="mixedMat"][id$="Factor"]');
-      const factorInput = climateSelect.parentElement.querySelector('input[id^="mixedMat"][id$="FactorValue"]');
-      if(factorDiv && factorInput && !climateSelect.hasAttribute('data-factor-listener-added')){
-        // Set default value
-        if(!factorInput.value) {
-          factorInput.value = '10';
-        }
-        
-        climateSelect.addEventListener('change', function() {
-          const value = this.value;
-          if(value && value.startsWith('epd:')) {
-            factorDiv.style.display = 'block';
-          } else {
-            factorDiv.style.display = 'none';
-          }
-        });
-        climateSelect.setAttribute('data-factor-listener-added', 'true');
-      }
-      
-      // Check if EPD is already selected and show factor input
-      if(climateSelect.value && climateSelect.value.startsWith('epd:')) {
-        const factorDiv = climateSelect.parentElement.querySelector('div[id^="mixedMat"][id$="Factor"]');
-        if(factorDiv) {
-          factorDiv.style.display = 'block';
-        }
-      }
-    });
-  }
-}
-
-// Layer names and climate resources functions
-function updateLayerNamesContainer(){
-  if(!layerNamesContainer || !layerCountInput) return;
-
-  const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
-  layerNamesContainer.innerHTML = '';
-  
-  for(let i = 1; i <= count; i++){
-    // Check if this layer is marked as mixed
-    const isMixedLayer = document.getElementById(`mixedLayer${i}`) && document.getElementById(`mixedLayer${i}`).checked;
-    
-    if(isMixedLayer){
-      // Skip mixed layers - they're handled in the mixed layer details section
-      continue;
-    }
-    
-    const layerDiv = document.createElement('div');
-    // Wall-style card with a left accent and clear per-layer fields
-    layerDiv.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr; align-items:end; gap:12px; margin-bottom:12px; padding:12px; border:1px solid #ddd; border-left:6px solid #8aa; border-radius:4px; background:white;';
-
-    // Regular layer
-    layerDiv.innerHTML = `
-      <div>
-        <label style="display:block; margin-bottom:4px; font-weight:600;">Skikt ${i} namn:</label>
-        <input type="text" id="layerName${i}" placeholder="t.ex. Betong C30/37" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;" />
-      </div>
-      <div>
-        <label style="display:block; margin-bottom:4px; font-weight:600;">Klimatresurs:</label>
-        <select id="layerClimate${i}" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;">
-           <option value="">Ingen klimatresurs</option>
-           <optgroup label="Boverket API">
-             <!-- Boverket options will be populated here -->
-           </optgroup>
-           <optgroup label="EPD-filer">
-             <!-- EPD options will be populated here -->
-           </optgroup>
-           <optgroup label="Egna klimatresurser">
-             <!-- Custom options will be populated here -->
-           </optgroup>
-        </select>
-        <button type="button" id="layerClimatePick${i}" style="margin-top:6px; padding:6px 8px; font-size:0.85rem;">Välj från katalog...</button>
-      </div>
-      <div id="layerFactor${i}" style="display:none; grid-column: 1 / span 2;">
-        <label style="display:block; margin-bottom:4px; font-weight:600;">Omräkningsfaktor:</label>
-        <input type="number" id="layerFactorValue${i}" placeholder="t.ex. 10" step="0.1" min="0" value="10" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px;" />
-      </div>
-    `;
-
-    layerNamesContainer.appendChild(layerDiv);
-    
-    
-    // Populate climate resources dropdown
-    const climateSelect = layerDiv.querySelector(`#layerClimate${i}`);
-    if(climateSelect){
-      // Clear existing optgroups
-      const optgroups = climateSelect.querySelectorAll('optgroup');
-      optgroups.forEach(group => group.innerHTML = '');
-      
-      // Add Boverket API resources
-      if(window.climateResources){
-        const boverketGroup = climateSelect.querySelector('optgroup[label="Boverket API"]');
-        if(boverketGroup){
-      window.climateResources.forEach((resource, index) => {
-        const option = document.createElement('option');
-            option.value = `boverket:${index}`;
-        option.textContent = resource.Name || 'Namnlös resurs';
-            boverketGroup.appendChild(option);
-      });
-    }
-  }
-      
-      // Add EPD files
-      const epdGroup = climateSelect.querySelector('optgroup[label="EPD-filer"]');
-      if(epdGroup && window.loadedEpdData && window.loadedEpdData.size > 0){
-        let epdIndex = 0;
-        window.loadedEpdData.forEach((epdData) => {
-          const option = document.createElement('option');
-          option.value = `epd:${epdIndex}`;
-          option.textContent = epdData.name || `EPD ${epdIndex + 1}`;
-          epdGroup.appendChild(option);
-          epdIndex++;
-        });
-      }
-      
-      // Add custom climate resources placeholder
-      const customGroup = climateSelect.querySelector('optgroup[label="Egna klimatresurser"]');
-      if(customGroup){
-        const option = document.createElement('option');
-        option.value = 'custom:manual';
-        option.textContent = 'Skapa egen klimatresurs...';
-        customGroup.appendChild(option);
-      }
-
-      // Wire pick button to open main climate modal in picker mode
-      const pickBtn = layerDiv.querySelector(`#layerClimatePick${i}`);
-      if(pickBtn){
-        pickBtn.addEventListener('click', function(){
-          climatePickerTargetSelect = climateSelect;
-          openClimateModal({ type: 'picker' });
-        });
-      }
-    }
-  }
-  
-  // Set up event listeners for factor inputs
-  updateLayerClimateDropdowns();
-}
-
-
-function loadExistingLayerData(layerNames, climateResources, climateTypes = [], climateFactors = [], mixedLayerConfigs = []){
-  if(!layerNamesContainer) return;
-
-  // Clear and rebuild container
-  updateLayerNamesContainer();
-
-  // Fill in existing data
-  const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
-
-  for(let i = 1; i <= count; i++){
-    // Check if this layer is marked as mixed
-    const isMixedLayer = document.getElementById(`mixedLayer${i}`) && document.getElementById(`mixedLayer${i}`).checked;
-
-    if(isMixedLayer){
-      // Mixed layer - fill material inputs from mixedLayerConfigs
-      const mixedConfig = mixedLayerConfigs.find(config => config.layerIndex === i);
-
-      const material1Name = document.getElementById(`mixedMat1Name${i}`);
-      const material1Percent = document.getElementById(`mixedMat1Percent${i}`);
-      const material2Name = document.getElementById(`mixedMat2Name${i}`);
-      const material2Percent = document.getElementById(`mixedMat2Percent${i}`);
-      const material1Climate = document.getElementById(`mixedMat1Climate${i}`);
-      const material2Climate = document.getElementById(`mixedMat2Climate${i}`);
-      const material1FactorDiv = document.getElementById(`mixedMat1Factor${i}`);
-      const material1FactorInput = document.getElementById(`mixedMat1FactorValue${i}`);
-      const material2FactorDiv = document.getElementById(`mixedMat2Factor${i}`);
-      const material2FactorInput = document.getElementById(`mixedMat2FactorValue${i}`);
-
-      if(mixedConfig){
-        // Load material 1 data
-        if(material1Name && mixedConfig.material1){
-          material1Name.value = mixedConfig.material1.name || '';
-        }
-        if(material1Percent && mixedConfig.material1){
-          material1Percent.value = mixedConfig.material1.percent || 50;
-        }
-        if(material1Climate && mixedConfig.material1 && mixedConfig.material1.climateResource){
-          material1Climate.value = mixedConfig.material1.climateResource;
-          // Show factor input if EPD
-          if(mixedConfig.material1.climateResource.startsWith('epd:')){
-            if(material1FactorDiv) material1FactorDiv.style.display = 'block';
-            if(material1FactorInput && mixedConfig.material1.factor){
-              material1FactorInput.value = mixedConfig.material1.factor;
-            }
-          }
-        }
-
-        // Load material 2 data
-        if(material2Name && mixedConfig.material2){
-          material2Name.value = mixedConfig.material2.name || '';
-        }
-        if(material2Percent && mixedConfig.material2){
-          material2Percent.value = mixedConfig.material2.percent || 50;
-        }
-        if(material2Climate && mixedConfig.material2 && mixedConfig.material2.climateResource){
-          material2Climate.value = mixedConfig.material2.climateResource;
-          // Show factor input if EPD
-          if(mixedConfig.material2.climateResource.startsWith('epd:')){
-            if(material2FactorDiv) material2FactorDiv.style.display = 'block';
-            if(material2FactorInput && mixedConfig.material2.factor){
-              material2FactorInput.value = mixedConfig.material2.factor;
-            }
-          }
-        }
-      }
-    } else {
-      // Regular layer - fill normal inputs
-      const nameInput = document.getElementById(`layerName${i}`);
-      const climateSelect = document.getElementById(`layerClimate${i}`);
-      
-      if(nameInput && layerNames[i-1]){
-        nameInput.value = layerNames[i-1];
-      }
-      
-      if(climateSelect && climateResources[i-1] !== undefined && climateTypes[i-1] !== undefined){
-        // Reconstruct the value based on type and resource
-        const climateType = climateTypes[i-1];
-        const climateResource = climateResources[i-1];
-        
-        if(climateType === 'boverket'){
-          climateSelect.value = `boverket:${climateResource}`;
-        } else if(climateType === 'epd'){
-          climateSelect.value = `epd:${climateResource}`;
-          // Show factor input for EPD and set its value
-          const factorDiv = document.getElementById(`layerFactor${i}`);
-          const factorInput = document.getElementById(`layerFactorValue${i}`);
-          if(factorDiv && factorInput) {
-            factorDiv.style.display = 'block';
-            factorInput.value = climateFactors[i-1] || 1;
-          }
-        } else if(climateType === 'custom'){
-          climateSelect.value = 'custom:manual';
-        } else {
-          climateSelect.value = '';
-        }
-      }
-    }
-  }
-  
-  // Set up event listeners for factor inputs after loading data
-  updateLayerClimateDropdowns();
-}
-
-function getLayerNamesAndClimateResources(){
-  if(!layerNamesContainer) return { layerNames: [], climateResources: [], climateTypes: [], climateFactors: [] };
-  
-  const layerNames = [];
-  const climateResources = [];
-  const climateTypes = [];
-  const climateFactors = [];
-  
-  const count = Math.max(1, parseInt(layerCountInput.value || '1', 10));
-  
-  // console.log('🔍 [getLayerNamesAndClimateResources] Getting data for', count, 'layers');
-  
-  for(let i = 1; i <= count; i++){
-    // Check if this layer is marked as mixed
-    const isMixedLayer = document.getElementById(`mixedLayer${i}`) && document.getElementById(`mixedLayer${i}`).checked;
-    
-    if(isMixedLayer){
-      // Mixed layer - get data from mixed layer details
-      const mat1Name = document.getElementById(`mixedMat1Name${i}`);
-      const mat2Name = document.getElementById(`mixedMat2Name${i}`);
-      const mat1Climate = document.getElementById(`mixedMat1Climate${i}`);
-      const mat2Climate = document.getElementById(`mixedMat2Climate${i}`);
-      const mat1FactorInput = document.getElementById(`mixedMat1FactorValue${i}`);
-      const mat2FactorInput = document.getElementById(`mixedMat2FactorValue${i}`);
-      
-      const mat1NameValue = mat1Name ? mat1Name.value.trim() : '';
-      const mat2NameValue = mat2Name ? mat2Name.value.trim() : '';
-      const mat1ClimateValue = mat1Climate ? mat1Climate.value : '';
-      const mat2ClimateValue = mat2Climate ? mat2Climate.value : '';
-      
-      // Parse climate resource values for both materials
-      let mat1ClimateType = 'none';
-      let mat1ClimateResource = '';
-      let mat1Factor = 1;
-      
-      if(mat1ClimateValue){
-        if(mat1ClimateValue.startsWith('boverket:')){
-          mat1ClimateType = 'boverket';
-          mat1ClimateResource = mat1ClimateValue.split(':')[1];
-        } else if(mat1ClimateValue.startsWith('epd:')){
-          mat1ClimateType = 'epd';
-          mat1ClimateResource = mat1ClimateValue.split(':')[1];
-          if(mat1FactorInput && mat1FactorInput.value) {
-            mat1Factor = parseFloat(mat1FactorInput.value) || 1;
-          }
-        } else if(mat1ClimateValue === 'custom:manual'){
-          mat1ClimateType = 'custom';
-          mat1ClimateResource = 'manual';
-        }
-      }
-      
-      // For mixed layer, we use the first material's name and climate as the base
-      layerNames.push(mat1NameValue || `Skikt ${i}`);
-      climateResources.push(mat1ClimateResource);
-      climateTypes.push(mat1ClimateType);
-      climateFactors.push(mat1Factor);
-      
-      // console.log(`🔍 [getLayerNamesAndClimateResources] Mixed Layer ${i}: mat1="${mat1NameValue}" (${mat1ClimateValue}), mat2="${mat2NameValue}" (${mat2ClimateValue}), factor=${mat1Factor}`);
-    } else {
-      // Regular layer
-      const nameInput = document.getElementById(`layerName${i}`);
-      const climateSelect = document.getElementById(`layerClimate${i}`);
-      const factorInput = document.getElementById(`layerFactorValue${i}`);
-      
-      const layerName = nameInput ? nameInput.value.trim() : '';
-      const climateResourceValue = climateSelect ? climateSelect.value : '';
-      
-      // Parse the climate resource value to determine type and resource
-      let climateType = 'none';
-      let climateResource = '';
-      let factor = 1;
-      
-      if(climateResourceValue){
-        if(climateResourceValue.startsWith('boverket:')){
-          climateType = 'boverket';
-          climateResource = climateResourceValue.split(':')[1];
-        } else if(climateResourceValue.startsWith('epd:')){
-          climateType = 'epd';
-          climateResource = climateResourceValue.split(':')[1];
-          // Get factor value for EPD
-          if(factorInput && factorInput.value) {
-            factor = parseFloat(factorInput.value) || 1;
-          }
-        } else if(climateResourceValue === 'custom:manual'){
-          climateType = 'custom';
-          climateResource = 'manual';
-        }
-      }
-      
-      layerNames.push(layerName);
-      climateResources.push(climateResource);
-      climateTypes.push(climateType);
-      climateFactors.push(factor);
-      
-      // console.log(`🔍 [getLayerNamesAndClimateResources] Layer ${i}: name="${layerName}", climate="${climateResource}", type="${climateType}", factor="${factor}"`);
-    }
-  }
-  
-  // console.log('🔍 [getLayerNamesAndClimateResources] Final data:', { layerNames, climateResources, climateTypes, climateFactors });
-  return { layerNames, climateResources, climateTypes, climateFactors };
-}
-
 
 // Climate resource modal behavior
 let climatePickerTargetSelect = null; // when set, modal acts as picker and won't apply to table
@@ -4853,9 +4394,6 @@ UUID;Version;Name (no);Name (en);Name (da);Name (sv);Category (original);Categor
     
     // Mark as loaded
     epdFilesLoaded = true;
-    
-    // Update layer climate dropdowns if they exist
-    updateLayerClimateDropdowns();
     
     // Return success result
     return { success: true, count: epdFiles.length, files: epdFiles };
@@ -5135,188 +4673,6 @@ if(altClimateApply){
     // Apply the custom resource
     applyCustomClimateResource(customResource);
     closeAltClimateModal();
-  });
-}
-
-// Helper: make a climate <select> searchable by adding a filter input above it and
-// rebuilding options based on the query. Preserves values and optgroup structure.
-function makeClimateSelectSearchable(selectEl){
-  if(!selectEl || selectEl.getAttribute('data-searchable') === 'true'){ return; }
-
-  // Build a cache of all options (grouped)
-  function snapshotOptions(){
-    const snapshot = [];
-    const groups = Array.from(selectEl.querySelectorAll('optgroup'));
-    const hasGroups = groups.length > 0;
-    if(hasGroups){
-      groups.forEach(g => {
-        const label = g.getAttribute('label') || '';
-        Array.from(g.querySelectorAll('option')).forEach(opt => {
-          snapshot.push({ group: label, value: opt.value, text: opt.textContent || '' });
-        });
-      });
-    } else {
-      Array.from(selectEl.querySelectorAll('option')).forEach(opt => {
-        // Skip the default placeholder here; we will prepend it separately
-        if(opt.value === '') return;
-        snapshot.push({ group: '', value: opt.value, text: opt.textContent || '' });
-      });
-    }
-    return snapshot;
-  }
-
-  const allOptions = snapshotOptions();
-
-  // Insert search input before the select
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
-
-  const search = document.createElement('input');
-  search.type = 'text';
-  search.placeholder = 'Sök klimatresurs...';
-  search.style.cssText = 'padding:6px; border:1px solid #ddd; border-radius:4px; font-size:0.85rem;';
-
-  const parent = selectEl.parentElement;
-  if(parent){
-    parent.insertBefore(wrapper, selectEl);
-    wrapper.appendChild(search);
-    wrapper.appendChild(selectEl);
-  }
-
-  function rebuildOptions(query){
-    const q = (query || '').toLowerCase();
-    // Remember current value
-    const current = selectEl.value;
-
-    // Remove all optgroups except keep the first placeholder option if present
-    const placeholder = Array.from(selectEl.children).find(ch => ch.tagName === 'OPTION' && ch.value === '');
-    selectEl.innerHTML = '';
-    if(placeholder){ selectEl.appendChild(placeholder); }
-
-    // Group by group label
-    const grouped = new Map();
-    allOptions.forEach(opt => {
-      if(q && !(opt.text.toLowerCase().includes(q) || opt.value.toLowerCase().includes(q))) return;
-      const key = opt.group || '';
-      if(!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key).push(opt);
-    });
-
-    if(grouped.size === 0){
-      // No match; leave only placeholder
-    } else {
-      grouped.forEach((list, label) => {
-        if(label){
-          const og = document.createElement('optgroup');
-          og.setAttribute('label', label);
-          list.forEach(item => {
-            const o = document.createElement('option');
-            o.value = item.value;
-            o.textContent = item.text;
-            og.appendChild(o);
-          });
-          selectEl.appendChild(og);
-        } else {
-          list.forEach(item => {
-            const o = document.createElement('option');
-            o.value = item.value;
-            o.textContent = item.text;
-            selectEl.appendChild(o);
-          });
-        }
-      });
-    }
-
-    // Restore selection if still present
-    const hasCurrent = Array.from(selectEl.querySelectorAll('option')).some(o => o.value === current);
-    if(hasCurrent){
-      selectEl.value = current;
-    } else {
-      // If filtered out, fall back to placeholder
-      if(placeholder){ selectEl.value = ''; }
-    }
-  }
-
-  search.addEventListener('input', function(){ rebuildOptions(search.value); });
-  // Mark to avoid duplicate wrappers
-  selectEl.setAttribute('data-searchable', 'true');
-}
-if(layerApplyBtn){
-  layerApplyBtn.addEventListener('click', function(){
-    const count = Math.max(1, parseInt(layerCountInput && layerCountInput.value || '1', 10));
-    const raw = (layerThicknessesInput && layerThicknessesInput.value || '').trim();
-    const thicknesses = raw ? raw.split(',').map(s => parseFloat(s.trim().replace(',', '.'))).filter(n => Number.isFinite(n) && n > 0) : [];
-    
-    // Check for mixed layers using new structure
-    const mixedLayerConfigs = [];
-    const mixedLayers = [];
-    
-    // Find which layers are marked as mixed
-    for(let i = 1; i <= count; i++){
-      const checkbox = document.getElementById(`mixedLayer${i}`);
-      if(checkbox && checkbox.checked){
-        mixedLayers.push(i);
-      }
-    }
-    
-    // Create config for each mixed layer
-    mixedLayers.forEach(layerIndex => {
-      const mat1Name = document.getElementById(`mixedMat1Name${layerIndex}`);
-      const mat2Name = document.getElementById(`mixedMat2Name${layerIndex}`);
-      const mat1Percent = document.getElementById(`mixedMat1Percent${layerIndex}`);
-      const mat2Percent = document.getElementById(`mixedMat2Percent${layerIndex}`);
-      const mat1Climate = document.getElementById(`mixedMat1Climate${layerIndex}`);
-      const mat2Climate = document.getElementById(`mixedMat2Climate${layerIndex}`);
-      const mat1FactorInput = document.getElementById(`mixedMat1FactorValue${layerIndex}`);
-      const mat2FactorInput = document.getElementById(`mixedMat2FactorValue${layerIndex}`);
-
-      const mat1NameValue = mat1Name ? mat1Name.value.trim() : '';
-      const mat2NameValue = mat2Name ? mat2Name.value.trim() : '';
-      const mat1PercentValue = parseFloat(mat1Percent ? mat1Percent.value : '50');
-      const mat2PercentValue = parseFloat(mat2Percent ? mat2Percent.value : '50');
-      const mat1ClimateValue = mat1Climate ? mat1Climate.value : '';
-      const mat2ClimateValue = mat2Climate ? mat2Climate.value : '';
-      const mat1FactorValue = mat1FactorInput ? parseFloat(mat1FactorInput.value) : undefined;
-      const mat2FactorValue = mat2FactorInput ? parseFloat(mat2FactorInput.value) : undefined;
-
-      if(mat1NameValue && mat2NameValue){
-        const config = {
-          layerIndex: layerIndex,
-          material1: {
-            name: mat1NameValue,
-            percent: mat1PercentValue,
-            climateResource: mat1ClimateValue
-          },
-          material2: {
-            name: mat2NameValue,
-            percent: mat2PercentValue,
-            climateResource: mat2ClimateValue
-          }
-        };
-
-        // Add factor if EPD is selected
-        if(mat1ClimateValue.startsWith('epd:') && mat1FactorValue){
-          config.material1.factor = mat1FactorValue;
-        }
-        if(mat2ClimateValue.startsWith('epd:') && mat2FactorValue){
-          config.material2.factor = mat2FactorValue;
-        }
-
-        mixedLayerConfigs.push(config);
-      }
-    });
-    
-    // Save state before layering
-    saveState();
-
-    // Get layer names and climate resources
-    const { layerNames, climateResources, climateTypes, climateFactors } = getLayerNamesAndClimateResources();
-
-    // Show progress bar with callback to ensure it renders before heavy operation
-    showProgressBar('Skiktar objekt...', () => {
-      applyLayerSplit(count, thicknesses, mixedLayerConfigs, layerNames, climateResources, climateTypes, climateFactors);
-      closeLayerModal();
-    }, 3000);
   });
 }
 
@@ -9626,28 +8982,6 @@ function getProjectData(){
     // Include current filter and group by values
     filterValue: filterInput ? filterInput.value : '',
     groupByValue: groupBySelect ? groupBySelect.value : '',
-    // Include layer configuration data
-    layerNames: layerNamesContainer ? Array.from(layerNamesContainer.querySelectorAll('input[id^="layerName"]')).map(input => input.value) : [],
-    climateResources: layerNamesContainer ? Array.from(layerNamesContainer.querySelectorAll('select[id^="layerClimate"]')).map(select => select.value) : [],
-    climateTypes: layerNamesContainer ? Array.from(layerNamesContainer.querySelectorAll('select[id^="layerClimate"]')).map(select => {
-      const value = select.value;
-      if(value.startsWith('boverket:')) return 'boverket';
-      if(value.startsWith('epd:')) return 'epd';
-      if(value === 'custom:manual') return 'custom';
-      return 'none';
-    }) : [],
-    climateFactors: layerNamesContainer ? Array.from(layerNamesContainer.querySelectorAll('input[id^="layerFactorValue"]')).map(input => parseFloat(input.value) || 1) : [],
-    // Include mixed layer configuration data
-    mixedLayerNames: mixedLayerConfigs ? Array.from(mixedLayerConfigs.querySelectorAll('input[id^="mixedMat1Name"]')).map(input => input.value) : [],
-    mixedLayerClimateResources: mixedLayerConfigs ? Array.from(mixedLayerConfigs.querySelectorAll('select[id^="mixedMat1Climate"]')).map(select => select.value) : [],
-    mixedLayerClimateTypes: mixedLayerConfigs ? Array.from(mixedLayerConfigs.querySelectorAll('select[id^="mixedMat1Climate"]')).map(select => {
-      const value = select.value;
-      if(value.startsWith('boverket:')) return 'boverket';
-      if(value.startsWith('epd:')) return 'epd';
-      if(value === 'custom:manual') return 'custom';
-      return 'none';
-    }) : [],
-    mixedLayerClimateFactors: mixedLayerConfigs ? Array.from(mixedLayerConfigs.querySelectorAll('input[id^="mixedMat1FactorValue"]')).map(input => parseFloat(input.value) || 1) : []
   };
 }
 
@@ -9845,17 +9179,6 @@ function loadProject(file){
       
       if(projectData.groupByValue && groupBySelect){
         groupBySelect.value = projectData.groupByValue;
-      }
-      
-      // Restore layer configuration data
-      if(projectData.layerNames && projectData.climateResources && projectData.climateTypes && projectData.climateFactors){
-        loadExistingLayerData(projectData.layerNames, projectData.climateResources, projectData.climateTypes, projectData.climateFactors);
-      }
-      
-      // Restore mixed layer configuration data
-      if(projectData.mixedLayerNames && projectData.mixedLayerClimateResources && projectData.mixedLayerClimateTypes && projectData.mixedLayerClimateFactors){
-        // This will be handled by the existing loadExistingLayerData function
-        // since it already handles mixed layers through the regular layer data
       }
       
       // console.log('✅ Projekt laddat. Rader:', lastRows.length, 'Skikt:', layerData.size, 'Klimat:', climateData.size, 'Undo:', undoStack.length, 'Redo:', redoStack.length);
