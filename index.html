@@ -1,694 +1,144 @@
 ﻿<!doctype html>
-<html lang="sv">
+<html lang="sv" data-theme="light">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>INFINITY</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif; margin: 1rem; margin-top: calc(1rem + 40px); background: #f7f9fc; color: #111827; }
-    button, input, select, textarea { font-family: inherit; }
-    /* App-level tab bar switching between Klimatanalys and IFC Viewer */
-    #view-tab-bar { position: fixed; top: 0; left: 0; right: 0; height: 40px; background: #fff; border-bottom: 1px solid #e5e7eb; z-index: 200; display: flex; align-items: center; gap: 2px; padding: 0 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-    .view-tab { background: none; border: none; color: #6b7280; cursor: pointer; font-size: 0.82rem; font-weight: 600; padding: 0 14px; height: 100%; display: inline-flex; align-items: center; gap: 6px; border-bottom: 2px solid transparent; font-family: inherit; transition: color .15s, border-color .15s; }
-    .view-tab:hover { color: #111827; }
-    .view-tab.active { color: #1976d2; border-bottom-color: #1976d2; }
-    .view-tab svg { width: 14px; height: 14px; flex-shrink: 0; }
-    /* IFC iframe — fills viewport below the tab bar */
-    #ifc-frame { display: none; position: fixed; top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100vh - 40px); border: none; z-index: 150; }
-    body.ifc-active #ifc-frame { display: block; }
-    body.ifc-active .container, body.ifc-active #climateSummary, body.ifc-active .status-indicators, body.ifc-active #progressBar { display: none !important; }
-    .container { max-width: calc(95vw - 340px); margin: 0 auto; margin-right: 360px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.06); padding: 16px; padding-top: 0; }
-    h1 { position: sticky; top: 0; z-index: 11; background: #ffffff; margin: 0; padding: 16px; padding-bottom: 8px; margin-left: -16px; margin-right: -16px; border-bottom: 1px solid #e5e7eb; }
-    .picker { position: sticky; top: 60px; z-index: 10; background: #ffffff; margin-bottom: 1rem; margin-left: -16px; margin-right: -16px; padding: 16px; padding-bottom: 12px; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.04); flex-wrap: wrap; }
-    /* Toolbar controls styled like modern rounded buttons */
-    .picker button {
-      border-radius: 9999px;
-      padding: 8px 14px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-      transition: background-color .15s ease, box-shadow .15s ease, transform .05s ease;
-    }
-    .picker button:hover {
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      transform: translateY(-1px);
-    }
-    .picker button:active {
-      transform: translateY(0);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-    }
-    .picker select,
-    .picker input[type="search"] {
-      border-radius: 9999px;
-      padding: 8px 12px;
-      border: 1px solid #e5e7eb;
-    }
-    table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; box-shadow: 0 0 0 1px #e5e7eb; border-radius: 6px; }
-    th, td { border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 3px 6px; font-size: 0.8rem; line-height: 1.3; }
-    th { text-align: left; font-weight: 600; color: #374151; }
-    /* Table zoom (− / + in the toolbar, applyTableZoom in app.js). CSS zoom
-     * also scales the sticky `top` offsets below, so they are divided by --tz
-     * to keep the headers right under the toolbar; the filter row sits one
-     * (zoomed) 35px header row further down. */
-    #output { --tz: 1; }
-    #output table { zoom: var(--tz); }
-    /* Main column headers */
-    thead tr:first-child th { position: sticky !important; top: calc(130px / var(--tz, 1)) !important; background: #ffffff; z-index: 9 !important; }
-    /* Filter row below headers */
-    thead tr[data-filter-row="true"] th { position: sticky !important; top: calc(130px / var(--tz, 1) + 35px) !important; background: #ffffff; z-index: 9 !important; padding: 4px; }
-    .table-zoom { display: flex; align-items: center; gap: 4px; }
-    .table-zoom span { min-width: 38px; text-align: center; font-size: 0.85rem; color: #374151; }
-    thead tr { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    thead th { border-top: 1px solid #e5e7eb; }
-    thead th:first-child { border-top-left-radius: 12px; }
-    thead th:last-child { border-top-right-radius: 12px; }
-    thead th:hover { background: #f8fafc; }
-    /* Grouped column styling */
-    th[data-grouped="true"] { background: #e3f2fd !important; font-weight: 700; color: #1976d2; }
-    tbody td:first-child { position: sticky !important; left: 0; background: #fff; z-index: 8; width: 250px; min-width: 250px; white-space: nowrap; }
-    thead th:first-child { position: sticky !important; left: 0; background: #fff; width: 250px; min-width: 250px; white-space: nowrap; }
-    thead tr:first-child th:first-child { z-index: 30 !important; top: calc(130px / var(--tz, 1)) !important; }
-    thead tr[data-filter-row="true"] th:first-child { z-index: 30 !important; top: calc(130px / var(--tz, 1) + 35px) !important; }
-    /* Zebra rows via classes for correct alternation with hidden rows */
-    tbody tr.zebra-even td { background: #f8fafc; }
-    tbody tr.zebra-odd td { background: #eef2f7; }
-    /* Truncate long text with ellipsis, full text shown via JS tooltip */
-    td:not(:first-child), th:not(:first-child) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-    th[data-grouped="true"] { max-width: none; }
-    #cell-tooltip { position: fixed; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; max-width: 360px; white-space: normal; word-break: break-word; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; pointer-events: none; display: none; line-height: 1.4; color: #1f2937; }
-    /* Keep action cell content tight */
-    td:first-child > * { gap: 2px; }
-    /* Row numbers: auto-counter on all visible rows; display:none rows are skipped automatically */
-    tbody { counter-reset: row-num; }
-    tbody tr { counter-increment: row-num; }
-    tbody td:first-child::before { content: counter(row-num); display: inline-block; min-width: 22px; font-size: 1rem; color: #9ca3af; text-align: right; padding-right: 6px; vertical-align: middle; }
-    table tbody tr:hover td { background: #e8eef7; }
-    .ag-resize-handle { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; user-select: none; }
-    thead th.ag-sort-asc::after { content: '▲'; font-size: 10px; margin-left: 6px; color: #6b7280; }
-    thead th.ag-sort-desc::after { content: '▼'; font-size: 10px; margin-left: 6px; color: #6b7280; }
-    .filter { flex: 1; max-width: 320px; }
-    .muted { color: #666; font-size: 0.9rem; }
-    /* Radhierarki (grupp/skikt) - EN neutral gråskala oavsett mappningsstatus,
-     * så "är det här ett skikt" alltid syns likadant. Mappningsstatus (grönt/
-     * orange, se .climate-mapped* längre ner) signaleras uteslutande via
-     * kantlinjen till vänster - de två kanalerna konkurrerar då inte längre
-     * om samma bakgrundsfärg (tidigare vann alltid mappningsfärgen och
-     * skikt-/grupptillhörigheten försvann helt så fort en rad blev mappad). */
-    .group-parent {
-      background: #eef0f3;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
-    }
-    .layer-parent {
-      background: #e6e9ee;
-      font-weight: 700;
-      cursor: pointer;
-      border-bottom: 2px solid rgba(15, 23, 42, 0.12) !important;
-      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.1);
-    }
-    .group-toggle {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: .75rem;
-      vertical-align: middle;
-      background: #475569;
-      border-radius: 4px;
-      width: 24px;
-      height: 24px;
-      flex-shrink: 0;
-    }
-    .group-toggle svg {
-      width: 16px;
-      height: 16px;
-      display: inline-block;
-      transition: transform .2s ease;
-      color: #ffffff;
-      stroke-width: 3;
-    }
-    /* Right chevron rotates down when open */
-    .group-parent[data-open='false'] .group-toggle svg { transform: rotate(0deg); }
-    .group-parent:not([data-open='false']) .group-toggle svg { transform: rotate(90deg); }
-    .layer-parent[data-open='false'] .group-toggle svg { transform: rotate(0deg); }
-    .layer-parent:not([data-open='false']) .group-toggle svg { transform: rotate(90deg); }
-    /* New rows visual marking - not for layer children, which always get
-     * is-new when created and would otherwise all turn yellow. */
-    tr.is-new:not([data-layer-child-of]) td { background: #fff7cc; }
-    .badge-new { display:inline-block; background:#ffec99; color:#5c4400; border:1px solid #e6c466; border-radius:10px; padding:0 6px; font-size:11px; margin-right:6px; }
-
-    /* Skikt-barnrader - tunn "trädlinje" + tydligare indrag så nästling syns
-     * även när zebra-randningen är subtil, istället för en egen kulör som
-     * konkurrerade med mappningsfärgerna. */
-    tbody tr[data-layer-child-of] td:first-child { box-shadow: inset 4px 0 0 0 #94a3b8; }
-    tbody tr[data-layer-child-of] td:nth-child(2) { padding-left: 22px; position: relative; }
-    tbody tr[data-layer-child-of] td:nth-child(2)::before {
-      content: "";
-      position: absolute;
-      left: 10px;
-      top: 0;
-      bottom: 0;
-      width: 1px;
-      background: #cbd5e1;
-    }
-
-    /* Mappningsstatus - bakgrundsfärgen betyder BARA detta, på alla radtyper
-     * (grupp, skikt, vanlig). Struktur visas istället via pilknapp, fetstil
-     * och indrag. Stapeln ligger i den fastlåsta första kolumnen eftersom en
-     * kantlinje på <tr> döljs bakom den. Måste ligga efter zebra- och
-     * skiktreglerna ovan för att vinna. */
-    tbody tr.climate-mapped td { background-color: #e3f4e6; }
-    tbody tr.climate-mapped-alt td { background-color: #fdeedd; }
-    tbody tr.climate-mapped-both td { background: linear-gradient(90deg, #e3f4e6 50%, #fdeedd 50%); }
-    tbody tr.climate-mapped td:first-child { box-shadow: inset 6px 0 0 0 #2e7d32; }
-    tbody tr.climate-mapped-alt td:first-child { box-shadow: inset 6px 0 0 0 #e67e22; }
-    tbody tr.climate-mapped-both td:first-child { box-shadow: inset 3px 0 0 0 #2e7d32, inset 6px 0 0 0 #e67e22; }
-
-    /* Icon buttons */
-    .icon-btn {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 6px 8px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 2px;
-      transition: all 0.2s ease;
-      vertical-align: middle;
-    }
-    .icon-btn:hover {
-      background: #f5f5f5;
-      border-color: #999;
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .icon-btn svg {
-      width: 16px;
-      height: 16px;
-      display: block;
-    }
-    .icon-btn.layer-btn { border-color: #2196f3; color: #2196f3; }
-    .icon-btn.layer-btn:hover { background: #e3f2fd; border-color: #2196f3; }
-    .icon-btn.climate-btn { border-color: #4caf50; color: #4caf50; }
-    .icon-btn.climate-btn:hover { background: #e8f5e9; border-color: #4caf50; }
-    .icon-btn.epd-btn { border-color: #ff9800; color: #ff9800; }
-    .icon-btn.epd-btn:hover { background: #fff3e0; border-color: #ff9800; }
-    .icon-btn.close-btn { border-color: #f44336; color: #f44336; }
-    .icon-btn.close-btn:hover { background: #ffebee; border-color: #f44336; }
-
-    .hidden { display: none; }
-
-    /* ===== Layer modal ("Dela i skikt", app.js layer modal code) ===== */
-    #layerModal [hidden] { display: none !important; }
-    .lm-box { background: #fff; border-radius: 10px; width: min(820px, 94vw); max-height: 90vh; overflow-y: auto; box-shadow: 0 12px 36px rgba(15, 35, 55, 0.2); padding: 20px 22px; display: grid; gap: 16px; }
-    .lm-title { margin: 0; font-size: 1.15rem; font-weight: 700; color: #14202e; }
-    .lm-sub { color: #5d6b7c; font-size: 0.8rem; margin-top: 2px; }
-    .lm-presets { display: flex; gap: 6px; flex-wrap: wrap; }
-    .lm-chip { font: inherit; font-size: 0.78rem; padding: 5px 12px; border-radius: 999px; border: 1px solid #dbe2ea; background: #f6f8fb; color: #14202e; cursor: pointer; }
-    .lm-chip:hover { border-color: #1976d2; color: #1976d2; }
-
-    /* vertical bar of the build-up, layers top to bottom in row order */
-    .lm-area { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 14px; }
-    .lm-bar { display: flex; flex-direction: column; margin-top: 24px; border-radius: 6px; overflow: hidden; border: 1px solid #dbe2ea; }
-    .lm-seg { min-height: 2px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; color: #14202e; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; border-bottom: 1px solid #fff; }
-    .lm-seg:last-child { border-bottom: 0; }
-    .lm-seg:nth-child(odd) { background: #cfe2f5; }
-    .lm-seg:nth-child(even) { background: #e4eef9; }
-    .lm-seg.lm-seg-mixed { background: repeating-linear-gradient(135deg, #cfe2f5 0 5px, #9dc0e6 5px 10px); }
-    .lm-seg.lm-seg-mixed span { background: #fff; border-radius: 3px; padding: 0 3px; }
-
-    /* one row per layer (+ material 2 and EPD factor rows) */
-    .lm-grid { display: grid; grid-template-columns: 22px minmax(100px, 0.9fr) 92px minmax(200px, 1.8fr) 72px 30px; gap: 8px; align-items: center; }
-    .lm-head { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5d6b7c; margin-bottom: 4px; }
-    .lm-rows { display: grid; gap: 6px; }
-    .lm-layer { display: grid; gap: 6px; }
-    .lm-layer-mixed { background: #f1f6fc; border-radius: 6px; margin-inline: -6px; padding: 6px; box-shadow: inset 3px 0 0 #1976d2; }
-    .lm-n { color: #5d6b7c; font-size: 0.8rem; text-align: right; font-variant-numeric: tabular-nums; }
-    .lm-box input[type="text"], .lm-box input[type="number"], .lm-catalog input[type="search"], .lm-catalog select {
-      font: inherit; font-size: 0.85rem; color: #14202e; background: #f6f8fb; border: 1px solid #dbe2ea; border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; box-sizing: border-box;
-    }
-    .lm-box input[type="number"] { text-align: right; font-variant-numeric: tabular-nums; }
-    .lm-res { font: inherit; font-size: 0.85rem; text-align: left; color: #14202e; background: #f6f8fb; border: 1px solid #dbe2ea; border-radius: 6px; padding: 6px 28px 6px 8px; width: 100%; min-width: 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
-    .lm-res::after { content: "⌕"; position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: #1976d2; font-size: 15px; }
-    .lm-res:hover { border-color: #1976d2; }
-    .lm-res.lm-missing { border-color: #b45309; color: #b45309; }
-    .lm-mixbox { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; color: #5d6b7c; cursor: pointer; }
-    .lm-mixbox input { accent-color: #1976d2; }
-    .lm-del { font: inherit; width: 30px; height: 30px; border-radius: 6px; border: 1px solid #dbe2ea; background: #fff; color: #5d6b7c; cursor: pointer; }
-    .lm-del:hover:not(:disabled) { color: #b45309; border-color: #b45309; }
-    .lm-del:disabled { opacity: .35; cursor: default; }
-    .lm-unit { position: relative; }
-    .lm-unit::after { content: attr(data-unit); position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: #5d6b7c; font-size: 0.75rem; pointer-events: none; }
-    .lm-box .lm-unit input { padding-right: 44px; }
-    .lm-factor .lm-label { grid-column: 2; font-size: 0.8rem; color: #5d6b7c; text-align: right; }
-    .lm-factor .lm-unit { grid-column: 4; max-width: 200px; }
-    .lm-add { font: inherit; border: 0; background: none; color: #1976d2; padding: 6px 0 0; cursor: pointer; font-weight: 500; }
-
-    .lm-foot { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; border-top: 1px solid #dbe2ea; padding-top: 14px; }
-    .lm-total b { font-weight: 500; font-variant-numeric: tabular-nums; }
-    .lm-status { font-size: 0.8rem; margin-top: 2px; }
-    .lm-ok { color: #2e7d32; }
-    .lm-warn { color: #b45309; }
-    .lm-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-    .lm-btn { font: inherit; font-weight: 500; border-radius: 999px; padding: 8px 18px; cursor: pointer; border: 1px solid #dbe2ea; background: #fff; color: #14202e; }
-    .lm-btn.lm-primary { background: #1976d2; border-color: #1976d2; color: #fff; }
-    .lm-btn:disabled { opacity: .45; cursor: default; }
-    .lm-message { font-size: 0.8rem; color: #2e7d32; min-height: 1em; }
-    .lm-message.lm-message-error { color: #b45309; }
-
-    /* climate resource catalogue for one layer */
-    .lm-scrim { position: fixed; inset: 0; background: rgba(10, 20, 30, 0.42); display: grid; place-items: center; z-index: 10; padding: 16px; }
-    .lm-catalog { width: min(860px, 100%); max-height: 100%; overflow: auto; background: #fff; border-radius: 10px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); display: grid; }
-    .lm-catalog > * { padding: 16px 20px; }
-    .lm-cat-head { border-bottom: 1px solid #dbe2ea; }
-    .lm-cat-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
-    .lm-cat-left { display: grid; gap: 8px; align-content: start; }
-    .lm-catalog select[size] { padding: 4px; min-height: 300px; }
-    .lm-details { background: #f6f8fb; border: 1px solid #dbe2ea; border-radius: 8px; padding: 14px; display: grid; gap: 10px; align-content: start; font-size: 0.85rem; margin: 0; }
-    .lm-details dt { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5d6b7c; }
-    .lm-details dd { margin: 2px 0 0; }
-    .lm-empty { color: #5d6b7c; font-style: italic; margin: 0; }
-    .lm-cat-foot { border-top: 1px solid #dbe2ea; display: flex; justify-content: flex-end; gap: 8px; }
-    .lm-btn.lm-clear { margin-right: auto; border: 0; background: none; color: #b45309; padding-inline: 4px; }
-    /* Editable cells */
-    td.editable { 
-      cursor: text;
-      position: relative;
-    }
-    td.editable:hover {
-      background: #f0f0f0;
-    }
-    td.editable input {
-      width: 100%;
-      border: 2px solid #4caf50;
-      padding: 6px;
-      font-family: inherit;
-      font-size: inherit;
-      box-sizing: border-box;
-    }
-    .autocomplete-list {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      background: white;
-      border: 1px solid #ddd;
-      max-height: 200px;
-      overflow-y: auto;
-      z-index: 1000;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .autocomplete-item {
-      padding: 8px;
-      cursor: pointer;
-      border-bottom: 1px solid #eee;
-    }
-    .autocomplete-item:hover {
-      background: #e3f2fd;
-    }
-    .status-indicators {
-      position: fixed;
-      bottom: 16px;
-      right: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      z-index: 1000;
-    }
-
-    /* Make action buttons display horizontally */
-    td:first-child {
-      white-space: nowrap;
-      padding: 4px !important;
-      text-align: center;
-    }
-
-    td:first-child > * {
-      display: inline-flex;
-      margin: 0 2px;
-      vertical-align: middle;
-    }
-    
-    /* Progress Bar Styles */
-    /* Loading overlay for better visibility */
-    .loading-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      z-index: 9998;
-      display: none;
-    }
-
-    .progress-bar {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: white;
-      border-radius: 8px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-      z-index: 9999;
-      padding: 30px 40px;
-      min-width: 400px;
-      text-align: center;
-    }
-
-    .progress-bar-spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid #f0f0f0;
-      border-top: 4px solid #4caf50;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    .progress-bar-fill {
-      height: 8px;
-      background: linear-gradient(90deg, #43a047, #66bb6a, #43a047);
-      background-size: 200% 100%;
-      width: 0%;
-      transition: width 0.25s ease;
-      border-radius: 4px;
-      margin-bottom: 15px;
-      animation: progress-shimmer 1.2s linear infinite;
-    }
-    .progress-bar-fill.progress-animating {
-      animation: progress-advance var(--progress-duration, 3s) cubic-bezier(0.05, 0, 0.15, 1) forwards,
-                 progress-shimmer 1.2s linear infinite;
-    }
-    .progress-bar-fill.progress-done {
-      animation: none;
-      width: 100% !important;
-      transition: width 0.2s ease;
-    }
-
-    .progress-bar-container {
-      width: 100%;
-      height: 8px;
-      background-color: #f0f0f0;
-      border-radius: 4px;
-      overflow: hidden;
-      margin-bottom: 15px;
-    }
-
-    .progress-bar-text {
-      font-size: 16px;
-      color: #333;
-      font-weight: 600;
-      margin-bottom: 10px;
-    }
-
-    .progress-bar-subtext {
-      font-size: 13px;
-      color: #666;
-      margin-top: 10px;
-      min-height: 1.2em;
-    }
-
-    @keyframes progress-advance {
-      0%   { width: 0%; }
-      25%  { width: 55%; }
-      60%  { width: 78%; }
-      85%  { width: 87%; }
-      100% { width: 92%; }
-    }
-
-    @keyframes progress-shimmer {
-      0%   { background-position: 100% 0; }
-      100% { background-position: -100% 0; }
-    }
-    
-    .api-indicator {
-      background: rgba(255, 255, 255, 0.95);
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 6px 10px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-      font-size: 0.75rem;
-      max-width: 180px;
-    }
-    .api-indicator.connected { border-color: #4caf50; }
-    .api-indicator.error { border-color: #f44336; }
-    .api-status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 600;
-    }
-    .api-status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #ddd;
-    }
-    .api-status-dot.connected { background: #4caf50; }
-    .api-status-dot.error { background: #f44336; }
-    .api-details {
-      color: #666;
-      font-size: 0.7rem;
-      line-height: 1.3;
-      margin-top: 2px;
-    }
-    .climate-summary {
-      position: fixed;
-      top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #ffffff;
-      border: 1px solid #e5e7eb;
-      padding: 10px 16px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-      font-size: 0.85rem;
-      z-index: 999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 24px;
-      border-radius: 9999px;
-    }
-    .climate-summary h3 {
-      margin: 0;
-      font-size: 0.9rem;
-      color: #1976d2;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-    .climate-summary-items {
-      display: flex;
-      gap: 24px;
-      align-items: center;
-    }
-    .climate-summary-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      white-space: nowrap;
-    }
-    .climate-summary-item:last-child {
-      padding-left: 24px;
-      margin-left: 8px;
-      border-left: 2px solid #2196f3;
-    }
-    .climate-summary-label {
-      color: #555;
-      font-size: 0.85rem;
-    }
-    .climate-summary-value {
-      font-weight: 700;
-      color: #1976d2;
-      font-size: 0.9rem;
-    }
-    .climate-summary-total {
-      color: #1565c0 !important;
-      font-size: 1rem;
-    }
-    /* Mappningsöverblick i sammanfattningspanelen - "X/Y rader mappade" +
-     * en liten fyllnadsstapel, så man ser åtgärdsbehovet på en blick utan
-     * att behöva scrolla igenom hela tabellen. */
-    .mapping-overview-bar {
-      width: 70px;
-      height: 6px;
-      border-radius: 3px;
-      background: #e5e7eb;
-      overflow: hidden;
-    }
-    .mapping-overview-fill {
-      height: 100%;
-      width: 0%;
-      background: #2e7d32;
-      border-radius: 3px;
-      transition: width 200ms ease;
-    }
-
-    /* Add padding to body to account for fixed summary */
-    body { padding-top: 100px; }
-    
-    /* Responsive design for smaller screens */
-    @media (max-width: 1200px) {
-      .container {
-        max-width: 95vw;
-        margin-right: auto;
-      }
-      .api-indicator,
-      .climate-summary {
-        position: relative;
-        right: auto;
-        margin-bottom: 16px;
-        width: 100%;
-        max-width: 400px;
-      }
-      .climate-summary {
-        top: auto;
-      }
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="klimat/style.css">
 </head>
 <body>
-  <!-- App-level tab bar -->
-  <nav id="view-tab-bar">
-    <button id="tab-table" class="view-tab active">
+<!-- Klimatanalys: app bar -> overview cards -> table toolbar (search, status chips,
+     column sets) -> bulk bar when rows are ticked -> grouped table with Mappa/Skikta
+     on every row. The classic page is kept as klassisk.html. -->
+<div class="topbar" id="topbar">
+  <nav class="tabs" aria-label="Vy"><div class="wrap">
+    <button class="tab active" type="button" id="tabTable">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       Klimatanalys
     </button>
-    <button id="tab-ifc" class="view-tab">
+    <button class="tab" type="button" id="tabIfc">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 7-9-4-9 4"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 3v18"/><path d="m3 7 9 4 9-4"/></svg>
       IFC Viewer
     </button>
-  </nav>
-  <iframe id="ifc-frame" src="/viewer/" title="IFC Viewer" allow="cross-origin-isolated"></iframe>
+  </div></nav>
 
-  <!-- API Status Indicators -->
-  <div class="status-indicators">
-    <div id="apiIndicator" class="api-indicator">
-      <div class="api-status">
-        <span class="api-status-dot"></span>
-        <span>Ansluter till Boverket...</span>
+  <header class="appbar"><div class="wrap">
+    <div class="brand">INFINITY<small>by</small><img src="intecloggokonsultregistret6.webp" alt="INTEC"></div>
+    <div class="doc"><b id="docTitle">Ingen fil öppnad</b><span id="docSub">Öppna en mängdavtagning eller ett sparat projekt</span></div>
+    <span class="res-status" id="resStatus" title="Klimatdatabas">Ansluter till Boverket…</span>
+    <div class="spacer"></div>
+    <div class="actions">
+      <button class="icon-btn" type="button" id="undoBtn" title="Ångra (Ctrl+Z)" aria-label="Ångra" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg></button>
+      <button class="icon-btn" type="button" id="redoBtn" title="Gör om (Ctrl+Y)" aria-label="Gör om" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/></svg></button>
+      <div class="menu">
+        <button class="btn" type="button" id="fileMenuBtn" aria-haspopup="true" aria-expanded="false">Arkiv ▾</button>
+        <div class="menu-list" id="fileMenu" hidden>
+          <button type="button" data-open-excel>Öppna Excel/CSV…</button>
+          <button type="button" data-open-project>Öppna projekt…</button>
+          <hr>
+          <button type="button" data-needs-rows id="saveAsBtn">Spara som…</button>
+          <button type="button" data-needs-rows data-export="all">Exportera till Excel</button>
+          <button type="button" data-needs-rows data-export="visible">Exportera det som visas</button>
+          <hr>
+          <button type="button" data-needs-rows id="addRowBtn">Lägg till rad</button>
+          <hr>
+          <a href="klassisk.html" class="menu-link">Klassisk vy</a>
+        </div>
       </div>
+      <button class="btn primary" type="button" id="saveBtn" data-needs-rows disabled>Spara</button>
     </div>
+  </div></header>
+</div>
 
-    <!-- DISABLED: Finnish database indicator hidden as it's not being loaded
-    <div id="epdIndicator" class="api-indicator">
-      <div class="api-status">
-        <span class="api-status-dot"></span>
-        <span>Laddar EPD-filer...</span>
-      </div>
+<iframe id="ifcFrame" src="/viewer/" title="IFC Viewer" allow="cross-origin-isolated"></iframe>
+
+<main class="wrap" id="main">
+  <input type="file" id="excelInput" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values" hidden>
+  <input type="file" id="projectInput" accept=".json,application/json" hidden>
+
+  <section class="start" id="start">
+    <h1>Klimatanalys</h1>
+    <p>Öppna en mängdavtagning från Excel eller CSV, eller ett projekt du har sparat. Du kan också släppa filen här, eller skicka mängder från IFC Viewer.</p>
+    <div class="start-btns">
+      <button class="btn primary" type="button" data-open-excel>Öppna Excel/CSV…</button>
+      <button class="btn" type="button" data-open-project>Öppna projekt…</button>
     </div>
-    -->
+  </section>
+
+  <div id="workspace" hidden>
+    <section class="overview" aria-label="Översikt">
+      <div class="card">
+        <h2>Klimatpåverkan A1–A5</h2>
+        <div class="big num" id="kTotal"></div>
+        <div class="stack" id="kStack" aria-hidden="true"></div>
+        <div class="legend" id="kLegend"></div>
+        <div class="kextra" id="kExtra"></div>
+      </div>
+      <div class="card">
+        <h2>Per m² BTA</h2>
+        <div class="big num" id="kPerM2"></div>
+        <label class="bta">BTA <input type="number" id="btaInput" min="0" step="any" placeholder="0"> m²</label>
+      </div>
+      <div class="card">
+        <h2>Mappning</h2>
+        <div class="big num" id="kMapped"></div>
+        <div class="progress" aria-hidden="true"><i id="kMappedBar"></i></div>
+        <button class="link" type="button" id="showUnmapped"></button>
+      </div>
+      <div class="card">
+        <h2 id="kTopTitle">Störst påverkan</h2>
+        <div class="top" id="kTop"></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Tabell">
+      <div class="toolbar">
+        <input class="search" type="search" id="search" placeholder="Sök Type, material, beskrivning…" aria-label="Sök i tabellen">
+        <div class="chips" id="chips" role="group" aria-label="Visa"></div>
+        <span class="copied" id="copied" hidden><span id="copiedText"></span><button type="button" id="copiedClear" aria-label="Töm kopierad skiktning" title="Töm">✕</button></span>
+        <div class="spacer"></div>
+        <label>Gruppera efter <select id="groupBy"></select></label>
+        <div class="seg" id="colsets" role="group" aria-label="Kolumner"></div>
+      </div>
+      <div class="bulk" id="bulk" hidden>
+        <b id="bulkCount"></b>
+        <button class="btn primary" type="button" id="bulkMap">Mappa valda</button>
+        <button class="btn" type="button" id="bulkLayer">Skikta valda</button>
+        <button class="btn" type="button" id="bulkPaste" hidden>Klistra in skiktning</button>
+        <button class="btn danger" type="button" id="bulkUnmap">Ta bort mappning</button>
+        <button class="link" type="button" id="bulkClear">Avmarkera</button>
+      </div>
+      <div class="tablebox"><table id="table"></table></div>
+      <div class="tfoot"><span id="footInfo"></span><span>Klicka på ett namn för detaljer. Tryck S över en rad för att skikta den.</span></div>
+    </section>
   </div>
+</main>
 
-  <!-- Climate Impact Summary -->
-  <div id="climateSummary" class="climate-summary" style="display: none;">
-    <h3>Klimatpåverkan</h3>
-    <div class="climate-summary-items">
-      <div class="climate-summary-item">
-        <span class="climate-summary-label">A1-A3:</span>
-        <span class="climate-summary-value" id="summaryA1A3">0.00 kg CO₂e</span>
-      </div>
-      <div class="climate-summary-item">
-        <span class="climate-summary-label">A4:</span>
-        <span class="climate-summary-value" id="summaryA4">0.00 kg CO₂e</span>
-      </div>
-      <div class="climate-summary-item">
-        <span class="climate-summary-label">A5:</span>
-        <span class="climate-summary-value" id="summaryA5">0.00 kg CO₂e</span>
-      </div>
-      <div class="climate-summary-item">
-        <span class="climate-summary-label">Totalt:</span>
-        <span class="climate-summary-value climate-summary-total" id="summaryTotal">0.00 kg CO₂e</span>
-      </div>
-      <div class="climate-summary-item" id="summaryMapped" style="display: none;">
-        <span class="climate-summary-label">Mappat:</span>
-        <span class="climate-summary-value" id="summaryMappedValue">0/0 rader</span>
-        <div class="mapping-overview-bar"><div class="mapping-overview-fill" id="summaryMappedFill"></div></div>
-      </div>
-      <div class="climate-summary-item" id="summaryReduction" style="display: none;">
-        <span class="climate-summary-label">Reduktion:</span>
-        <span class="climate-summary-value" style="color: #2e7d32;">0.00 kg CO₂e (0.0%)</span>
-      </div>
-      <div class="climate-summary-item" id="summaryEpdPercent" style="display: none;">
-        <span class="climate-summary-label">EPD-andel:</span>
-        <span class="climate-summary-value">0.0%</span>
-      </div>
-      <div class="climate-summary-item" id="summaryBtaPerM2" style="display: none;">
-        <span class="climate-summary-label">Per m² BTA:</span>
-        <span class="climate-summary-value" id="summaryBtaValue">0.00 kg CO₂e/m²</span>
-      </div>
-    </div>
+<div class="drop" id="drop" hidden><div>Släpp Excel/CSV eller ett projekt (.json)</div></div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-labelledby="dTitle" role="dialog">
+  <div class="dh">
+    <div><h2 id="dTitle"></h2><div class="dsub" id="dSub"></div></div>
+    <button class="icon-btn close" type="button" id="dClose" aria-label="Stäng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
   </div>
-
-  <!-- Progress Bar -->
-  <!-- Loading overlay -->
-  <div id="loadingOverlay" class="loading-overlay"></div>
-
-  <!-- Progress bar -->
-  <div id="progressBar" class="progress-bar" style="display: none;">
-    <div class="progress-bar-spinner"></div>
-    <div class="progress-bar-text">Bearbetar...</div>
-    <div class="progress-bar-container">
-      <div class="progress-bar-fill"></div>
-    </div>
-    <div class="progress-bar-subtext">Vänligen vänta...</div>
+  <div class="dbody" id="dBody"></div>
+  <div class="df">
+    <button class="btn primary" type="button" id="dMap">Mappa</button>
+    <button class="btn" type="button" id="dLayer">Skikta</button>
+    <button class="btn" type="button" id="dCopy" hidden>Kopiera skikt</button>
+    <button class="btn danger" type="button" id="dUnmap">Ta bort mappning</button>
   </div>
+</aside>
 
-  <div class="container">
-    <h1 style="display: flex; align-items: baseline; gap: 8px;">
-      <span style="line-height: 1;">INFINITY</span>
-      <span style="font-size: 0.5em; color: #666; font-weight: 400; line-height: 1;">by</span>
-      <img src="intecloggokonsultregistret6.webp" alt="intecloggokonsultregistret6" style="height: 0.6em; align-self: baseline;">
-    </h1>
-    <div class="picker">
-      <input id="fileInput" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"/>
-      <input id="filterInput" class="filter" type="search" placeholder="Filtrera rader..." />
-      <label for="hideMappedToggle" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;color:#374151;white-space:nowrap;user-select:none;">
-        <input id="hideMappedToggle" type="checkbox" style="width:15px;height:15px;cursor:pointer;accent-color:#2e7d32;" />
-        Dölj mappade
-      </label>
-      <label for="groupBy" class="muted">Gruppera efter:</label>
-      <select id="groupBy"></select>
-      <label for="btaInput" class="muted" style="margin-left: 1rem;">BTA-yta (m²):</label>
-      <input id="btaInput" type="number" min="0" step="0.01" placeholder="0" style="width: 100px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 9999px;" />
-      <div class="table-zoom" title="Tabellstorlek">
-        <button id="zoomOutBtn" type="button" aria-label="Zooma ut tabellen">−</button>
-        <span id="zoomLevel">100%</span>
-        <button id="zoomInBtn" type="button" aria-label="Zooma in tabellen">+</button>
-      </div>
-      <button id="toggleAllBtn" type="button">Fäll ihop alla</button>
-      <button id="addRowBtn" type="button" style="background:#607d8b; color:white;">Lägg till rad</button>
-      <button id="exportBtn" type="button" style="background:#607d8b; color:white;">Exportera till Excel</button>
-      <button id="undoBtn" type="button" style="background:#607d8b; color:white;" title="Ångra (Ctrl+Z)" disabled>↶ Ångra</button>
-      <button id="redoBtn" type="button" style="background:#607d8b; color:white;" title="Gör om (Ctrl+Y)" disabled>↷ Gör om</button>
-      <button id="saveProjectBtn" type="button" style="background:#607d8b; color:white;">Spara</button>
-      <button id="saveAsProjectBtn" type="button" style="background:#607d8b; color:white;">Spara som...</button>
-      <button id="loadProjectBtn" type="button" style="background:#607d8b; color:white;">Öppna projekt</button>
-      <button id="applyLayerToSelectedBtn" type="button" style="background:#10b981; color:white; display:none;">📋 Applicera skiktning på valda (<span id="selectedCount">0</span>)</button>
-      <input id="projectFileInput" type="file" accept=".json,application/json" style="display:none;" />
-    </div>
-    <div id="output"></div>
-  </div>
-
-  <!-- Layer modal ("Dela i skikt") - rendered by the layer modal code in app.js -->
-  <div id="layerModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 2000;">
-    <div class="lm-box" role="dialog" aria-labelledby="lmTitle">
-      <div>
-        <h2 id="lmTitle" class="lm-title">Dela i skikt</h2>
-        <div class="lm-sub" id="lmSub"></div>
-      </div>
-
-      <div class="lm-presets" id="lmPresets"></div>
-
+<div class="cat-scrim lm-scrim" id="layerModal" hidden>
+  <div class="lmodal" role="dialog" aria-labelledby="lmTitle">
+    <div class="ch"><h2 id="lmTitle">Dela i skikt</h2><div class="dsub" id="lmSub"></div></div>
+    <div class="lbody">
+      <div class="chips" id="lmPresets" aria-label="Snabbval"></div>
       <div>
         <div class="lm-area">
           <div class="lm-bar" id="lmBar" aria-hidden="true"></div>
@@ -697,942 +147,85 @@
             <div class="lm-rows" id="lmRows"></div>
           </div>
         </div>
-        <button type="button" class="lm-add" id="lmAdd">+ Lägg till skikt</button>
+        <button class="link" type="button" id="lmAdd" style="margin-top:8px">+ Lägg till skikt</button>
       </div>
-
-      <div class="lm-foot">
-        <div>
-          <div class="lm-total" id="lmTotal"></div>
-          <div class="lm-status" id="lmStatus"></div>
-        </div>
-        <div class="lm-btns">
-          <button id="layerPaste" type="button" class="lm-btn" hidden>Klistra in kopierade skikt</button>
-          <button id="layerCancel" type="button" class="lm-btn">Avbryt</button>
-          <button id="layerApply" type="button" class="lm-btn lm-primary">Dela</button>
-        </div>
-      </div>
-      <div class="lm-message" id="lmMessage" role="status"></div>
     </div>
-
-    <!-- Climate resource catalogue for one layer -->
-    <div class="lm-scrim" id="lmCatalog" hidden>
-      <div class="lm-catalog" role="dialog" aria-labelledby="lmCatTitle">
-        <div class="lm-cat-head">
-          <h2 id="lmCatTitle" class="lm-title">Mappa klimatresurs</h2>
-          <div class="lm-sub" id="lmCatTarget"></div>
-        </div>
-        <div class="lm-cat-body">
-          <div class="lm-cat-left">
-            <input type="search" id="lmCatSearch" placeholder="Sök klimatresurs…" aria-label="Sök klimatresurs" autocomplete="off">
-            <select id="lmCatList" size="14" aria-label="Klimatresurser"></select>
-          </div>
-          <dl class="lm-details" id="lmCatDetails"></dl>
-        </div>
-        <div class="lm-cat-foot">
-          <button type="button" class="lm-btn lm-clear" id="lmCatClear">Ta bort klimatresurs</button>
-          <button type="button" class="lm-btn" id="lmCatCancel">Avbryt</button>
-          <button type="button" class="lm-btn lm-primary" id="lmCatUse" disabled>Använd</button>
-        </div>
+    <div class="lm-foot">
+      <div>
+        <div id="lmTotal"></div>
+        <div class="lm-status" id="lmStatus"></div>
+        <div class="lm-msg" id="lmMsg" role="status"></div>
+      </div>
+      <div class="lm-btns">
+        <button class="link danger" type="button" id="lmRemove" hidden>Ta bort skiktning</button>
+        <button class="btn" type="button" id="lmPaste" hidden>Klistra in kopierade skikt</button>
+        <button class="btn" type="button" id="lmCancel">Avbryt</button>
+        <button class="btn primary" type="button" id="lmApply">Dela</button>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Climate Resource Mapping modal -->
-  <div id="climateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:3000;">
-    <div style="background:#fff; padding:0; border-radius:8px; width: min(900px, 95vw); box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 90vh; overflow:hidden; display:flex; flex-direction:column;">
-
-      <!-- Header -->
-      <div style="padding:20px 24px; background:#fff; border-bottom:2px solid #e0e0e0;">
-        <h2 style="margin:0; font-size:1.3rem; font-weight:600; color:#333;">
-          Mappa klimatresurs
-        </h2>
-      </div>
-
-      <!-- Content -->
-      <div style="padding:24px; overflow-y:auto; flex:1; display:flex; gap:20px;">
-
-        <!-- Left Column: Search and List -->
-        <div style="flex:1; min-width:350px;">
-          <!-- Database Toggle -->
-          <!-- DISABLED: Finnish database toggle hidden as it's not working in production
-          <div style="margin-bottom:16px;">
-            <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
-              Välj databas
-            </label>
-            <div style="display:flex; gap:8px;">
-              <button
-                id="toggleBoverket"
-                type="button"
-                style="flex:1; padding:10px; border:2px solid #2196f3; background:#2196f3; color:white; border-radius:6px; font-weight:600; cursor:pointer; transition:all 0.2s;"
-              >
-                🇸🇪 Boverket
-              </button>
-              <button
-                id="toggleCo2data"
-                type="button"
-                style="flex:1; padding:10px; border:2px solid #ddd; background:white; color:#666; border-radius:6px; font-weight:600; cursor:pointer; transition:all 0.2s;"
-              >
-                🇫🇮 co2data.fi
-              </button>
-            </div>
-          </div>
-          -->
-
-          <!-- Search Box -->
-          <div style="margin-bottom:16px;">
-            <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
-              Sök klimatresurs
-            </label>
-            <input
-              id="climateSearchInput"
-              type="text"
-              placeholder="Filtrera på namn eller kategori..."
-              style="width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:4px; font-size:0.95rem; box-sizing:border-box;"
-            />
-          </div>
-
-          <!-- Resource List -->
-          <div>
-            <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
-              Tillgängliga resurser
-            </label>
-            <select
-              id="climateResourceSelect"
-              size="20"
-              style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:0.9rem; background:white;"
-            >
-              <option value="">Laddar resurser...</option>
-            </select>
-            <p style="margin:8px 0 0 0; color:#666; font-size:0.85rem;">
-              Resurser grupperade efter kategori
-            </p>
-          </div>
-        </div>
-
-        <!-- Right Column: Resource Details -->
-        <div style="flex:1; min-width:350px; background:#f9f9f9; padding:20px; border-radius:4px; border:1px solid #e0e0e0;">
-          <h3 style="margin:0 0 16px 0; font-size:1rem; font-weight:600; color:#333;">Resursdetaljer</h3>
-          <div id="climateResourceDetails" style="font-size:0.9rem; color:#555; line-height:1.6;">
-            <p style="color:#999; font-style:italic;">Välj en resurs för att se detaljer</p>
-          </div>
-
-          <div style="margin-top:20px; padding:12px; background:white; border-radius:4px; border:1px solid #ddd;">
-            <p style="margin:0; color:#666; font-size:0.85rem; line-height:1.5;">
-              <strong>Info:</strong> Fyra nya kolumner läggs till när du mappar en resurs: Klimatresurs, Omräkningsfaktor, Omräkningsfaktor enhet och Avfallsfaktor.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div style="padding:16px 24px; background:#f5f5f5; border-top:1px solid #e0e0e0; display:flex; gap:12px; justify-content:flex-end;">
-        <button id="climateCancel" type="button" style="padding:8px 20px; border:1px solid #999; background:white; border-radius:4px; font-size:0.95rem; cursor:pointer;">
-          Avbryt
-        </button>
-        <button id="climateApply" type="button" style="padding:8px 20px; border:1px solid #555; background:#555; color:white; border-radius:4px; font-size:0.95rem; cursor:pointer;">
-          Mappa resurs
-        </button>
+<div class="cat-scrim" id="catalog" hidden>
+  <div class="catalog" role="dialog" aria-labelledby="catTitle">
+    <div class="ch">
+      <h2 id="catTitle">Mappa klimatresurs</h2><div class="dsub" id="catTarget"></div>
+      <div class="seg cat-tabs" id="catTabs" role="tablist">
+        <button type="button" data-tab="boverket" aria-pressed="true">Boverket</button>
+        <button type="button" data-tab="epd" aria-pressed="false">EPD och egna</button>
       </div>
     </div>
-  </div>
-
-  <!-- Alternative Climate Resource modal -->
-  <div id="altClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:2500;">
-    <div style="background:#fff; padding:0; border-radius:8px; width: min(900px, 95vw); box-shadow: 0 4px 20px rgba(0,0,0,.15); max-height: 90vh; overflow:hidden; display:flex; flex-direction:column;">
-
-      <!-- Header -->
-      <div style="padding:20px 24px; background:#fff; border-bottom:2px solid #e0e0e0;">
-        <h2 style="margin:0; font-size:1.3rem; font-weight:600; color:#333;">
-          Mappa EPD / Alternativ klimatresurs
-        </h2>
+    <div class="cbody" id="catBoverket">
+      <div class="cleft">
+        <input type="search" id="catSearch" placeholder="Sök namn eller kategori, t.ex. betong, gips, isolering…" aria-label="Sök klimatresurs" autocomplete="off">
+        <select id="catList" size="14" aria-label="Klimatresurser från Boverket"></select>
+        <span class="dsub" id="catCount"></span>
       </div>
-
-      <!-- Tab Selection -->
-      <div style="padding:16px 24px; background:#f9f9f9; border-bottom:1px solid #e0e0e0; display:flex; gap:12px;">
-        <button id="epdTabBtn" type="button" style="padding:8px 16px; border:none; background:#555; color:white; border-radius:4px; font-size:0.95rem; cursor:pointer; font-weight:600;">
-          Välj från EPD
-        </button>
-        <button id="manualTabBtn" type="button" style="padding:8px 16px; border:1px solid #ccc; background:white; color:#333; border-radius:4px; font-size:0.95rem; cursor:pointer;">
-          Manuell inmatning
-        </button>
+      <div class="cdetails" id="catDetails"></div>
+    </div>
+    <div class="cbody" id="catEpd" hidden>
+      <div class="cleft">
+        <input type="search" id="epdSearch" placeholder="Sök EPD eller egen resurs…" aria-label="Sök EPD" autocomplete="off">
+        <select id="epdList" size="12" aria-label="EPD:er och egna resurser"></select>
+        <span class="dsub">Välj en EPD för att fylla i formuläret, eller skriv in värden direkt.</span>
+        <div class="epd-info" id="epdInfo" hidden></div>
       </div>
-
-      <!-- Content -->
-      <div style="padding:24px; overflow-y:auto; flex:1;">
-
-        <!-- EPD Selection Tab -->
-        <div id="epdTabContent" style="display:flex; gap:20px;">
-          <!-- Left Column: Search and List -->
-          <div style="flex:1; min-width:350px;">
-            <!-- Search Box -->
-            <div style="margin-bottom:16px;">
-              <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
-                Sök EPD
-              </label>
-              <input
-                id="epdSearchInput"
-                type="text"
-                placeholder="Filtrera på namn..."
-                style="width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:4px; font-size:0.95rem; box-sizing:border-box;"
-              />
-            </div>
-
-            <!-- EPD List -->
-            <div>
-              <label style="display:block; margin-bottom:8px; font-weight:600; color:#333; font-size:0.9rem;">
-                Tillgängliga EPD:er
-              </label>
-              <select
-                id="epdFileSelect"
-                size="20"
-                style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:0.9rem; background:white;"
-              >
-                <option value="">Laddar EPD-filer...</option>
-              </select>
-              <p style="margin:8px 0 0 0; color:#666; font-size:0.85rem;">
-                EPD-filer från mappen "epd"
-              </p>
-            </div>
-          </div>
-
-          <!-- Right Column: EPD Details -->
-          <div style="flex:1; min-width:350px; background:#f9f9f9; padding:20px; border-radius:4px; border:1px solid #e0e0e0;">
-            <h3 style="margin:0 0 16px 0; font-size:1rem; font-weight:600; color:#333;">EPD-detaljer</h3>
-            <div id="epdPreview" style="display:none;">
-              <div id="epdPreviewContent" style="font-size:0.9rem; color:#555; line-height:1.6;">
-                <!-- Will be populated with EPD data -->
-              </div>
-            </div>
-            <div id="epdNoSelection" style="font-size:0.9rem; color:#999; font-style:italic;">
-              Välj en EPD för att se detaljer
-            </div>
-
-            <div style="margin-top:20px; padding:12px; background:white; border-radius:4px; border:1px solid #ddd;">
-              <p style="margin:0; color:#666; font-size:0.85rem; line-height:1.5;">
-                <strong>Info:</strong> När du väljer en EPD kommer emissionsfaktorerna automatiskt att fyllas i baserat på EPD-data.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Manual Input Tab -->
-        <div id="manualTabContent" style="display:none;">
-      
-      <p class="muted" style="margin-bottom:16px;">Mata in EPD-data manuellt för denna resurs.</p>
-      
-      <div style="display:grid; gap:16px; margin-bottom:20px;">
-        <!-- EPD Name -->
-        <div>
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            EPD-namn *
-          </label>
-          <input id="altClimateName" type="text" placeholder="t.ex. Betong C25/30" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-        </div>
-
-        <!-- Declared Unit -->
-        <div>
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            Deklarerad enhet *
-          </label>
-          <select id="altClimateUnit" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
-            <option value="">Välj enhet...</option>
-            <option value="kg">kg (kilogram)</option>
-            <option value="m2">m² (kvadratmeter)</option>
-            <option value="m3">m³ (kubikmeter)</option>
-            <option value="st">st (styck)</option>
-            <option value="m">m (meter)</option>
-            <option value="l">l (liter)</option>
-            <option value="t">t (ton)</option>
-          </select>
-        </div>
-
-        <!-- Conversion Factor -->
-        <div>
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            Omräkningsfaktor *
-          </label>
-          <input id="altClimateFactor" type="number" step="0.001" placeholder="t.ex. 1.0" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-        </div>
-
-        <!-- Conversion Factor Unit -->
-        <div>
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            Omräkningsfaktor enhet *
-          </label>
-          <select id="altClimateFactorUnit" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
-            <option value="">Välj enhet...</option>
-            <option value="kg/m³">kg/m³ (volym)</option>
-            <option value="kg/m²">kg/m² (area)</option>
-            <option value="kg/m">kg/m (längd)</option>
-            <option value="kg/st">kg/st (styck)</option>
-          </select>
-        </div>
-
-        <!-- Waste Factor -->
-        <div>
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            Spillfaktor (decimaltal)
-          </label>
-          <input id="altClimateWaste" type="number" step="0.01" placeholder="t.ex. 0.05" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-          <small style="color:#666; font-size:12px; margin-top:4px; display:block;">
-            Används för att beräkna inköpt vikt. 0.05 = 5% spill
-          </small>
-        </div>
-
-        <!-- Climate Impact A1-A3 -->
-        <div>
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            Klimatpåverkan A1-A3 (kg CO₂e/deklarerad enhet) *
-          </label>
-          <input id="altClimateA1A3" type="number" step="0.001" placeholder="t.ex. 0.245" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-        </div>
-
-        <!-- Climate Impact A4 -->
-        <div>
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            Klimatpåverkan A4 (kg CO₂e/deklarerad enhet)
-          </label>
-          <input id="altClimateA4" type="number" step="0.001" placeholder="t.ex. 0.012" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-        </div>
-
-        <!-- Climate Impact A5 -->
-        <div>
-          <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
-            Klimatpåverkan A5 (kg CO₂e/deklarerad enhet)
-          </label>
-          <input id="altClimateA5" type="number" step="0.001" placeholder="t.ex. 0.008" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;" />
-        </div>
-      </div>
-
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div style="padding:16px 24px; background:#f5f5f5; border-top:1px solid #e0e0e0; display:flex; gap:12px; justify-content:flex-end;">
-        <button id="altClimateCancel" type="button" style="padding:8px 20px; border:1px solid #999; background:white; border-radius:4px; font-size:0.95rem; cursor:pointer;">
-          Avbryt
-        </button>
-        <button id="altClimateApply" type="button" style="padding:8px 20px; border:1px solid #555; background:#555; color:white; border-radius:4px; font-size:0.95rem; cursor:pointer; font-weight:600;">
-          Applicera
-        </button>
-      </div>
+      <form class="cform" id="customForm" autocomplete="off">
+        <label class="wide">Namn *<input type="text" id="cfName" placeholder="t.ex. Betong C25/30, Leverantör"></label>
+        <label>Deklarerad enhet<select id="cfDecl"><option value="">–</option><option value="kg">kg</option><option value="m2">m²</option><option value="m3">m³</option><option value="st">st</option><option value="m">m</option><option value="l">l</option><option value="t">t</option></select></label>
+        <label>Spillfaktor<input type="number" id="cfWaste" step="any" min="0" placeholder="t.ex. 1.05"></label>
+        <label>Omräkningsfaktor *<input type="number" id="cfFactor" step="any" min="0" placeholder="t.ex. 2400"></label>
+        <label>Enhet *<select id="cfUnit"><option value="kg/m³">kg/m³ (× Volume)</option><option value="kg/m²">kg/m² (× Net Area)</option><option value="kg/m">kg/m (× Length)</option><option value="kg/st">kg/st (× Count)</option></select></label>
+        <label>A1–A3 *<input type="number" id="cfA13" step="any" placeholder="kg CO₂e/kg"></label>
+        <label>A4<input type="number" id="cfA4" step="any" placeholder="kg CO₂e/kg"></label>
+        <label>A5<input type="number" id="cfA5" step="any" placeholder="kg CO₂e/kg"></label>
+        <p class="wide dsub">Emissionsfaktorerna räknas mot inbyggd vikt (kg). Spillfaktor 1.05 betyder 5 % spill.</p>
+      </form>
+    </div>
+    <div class="cf">
+      <button class="link danger clear" type="button" id="catClear" hidden>Ta bort mappning</button>
+      <span class="cat-msg" id="catMsg" role="status"></span>
+      <button class="btn" type="button" id="catCancel">Avbryt</button>
+      <button class="btn primary" type="button" id="catUse" disabled>Använd</button>
     </div>
   </div>
+</div>
 
-  <!-- Multi-layer Climate Resource Mapping modal -->
-  <div id="multiLayerClimateModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:2400;">
-    <div style="background:#fff; padding:20px; border-radius:8px; width: min(900px, 95vw); max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,.2);">
-      <h2 style="margin-top:0;">Mappa klimatresurser till skikt</h2>
-      
-      <p class="muted" style="margin-bottom:16px;">Sök och välj klimatresurs för varje skikt. Du kan skriva för att filtrera listan.</p>
-      
-      <div id="multiLayerClimateContent" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap:16px; margin-bottom:16px;">
-        <!-- Will be populated dynamically -->
-      </div>
-
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:2px solid #ddd;">
-        <button id="multiLayerClimateCancel" type="button" style="padding:10px 20px;">Avbryt</button>
-        <button id="multiLayerClimateApply" type="button" style="background:#4caf50; color:white; border:1px solid #45a049; padding:10px 24px; font-weight:600;">Applicera alla</button>
-      </div>
+<div class="cat-scrim" id="rowModal" hidden>
+  <div class="catalog rowmodal" role="dialog" aria-labelledby="rowTitle">
+    <div class="ch"><h2 id="rowTitle">Lägg till rad</h2><div class="dsub">Fyll i det du vet. Förslag kommer från raderna som redan finns.</div></div>
+    <form class="cform rowfields" id="rowFields" autocomplete="off"></form>
+    <div class="cf">
+      <button class="btn" type="button" id="rowCancel">Avbryt</button>
+      <button class="btn primary" type="button" id="rowSave">Lägg till</button>
     </div>
   </div>
+</div>
 
-  <!-- Manual Conversion Factor modal -->
-  <div id="manualFactorModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 2600;">
-    <div style="background:#fff; padding:20px; border-radius:8px; width: min(500px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.2);">
-      <h2 style="margin-top:0; color: #ff9800;">⚠️ Saknad omräkningsfaktor</h2>
-      
-      <p style="margin-bottom:16px;">
-        Den valda klimatresursen <strong id="manualFactorResourceName"></strong> saknar omräkningsfaktor i API:n.
-        Vänligen ange en egen omräkningsfaktor:
-      </p>
+<div class="toast" id="toast" role="status" hidden></div>
 
-      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
-        <label style="display:flex; flex-direction:column; gap:4px;">
-          <span style="font-weight:600;">Omräkningsfaktor:</span>
-          <input id="manualFactorValue" type="number" step="0.001" placeholder="t.ex. 2400" style="padding:8px; border:1px solid #ddd; border-radius:4px;" />
-        </label>
-
-        <label style="display:flex; flex-direction:column; gap:4px;">
-          <span style="font-weight:600;">Enhet:</span>
-          <select id="manualFactorUnit" style="padding:8px; border:1px solid #ddd; border-radius:4px;">
-            <option value="kg/m³">kg/m³ (volym)</option>
-            <option value="kg/m²">kg/m² (area)</option>
-            <option value="kg/m">kg/m (längd)</option>
-            <option value="kg/st">kg/st (styck)</option>
-          </select>
-        </label>
-      </div>
-
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button id="manualFactorCancel" type="button">Avbryt</button>
-        <button id="manualFactorApply" type="button" style="background:#4caf50; color:white; border:1px solid #45a049;">Använd</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- SheetJS library for Excel export -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  
-  <!-- EPD Parser -->
-  <script src="epd-parser.js"></script>
-
-  <script type="module" src="app.js"></script>
-
-  <script>
-    const apiIndicator = document.getElementById('apiIndicator');
-    const epdIndicator = document.getElementById('epdIndicator');
-    const climateResourceSelect = document.getElementById('climateResourceSelect');
-    const climateSearchInput = document.getElementById('climateSearchInput');
-
-    // Store climate resources globally so they can be accessed when numbering
-    window.climateResources = [];
-    window.boverketResources = [];
-    window.co2dataResources = [];
-    window.currentDatabase = 'boverket'; // 'boverket' or 'co2data'
-
-    // Function to populate climate resources with categories
-    function populateClimateResourcesWithCategories(resources) {
-      // Group resources by category
-      const categorizedResources = {};
-
-      resources.forEach((resource, index) => {
-        const category = resource.Categories && resource.Categories.length > 0
-          ? resource.Categories[0].Text
-          : 'Övrigt';
-
-        if (!categorizedResources[category]) {
-          categorizedResources[category] = [];
-        }
-
-        categorizedResources[category].push({
-          index: index,
-          name: resource.Name || 'Namnlös resurs',
-          resource: resource
-        });
-      });
-
-      // Sort categories alphabetically
-      const sortedCategories = Object.keys(categorizedResources).sort();
-
-      // Populate select with optgroups
-      climateResourceSelect.innerHTML = '<option value="">Välj en resurs...</option>';
-
-      sortedCategories.forEach(category => {
-        const optgroup = document.createElement('optgroup');
-        optgroup.label = category;
-
-        // Sort resources within category
-        categorizedResources[category]
-          .sort((a, b) => a.name.localeCompare(b.name, 'sv'))
-          .forEach(item => {
-            const option = document.createElement('option');
-            option.value = item.index;
-            option.textContent = item.name;
-            option.dataset.category = category;
-            option.dataset.searchText = `${category} ${item.name}`.toLowerCase();
-            optgroup.appendChild(option);
-          });
-
-        climateResourceSelect.appendChild(optgroup);
-      });
-    }
-
-    // Function to normalize co2data.fi structure to match Boverket
-    function normalizeCo2dataResource(resource) {
-      // Normalize Categories structure
-      if (resource.Categories && Array.isArray(resource.Categories)) {
-        resource.Categories = resource.Categories.map(cat => {
-          if (cat.Text) return cat; // Already in correct format
-          if (cat.Title) return { Text: cat.Title }; // Convert Title to Text
-          return { Text: String(cat) }; // Wrap string
-        });
-      } else {
-        resource.Categories = [{ Text: 'Övrigt' }];
-      }
-
-      // Ensure Name field exists (use Names.FI or Names.SV as fallback)
-      if (!resource.Name && resource.Names) {
-        resource.Name = resource.Names.FI || resource.Names.SV || 'Namnlös resurs';
-      }
-
-      // Normalize Conversions structure
-      if (resource.Conversions && Array.isArray(resource.Conversions)) {
-        resource.Conversions = resource.Conversions.map(conv => {
-          // co2data.fi uses Field/Unit/Value, Boverket uses Type/Unit/Value
-          return {
-            Type: conv.Field || conv.Type,
-            Unit: conv.Unit,
-            Value: conv.Value
-          };
-        });
-      }
-
-      // If no standard Conversions but has InventoryUnit, create a basic conversion
-      if ((!resource.Conversions || resource.Conversions.length === 0) && resource.InventoryUnit) {
-        resource.Conversions = [{ Unit: resource.InventoryUnit, Value: 1 }];
-      }
-
-      // Convert co2data.fi DataItems format to match Boverket if needed
-      // co2data.fi has DataItems with PropertyId, PropertyName, DataValueItems
-      // This should already be compatible, but ensure DataItems exists
-      if (!resource.DataItems && resource.A1A3Total_GWP !== undefined) {
-        // Create DataItems from direct GWP values
-        resource.DataItems = [{
-          PropertyId: 1,
-          PropertyName: 'Global Warming Potential',
-          PropertyUnitCode: `kg CO2e/${resource.InventoryUnit || 'kg'}`,
-          DataValueItems: []
-        }];
-
-        // Add all available GWP values
-        if (resource.A1A3Conservative_GWP !== undefined) {
-          resource.DataItems[0].DataValueItems.push({
-            DataModuleCode: 'A1-A3 Conservative',
-            Value: resource.A1A3Conservative_GWP
-          });
-        }
-        if (resource.A1A3Total_GWP !== undefined) {
-          resource.DataItems[0].DataValueItems.push({
-            DataModuleCode: 'A1-A3 Total',
-            Value: resource.A1A3Total_GWP
-          });
-        }
-        if (resource.A1A3Typical_GWP !== undefined) {
-          resource.DataItems[0].DataValueItems.push({
-            DataModuleCode: 'A1-A3 Typical',
-            Value: resource.A1A3Typical_GWP
-          });
-        }
-        if (resource.C3_GWP !== undefined) {
-          resource.DataItems[0].DataValueItems.push({
-            DataModuleCode: 'C3',
-            Value: resource.C3_GWP
-          });
-        }
-        if (resource.C4_GWP !== undefined) {
-          resource.DataItems[0].DataValueItems.push({
-            DataModuleCode: 'C4',
-            Value: resource.C4_GWP
-          });
-        }
-      }
-
-      return resource;
-    }
-
-    // Function to switch between databases
-    function switchDatabase(database) {
-      window.currentDatabase = database;
-
-      // Update toggle button styles
-      const boverketBtn = document.getElementById('toggleBoverket');
-      const co2dataBtn = document.getElementById('toggleCo2data');
-
-      if (database === 'boverket') {
-        boverketBtn.style.background = '#2196f3';
-        boverketBtn.style.color = 'white';
-        boverketBtn.style.borderColor = '#2196f3';
-
-        co2dataBtn.style.background = 'white';
-        co2dataBtn.style.color = '#666';
-        co2dataBtn.style.borderColor = '#ddd';
-
-        window.climateResources = window.boverketResources;
-      } else {
-        co2dataBtn.style.background = '#ff9800';
-        co2dataBtn.style.color = 'white';
-        co2dataBtn.style.borderColor = '#ff9800';
-
-        boverketBtn.style.background = 'white';
-        boverketBtn.style.color = '#666';
-        boverketBtn.style.borderColor = '#ddd';
-
-        window.climateResources = window.co2dataResources;
-      }
-
-      // Repopulate the dropdown
-      populateClimateResourcesWithCategories(window.climateResources);
-
-      // Clear search
-      if (climateSearchInput) {
-        climateSearchInput.value = '';
-      }
-
-      console.log(`Switched to ${database} database (${window.climateResources.length} resources)`);
-    }
-
-    // Search function for climate resources
-    if (climateSearchInput) {
-      climateSearchInput.addEventListener('input', function(e) {
-        const searchTerm = e.target.value.toLowerCase().trim();
-        const options = climateResourceSelect.querySelectorAll('option');
-        const optgroups = climateResourceSelect.querySelectorAll('optgroup');
-
-        if (!searchTerm) {
-          // Show all
-          options.forEach(opt => opt.style.display = '');
-          optgroups.forEach(grp => grp.style.display = '');
-          return;
-        }
-
-        // Hide all optgroups initially
-        optgroups.forEach(grp => grp.style.display = 'none');
-
-        // Filter options
-        options.forEach(opt => {
-          if (opt.value === '') {
-            opt.style.display = '';
-            return;
-          }
-
-          const searchText = opt.dataset.searchText || opt.textContent.toLowerCase();
-          if (searchText.includes(searchTerm)) {
-            opt.style.display = '';
-            // Show parent optgroup
-            const parentOptgroup = opt.parentElement;
-            if (parentOptgroup && parentOptgroup.tagName === 'OPTGROUP') {
-              parentOptgroup.style.display = '';
-            }
-          } else {
-            opt.style.display = 'none';
-          }
-        });
-      });
-    }
-
-    // Show resource details when selected
-    if (climateResourceSelect) {
-      climateResourceSelect.addEventListener('change', function(e) {
-        const detailsDiv = document.getElementById('climateResourceDetails');
-        if (!detailsDiv) return;
-
-        const selectedIndex = parseInt(e.target.value);
-        if (isNaN(selectedIndex) || !window.climateResources || !window.climateResources[selectedIndex]) {
-          detailsDiv.innerHTML = '<p style="color:#999; font-style:italic;">Välj en resurs för att se detaljer</p>';
-          return;
-        }
-
-        const resource = window.climateResources[selectedIndex];
-        console.log('Selected resource for details:', resource);
-
-        const category = resource.Categories && resource.Categories.length > 0 ? resource.Categories[0].Text : 'Ej kategoriserad';
-
-        // Extract conversion factor and unit - same logic as applyClimateResource in app.js
-        let conversionFactor = (resource.Conversions && resource.Conversions[0] && resource.Conversions[0].Value) ||
-                                resource.ConservativeDataConversionFactor ||
-                                resource.ConversionFactor ||
-                                resource.Factor ||
-                                resource.Omräkningsfaktor ||
-                                null;
-        let conversionUnit = (resource.Conversions && resource.Conversions[0] && resource.Conversions[0].Unit) || null;
-        let wasteFactor = resource.WasteFactor || null;
-
-        let conversionFactorDisplay = '<span style="color:#999;">Ej angiven</span>';
-        if (conversionFactor !== null && conversionFactor !== undefined) {
-          conversionFactorDisplay = `${conversionFactor}${conversionUnit ? ' ' + conversionUnit : ''}`;
-        }
-
-        let wasteFactorDisplay = '<span style="color:#999;">Ej angiven</span>';
-        if (wasteFactor !== null && wasteFactor !== undefined) {
-          wasteFactorDisplay = wasteFactor;
-        }
-
-        let detailsHTML = `
-          <div style="margin-bottom:12px;">
-            <strong style="color:#333;">Namn:</strong>
-            <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd;">${resource.Name || 'Okänt'}</div>
-          </div>
-
-          <div style="margin-bottom:12px;">
-            <strong style="color:#333;">Kategori:</strong>
-            <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd;">${category}</div>
-          </div>
-
-          <div style="margin-bottom:12px;">
-            <strong style="color:#333;">Omräkningsfaktor:</strong>
-            <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd;">
-              ${conversionFactorDisplay}
-            </div>
-          </div>
-
-          <div style="margin-bottom:12px;">
-            <strong style="color:#333;">Avfallsfaktor:</strong>
-            <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd;">
-              ${wasteFactorDisplay}
-            </div>
-          </div>
-        `;
-
-        if (resource.Description) {
-          detailsHTML += `
-            <div style="margin-bottom:12px;">
-              <strong style="color:#333;">Beskrivning:</strong>
-              <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd; font-size:0.85rem;">${resource.Description}</div>
-            </div>
-          `;
-        }
-
-        // Show additional conversion factors if available (same field check as app.js)
-        if (resource.Conversions && Array.isArray(resource.Conversions) && resource.Conversions.length > 1) {
-          detailsHTML += `
-            <div style="margin-bottom:12px;">
-              <strong style="color:#333;">Ytterligare omräkningsfaktorer:</strong>
-              <div style="margin-top:4px; padding:8px; background:white; border-radius:4px; border:1px solid #ddd; font-size:0.85rem;">
-          `;
-          resource.Conversions.forEach((conv, idx) => {
-            if (idx > 0) {
-              detailsHTML += `<div style="margin-top:4px;">${conv.Type || 'Typ ' + (idx+1)}: ${conv.Value}${conv.Unit ? ' ' + conv.Unit : ''}</div>`;
-            }
-          });
-          detailsHTML += `</div></div>`;
-        }
-
-        detailsDiv.innerHTML = detailsHTML;
-      });
-
-      // Add double-click to quickly apply selected resource
-      climateResourceSelect.addEventListener('dblclick', function(e) {
-        const selectedIndex = parseInt(this.value);
-        if (isNaN(selectedIndex) || selectedIndex < 0) {
-          return;
-        }
-
-        // Trigger the apply button click
-        const applyBtn = document.getElementById('climateApply');
-        if (applyBtn) {
-          applyBtn.click();
-        }
-      });
-    }
-
-    // Attach toggle event listeners
-    // DISABLED: Toggle buttons are hidden, so event listeners are not needed
-    // document.getElementById('toggleBoverket').addEventListener('click', () => switchDatabase('boverket'));
-    // document.getElementById('toggleCo2data').addEventListener('click', () => switchDatabase('co2data'));
-
-    // Configure which version to use - change this to update to a new version
-    const BOVERKET_API_VERSION = '02.07.000'; // Change this to use a different version
-
-    // Fetch APIs in parallel: specified version + latest version check
-    Promise.all([
-      fetch(`https://api.boverket.se/klimatdatabas/api/Klimat/v2/GetAllResources/${BOVERKET_API_VERSION}/sv/json`)
-        .then(res => res.json())
-        .catch(err => {
-          console.error('Boverket API Error:', err);
-          return null;
-        }),
-      // Check for latest version
-      fetch('https://api.boverket.se/klimatdatabas/api/Klimat/v2/GetAllResources/latest/sv/json')
-        .then(res => res.json())
-        .catch(err => {
-          console.error('Boverket latest version check error:', err);
-          return null;
-        }),
-      // DISABLED: Finnish database not working in production
-      Promise.resolve(null) // Return null instead of fetching co2data
-    ]).then(([boverketData, latestVersionData, co2dataFiData]) => {
-      console.log('Boverket API Response:', boverketData);
-      console.log('Latest version data:', latestVersionData);
-      console.log('co2data.fi API Response:', co2dataFiData);
-
-      // Process Boverket data
-      if(boverketData && boverketData.Resources && Array.isArray(boverketData.Resources)){
-        const version = boverketData.Version || 'Okänd version';
-        const publishedDate = boverketData.PublishedDate ? new Date(boverketData.PublishedDate).toLocaleDateString('sv-SE') : 'Okänt datum';
-
-        // Check if there's a newer version available
-        const latestVersion = latestVersionData?.Version || null;
-        const hasUpdate = latestVersion && latestVersion !== version;
-
-        apiIndicator.className = 'api-indicator connected';
-        apiIndicator.innerHTML = `
-          <div class="api-status">
-            <span class="api-status-dot connected"></span>
-            <span>Boverket</span>
-          </div>
-          <div class="api-details">
-            ${boverketData.Resources.length} resurser<br>
-            Ver: ${version}<br>
-            Uppdaterad: ${publishedDate}
-            ${hasUpdate ? `<br><span style="color: #ff9800; font-weight: bold;">⚠ Uppdatering finns: ${latestVersion}</span>` : ''}
-          </div>
-        `;
-
-        // Store Boverket resources
-        window.boverketResources = [...boverketData.Resources];
-
-        // Add generic "Luft" resource to Boverket
-        window.boverketResources.push({
-          Name: 'Luft',
-          Categories: [{ Text: 'Generiska resurser' }],
-          Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
-          WasteFactor: 1,
-          Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
-          DataItems: [{
-            DataValueItems: [
-              { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
-              { DataModuleCode: 'A4', Value: 0 },
-              { DataModuleCode: 'A5.1', Value: 0 }
-            ]
-          }]
-        });
-
-        console.log(`✅ Loaded ${window.boverketResources.length} Boverket resources`);
-      } else {
-        apiIndicator.className = 'api-indicator error';
-        apiIndicator.innerHTML = `
-          <div class="api-status">
-            <span class="api-status-dot error"></span>
-            <span>Boverket</span>
-          </div>
-          <div class="api-details">Fel vid laddning</div>
-        `;
-        console.warn('❌ Boverket API failed or returned unexpected format');
-
-        // Still add Luft resource even if Boverket fails
-        window.boverketResources = [{
-          Name: 'Luft',
-          Categories: [{ Text: 'Generiska resurser' }],
-          Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
-          WasteFactor: 1,
-          Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
-          DataItems: [{
-            DataValueItems: [
-              { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
-              { DataModuleCode: 'A4', Value: 0 },
-              { DataModuleCode: 'A5.1', Value: 0 }
-            ]
-          }]
-        }];
-      }
-
-      // Process co2data.fi data
-      // DISABLED: Finnish database is not being loaded, so skip processing
-      if(co2dataFiData && co2dataFiData.Resources && Array.isArray(co2dataFiData.Resources)){
-        const version = co2dataFiData.Version || 'Okänd version';
-
-        if(epdIndicator) {
-          epdIndicator.className = 'api-indicator connected';
-          epdIndicator.innerHTML = `
-            <div class="api-status">
-              <span class="api-status-dot connected"></span>
-              <span>co2data.fi</span>
-            </div>
-            <div class="api-details">
-              ${co2dataFiData.Resources.length} resurser<br>
-              Ver: ${version}
-            </div>
-          `;
-        }
-
-        // Normalize and store co2data.fi resources
-        window.co2dataResources = co2dataFiData.Resources.map(resource => normalizeCo2dataResource(resource));
-
-        console.log(`✅ Loaded ${window.co2dataResources.length} co2data.fi resources`);
-      } else {
-        if(epdIndicator) {
-          epdIndicator.className = 'api-indicator error';
-          epdIndicator.innerHTML = `
-            <div class="api-status">
-              <span class="api-status-dot error"></span>
-              <span>co2data.fi</span>
-            </div>
-            <div class="api-details">Fel vid laddning</div>
-          `;
-        }
-        console.log('ℹ️ co2data.fi database disabled');
-        window.co2dataResources = [];
-      }
-
-      // Set active database (default to Boverket)
-      window.climateResources = window.boverketResources;
-      window.currentDatabase = 'boverket';
-
-      // Populate dropdown with default database (Boverket)
-      populateClimateResourcesWithCategories(window.climateResources);
-
-      console.log(`📊 Total: Boverket=${window.boverketResources.length}, co2data.fi=${window.co2dataResources.length}`);
-    }).catch(err => {
-      console.error('Critical API Error:', err);
-
-      // Update API indicator with error status
-      apiIndicator.className = 'api-indicator error';
-      apiIndicator.innerHTML = `
-        <div class="api-status">
-          <span class="api-status-dot error"></span>
-          <span>Boverket</span>
-        </div>
-        <div class="api-details">Anslutning misslyckades</div>
-      `;
-
-      if(epdIndicator) {
-        epdIndicator.className = 'api-indicator error';
-        epdIndicator.innerHTML = `
-          <div class="api-status">
-            <span class="api-status-dot error"></span>
-            <span>co2data.fi</span>
-          </div>
-          <div class="api-details">Anslutning misslyckades</div>
-        `;
-      }
-
-      // Add generic "Luft" resource as fallback
-      window.climateResources = [{
-        Name: 'Luft',
-        Categories: [{ Text: 'Generiska resurser' }],
-        Conversions: [{ Value: 1.2, Unit: 'kg/m3' }],
-        WasteFactor: 1,
-        Description: 'Generisk luftresurs med densitet 1,2 kg/m³',
-        DataItems: [{
-          DataValueItems: [
-            { DataModuleCode: 'A1-A3 Conservative', Value: 0 },
-            { DataModuleCode: 'A4', Value: 0 },
-            { DataModuleCode: 'A5.1', Value: 0 }
-          ]
-        }]
-      }];
-      window.boverketResources = window.climateResources;
-      window.co2dataResources = [];
-      populateClimateResourcesWithCategories(window.climateResources);
-    });
-    
-    // EPD files will be loaded by app.js after it initializes
-    
-  </script>
-
-  <div id="cell-tooltip"></div>
-  <script>
-    (function() {
-      const tooltip = document.getElementById('cell-tooltip');
-      let hideTimer = null;
-
-      document.addEventListener('mouseover', e => {
-        const cell = e.target.closest('td, th');
-        if (!cell) return;
-        clearTimeout(hideTimer);
-        if (cell.scrollWidth > cell.clientWidth + 2) {
-          tooltip.textContent = cell.textContent.trim();
-          tooltip.style.display = 'block';
-        } else {
-          tooltip.style.display = 'none';
-        }
-      });
-
-      document.addEventListener('mousemove', e => {
-        if (tooltip.style.display === 'none') return;
-        const x = e.clientX + 14;
-        const y = e.clientY + 14;
-        const rect = tooltip.getBoundingClientRect();
-        tooltip.style.left = (x + rect.width > window.innerWidth ? e.clientX - rect.width - 6 : x) + 'px';
-        tooltip.style.top = (y + rect.height > window.innerHeight ? e.clientY - rect.height - 6 : y) + 'px';
-      });
-
-      document.addEventListener('mouseout', e => {
-        const cell = e.target.closest('td, th');
-        if (cell) hideTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 80);
-      });
-    })();
-  </script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="epd-parser.js"></script>
+<script type="module" src="klimat/main.js"></script>
 </body>
 </html>
